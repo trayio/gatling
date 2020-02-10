@@ -32,7 +32,6 @@ class WaitDecoupledResponseAction(requestName: String, nextAction: Action, id: U
 
   override def requestName: Expression[String] = name.expressionSuccess
 
-//  override protected def execute(session: Session): Unit = ???
   override def sendRequest(requestName: String, session: Session): Validation[Unit] = {
 
     // TODO notify actor that a request is pending https://trayio.atlassian.net/browse/PSP-1658
