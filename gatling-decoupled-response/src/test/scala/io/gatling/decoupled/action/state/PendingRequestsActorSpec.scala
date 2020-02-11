@@ -1,0 +1,182 @@
+/*
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.gatling.decoupled.action.state
+
+import java.time.Instant
+import java.util.UUID
+
+import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers._
+import org.scalatest.concurrent.Eventually
+import io.gatling.core.stats.StatsEngine
+import io.gatling.decoupled.state.PendingRequestsActor
+import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, ExecutionPhase, RequestTriggered }
+import io.gatling.AkkaSpec
+import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.util.Clock
+import io.gatling.core.action.Action
+import io.gatling.core.session.{ Block, Session }
+import io.netty.channel.EventLoop
+
+import scala.concurrent.duration._
+
+import scala.concurrent.duration.FiniteDuration
+
+class PendingRequestsActorSpec extends AkkaSpec with Eventually {
+
+  behavior of "PendingRequestsActor"
+
+  it should "log in StatsEngine time distance between triggering and first execution phase" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, phases)
+
+    verifyPhasesLogs(Seq(triggerPhase, phases.head))
+  }
+
+  it should "log in StatsEngine time distance before two consecutive execution phases" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, phases)
+
+    verifyPhasesLogs(phases)
+  }
+  it should "manage case when response is received before trigger" in new Fixtures {
+    actor ! DecoupledResponseReceived(executionId, phases)
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+
+    verifyPhasesLogs(triggerPhase +: phases)
+  }
+
+  it should "trigger next action once response is received" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, phases)
+
+    verifyNextActionTriggered
+  }
+
+  it should "error if no phases in response" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, Seq.empty)
+
+    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  it should "error if there are duplicated phase names" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, triggerPhase +: phases)
+
+    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  it should "error if times are reversed" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, phases.reverse)
+
+    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  it should "error after a timeout if response does not come in" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+
+    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  it should "error if trigger is received twice" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! DecoupledResponseReceived(executionId, phases)
+
+    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  sealed trait Fixtures {
+
+    val statsEngine = mock[StatsEngine]
+
+    val session = Session(
+      "PendingRequestsActorSpec",
+      0,
+      0,
+      Map.empty,
+      OK,
+      List.empty,
+      _ => (),
+      mock[EventLoop]
+    )
+    val next = mock[Action]
+
+    val executionId = UUID.randomUUID()
+    val initialTime = Instant.now
+    val brokenClock = new Clock {
+      override def nowMillis: Long = initialTime.toEpochMilli + 1
+    }
+
+    val pendingTimeout: FiniteDuration = 50 millis
+
+    val actor = PendingRequestsActor(system, statsEngine, brokenClock, pendingTimeout)
+
+    val triggerPhase = ExecutionPhase("Trigger", initialTime)
+    val phases = (1 to 5).map { i =>
+      ExecutionPhase(s"phase-$i", initialTime.plusMillis(i * 1000))
+    }
+
+    def verifyPhasesLogs(phases: Seq[ExecutionPhase]): Unit = {
+      phases.sliding(2).foreach {
+        case pair =>
+          verifyStatsEngineCall(pair.head, pair.tail.head)
+      }
+    }
+
+    def verifyStatsEngineCall(from: ExecutionPhase, to: ExecutionPhase): Unit = {
+      eventually {
+        verify(statsEngine, times(1)).logResponse(
+          session,
+          PendingRequestsActor.genName(executionId, from.name, to.name),
+          from.time.toEpochMilli,
+          to.time.toEpochMilli,
+          OK,
+          None,
+          None
+        )
+      }
+    }
+
+    def verifyStatsEngineErrorCallAndNextActionIsNotExecuted: Unit = {
+      eventually {
+        verify(statsEngine, times(1)).logResponse(
+          session,
+          PendingRequestsActor.genErrorName(executionId),
+          initialTime.toEpochMilli,
+          brokenClock.nowMillis,
+          KO,
+          None,
+          None
+        )
+
+        verify(next, never) ! any[Session]
+      }
+
+    }
+
+    def verifyNextActionTriggered: Unit = {
+      eventually {
+        verify(next, times(1)) ! any[Session]
+      }
+    }
+
+  }
+
+}
