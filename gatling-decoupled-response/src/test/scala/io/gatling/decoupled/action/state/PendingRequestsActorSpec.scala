@@ -24,7 +24,7 @@ import org.mockito.ArgumentMatchers._
 import org.scalatest.concurrent.Eventually
 import io.gatling.core.stats.StatsEngine
 import io.gatling.decoupled.state.PendingRequestsActor
-import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, ExecutionPhase, RequestTriggered }
+import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, ExecutionPhase, MessageAck, RequestTriggered }
 import io.gatling.AkkaSpec
 import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.Clock
@@ -33,7 +33,6 @@ import io.gatling.core.session.{ Block, Session }
 import io.netty.channel.EventLoop
 
 import scala.concurrent.duration._
-
 import scala.concurrent.duration.FiniteDuration
 
 class PendingRequestsActorSpec extends AkkaSpec with Eventually {
@@ -100,6 +99,14 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(executionId, phases)
 
     verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+  }
+
+  it should "acknowledge messages" in new Fixtures {
+    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    expectMsg(MessageAck)
+
+    actor ! DecoupledResponseReceived(executionId, phases)
+    expectMsg(MessageAck)
   }
 
   sealed trait Fixtures {

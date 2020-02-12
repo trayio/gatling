@@ -66,6 +66,9 @@ object PendingRequestsActor {
   final case class WaitResponseTimeout(id: UUID) extends ActorMessage
   final case class WaitTriggerTimeout(id: UUID) extends ActorMessage
 
+  sealed trait ActorResponse
+  final case object MessageAck extends ActorResponse
+
   val triggerPhaseName = "Trigger"
   def genName(id: UUID, from: String, to: String): String = {
     s"$id: $from -> $to"
@@ -86,36 +89,45 @@ class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeou
     case trigger @ RequestTriggered(id, _, _, _) if state.waitingResponse.contains(id) =>
       log.debug("Duplicate trigger received: {}", trigger)
       onWrongMessageReceived(id, state)
+      ackMessage
 
     case trigger @ RequestTriggered(id, _, _, _) if state.waitingTrigger.contains(id) =>
       val response = state.waitingTrigger(id)
       onTriggerAndResponseAvailable(trigger, response, state)
+      ackMessage
 
     case trigger: RequestTriggered =>
       onOnlyTriggerAvailable(trigger, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if phases.isEmpty =>
       log.debug("Response with no phases received: {}", response)
       onWrongMessageReceived(response.id, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if hasDuplicatedPhaseNames(phases) =>
       log.debug("Response with duplicate phase names received: {}", response)
       onWrongMessageReceived(response.id, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(id, _) if state.waitingResponse.contains(id) =>
       val trigger = state.waitingResponse(id)
       onTriggerAndResponseAvailable(trigger, response, state)
+      ackMessage
 
     case response: DecoupledResponseReceived =>
       onOnlyResponseAvailable(response, state)
+      ackMessage
 
     case WaitResponseTimeout(id) =>
       log.debug("Response not received: {}", id)
       onWrongMessageReceived(id, state)
+      ackMessage
 
     case WaitTriggerTimeout(id) =>
       log.debug("Trigger not received: {}", id)
       onWrongMessageReceived(id, state)
+      ackMessage
 
   }
 
@@ -220,6 +232,10 @@ class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeou
       None,
       None
     )
+  }
+
+  private def ackMessage = {
+    sender() ! MessageAck
   }
 
 }
