@@ -89,7 +89,7 @@ lazy val jms = gatlingModule("gatling-jms")
 
 lazy val decoupledResponse = gatlingModule("gatling-decoupled-response")
   .dependsOn(core % "compile->compile;test->test", http % "compile->compile;test->test")
-  .settings(libraryDependencies ++= httpDependencies)
+  .settings(libraryDependencies ++= decoupledResponseDependencies)
 
 lazy val charts = gatlingModule("gatling-charts")
   .dependsOn(core % "compile->compile;test->test")

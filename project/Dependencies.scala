@@ -23,6 +23,8 @@ object Dependencies {
   private val activation                     = "com.sun.activation"                   % "javax.activation"                % "1.2.0"
   private val akka                           = "com.typesafe.akka"                   %% "akka-actor"                      % "2.6.2"
   private val akkaSlf4j                      = akka.organization                     %% "akka-slf4j"                      % akka.revision
+  private val akkaStream                     = akka.organization                     %% "akka-stream"                     % akka.revision
+  private val alpakkaSqs                     = "com.lightbend.akka"                  %% "akka-stream-alpakka-sqs"         % "1.1.2"
   private val config                         = "com.typesafe"                         % "config"                          % "1.4.0"
   private val saxon                          = "net.sf.saxon"                         % "Saxon-HE"                        % "9.9.1-6"
   private val slf4jApi                       = "org.slf4j"                            % "slf4j-api"                       % "1.7.30"
@@ -68,6 +70,7 @@ object Dependencies {
   private val scalaTestMockito               = scalaTestScalacheck.organization      %% "mockito-1-10"                    % "3.1.0.0"           % "test"
   private val scalaCheck                     = "org.scalacheck"                      %% "scalacheck"                      % "1.14.3"            % "test"
   private val akkaTestKit                    = akka.organization                     %% "akka-testkit"                    % akka.revision       % "test"
+  private val akkaStreamTestKit              = akka.organization                     %% "akka-stream-testkit"             % akka.revision       % "test"
   private val mockitoCore                    = "org.mockito"                          % "mockito-core"                    % "3.2.0"             % "test"
   private val activemqBroker                 = ("org.apache.activemq"                 % "activemq-broker"                 % "5.15.11"           % "test")
     .exclude("org.apache.geronimo.specs", "geronimo-jms_1.1_spec")
@@ -119,6 +122,8 @@ object Dependencies {
   val httpDependencies = Seq(scalaXml) ++ testDeps
 
   val jmsDependencies = Seq(jmsApi, activemqBroker) ++ testDeps
+
+  val decoupledResponseDependencies = Seq(alpakkaSqs, akkaStream, akkaStreamTestKit) ++ httpDependencies
 
   val jdbcDependencies = h2 +: testDeps
 
