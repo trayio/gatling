@@ -63,6 +63,9 @@ object Dependencies {
   private val quicklens                      = "com.softwaremill.quicklens"          %% "quicklens"                       % "1.4.12"
   private val fastUuid                       = "com.eatthepath"                       % "fast-uuid"                       % "0.1"
   private val pebble                         = "io.pebbletemplates"                   % "pebble"                          % "3.1.2"
+  private val circeCore                      = "io.circe"                            %% "circe-core"                      % "0.12.3"
+  private val circeGeneric                   = circeCore.organization                %% "circe-generic"                   % circeCore.revision
+  private val circeParser                    = circeCore.organization                %% "circe-parser"                    % circeCore.revision
 
   // Test dependencies
   private val scalaTest                      = "org.scalatest"                       %% "scalatest"                       % "3.1.0"             % "test"
@@ -86,6 +89,7 @@ object Dependencies {
   private val loggingDeps = Seq(slf4jApi, scalaLogging, logback)
   private val testDeps = Seq(scalaTest, scalaTestScalacheck, scalaTestMockito, scalaCheck, akkaTestKit, mockitoCore)
   private val parserDeps = Seq(jackson, saxon, joddLagarto, jmespath)
+  private val circeDeps = Seq(circeCore, circeGeneric, circeParser)
 
   // Dependencies by module
 
@@ -123,7 +127,7 @@ object Dependencies {
 
   val jmsDependencies = Seq(jmsApi, activemqBroker) ++ testDeps
 
-  val decoupledResponseDependencies = Seq(alpakkaSqs, akkaStream, akkaStreamTestKit) ++ httpDependencies
+  val decoupledResponseDependencies = Seq(alpakkaSqs, akkaStream, akkaStreamTestKit) ++ httpDependencies ++ circeDeps
 
   val jdbcDependencies = h2 +: testDeps
 

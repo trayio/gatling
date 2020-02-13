@@ -32,23 +32,28 @@ import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceiv
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
 
-class PendingRequestsManager(
+trait PendingRequestsState {
+  def registerTrigger(id: UUID, trigger: TriggerPhase, session: Session, next: Action): Future[Done]
+  def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done]
+}
+
+class ActorBasedPendingRequestsState(
     actorRefFactory: ActorRefFactory,
     statsEngine: StatsEngine,
     clock: Clock,
     pendingTimeout: FiniteDuration,
     askTimeout: FiniteDuration
-) {
+) extends PendingRequestsState {
   private implicit val executor: ExecutionContext = actorRefFactory.dispatcher
   private implicit val askTimeoutObject: Timeout = Timeout(askTimeout)
 
   private val actor = PendingRequestsActor(actorRefFactory, statsEngine, clock, pendingTimeout)
 
-  def registerTrigger(id: UUID, trigger: TriggerPhase, session: Session, next: Action): Future[Done] = {
+  override def registerTrigger(id: UUID, trigger: TriggerPhase, session: Session, next: Action): Future[Done] = {
     (actor ? RequestTriggered(id, trigger, session, next)).map(_ => Done)
   }
 
-  def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done] = {
+  override def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done] = {
     (actor ? DecoupledResponseReceived(id, executionPhases)).map(_ => Done)
   }
 
