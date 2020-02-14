@@ -16,9 +16,7 @@
 
 package io.gatling.decoupled.ingestion
 
-import java.net.URI
-
-import akka.{ Done, NotUsed }
+import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.alpakka.sqs.{ MessageAction, SqsSourceSettings }
 import akka.stream.alpakka.sqs.scaladsl.{ SqsAckSink, SqsSource }
@@ -42,7 +40,7 @@ object SqsReader {
   }
 }
 
-class SqsReader(processor: MessageProcessor, queueUrl: String, awsKeys: Option[AwsKeys])(implicit actorSystem: ActorSystem) {
+class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String, awsKeys: Option[AwsKeys])(implicit actorSystem: ActorSystem) {
   import SqsReader._
 
   private implicit val awsSqsClient = buildAwsClient
@@ -58,7 +56,7 @@ class SqsReader(processor: MessageProcessor, queueUrl: String, awsKeys: Option[A
   private def buildAwsClient = {
     val awsSqsClientBuilder = SqsAsyncClient
       .builder()
-//      .region(Region.EU_CENTRAL_1)
+      .region(awsRegion)
       .httpClient(AkkaHttpClient.builder().withActorSystem(actorSystem).build())
 
     awsKeys.foreach(
