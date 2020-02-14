@@ -52,7 +52,8 @@ lazy val root = Project("gatling-parent", file("."))
     recorder,
     testFramework,
     bundle,
-    compiler
+    compiler,
+    decoupledResponse
   )
   .settings(basicSettings)
   .settings(skipPublishing)
@@ -73,7 +74,7 @@ lazy val docSamples = (project in file("src/docs"))
     kotlinVersion := "1.6.21"
   )
   .dependsOn(
-    Seq(commons, jsonpath, core, coreJava, http, httpJava, jms, jmsJava, mqtt, mqttJava, jdbc, jdbcJava, redis, redisJava).map(
+    Seq(commons, jsonpath, core, coreJava, http, httpJava, jms, jmsJava, mqtt, mqttJava, jdbc, jdbcJava, redis, redisJava, decoupledResponse).map(
       _ % "compile->compile;test->test"
     ): _*
   )
