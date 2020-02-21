@@ -16,7 +16,6 @@
 
 package io.gatling.decoupled.state
 
-import java.time.Instant
 import java.util.UUID
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, ActorRefFactory, Props, Timers }
@@ -25,12 +24,13 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
+import io.gatling.decoupled.models.ExecutionPhase
 
 import scala.concurrent.duration.FiniteDuration
 
 object PendingRequestsActor {
 
-  def apply(actorRefFactory: ActorRefFactory, statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration): ActorRef = {
+  private[state] def apply(actorRefFactory: ActorRefFactory, statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration): ActorRef = {
     actorRefFactory.actorOf(
       Props(new PendingRequestsActor(statsEngine, clock, pendingTimeout))
     )
@@ -58,15 +58,15 @@ object PendingRequestsActor {
     val empty: ActorState = ActorState(Map.empty, Map.empty)
   }
 
-  final case class ExecutionPhase(name: String, time: Instant)
-
   sealed trait ActorMessage
   final case class RequestTriggered(id: UUID, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage
   final case class DecoupledResponseReceived(id: UUID, executionPhases: Seq[ExecutionPhase]) extends ActorMessage
   final case class WaitResponseTimeout(id: UUID) extends ActorMessage
   final case class WaitTriggerTimeout(id: UUID) extends ActorMessage
 
-  val triggerPhaseName = "Trigger"
+  sealed trait ActorResponse
+  final case object MessageAck extends ActorResponse
+
   def genName(id: UUID, from: String, to: String): String = {
     s"$id: $from -> $to"
   }
@@ -76,7 +76,7 @@ object PendingRequestsActor {
   }
 }
 
-class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration) extends Actor with ActorLogging with Timers {
+private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration) extends Actor with ActorLogging with Timers {
   import PendingRequestsActor._
 
   override def receive: Receive = receiveWithState(ActorState.empty)
@@ -86,36 +86,45 @@ class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeou
     case trigger @ RequestTriggered(id, _, _, _) if state.waitingResponse.contains(id) =>
       log.debug("Duplicate trigger received: {}", trigger)
       onWrongMessageReceived(id, state)
+      ackMessage
 
     case trigger @ RequestTriggered(id, _, _, _) if state.waitingTrigger.contains(id) =>
       val response = state.waitingTrigger(id)
       onTriggerAndResponseAvailable(trigger, response, state)
+      ackMessage
 
     case trigger: RequestTriggered =>
       onOnlyTriggerAvailable(trigger, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if phases.isEmpty =>
       log.debug("Response with no phases received: {}", response)
       onWrongMessageReceived(response.id, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if hasDuplicatedPhaseNames(phases) =>
       log.debug("Response with duplicate phase names received: {}", response)
       onWrongMessageReceived(response.id, state)
+      ackMessage
 
     case response @ DecoupledResponseReceived(id, _) if state.waitingResponse.contains(id) =>
       val trigger = state.waitingResponse(id)
       onTriggerAndResponseAvailable(trigger, response, state)
+      ackMessage
 
     case response: DecoupledResponseReceived =>
       onOnlyResponseAvailable(response, state)
+      ackMessage
 
     case WaitResponseTimeout(id) =>
       log.debug("Response not received: {}", id)
       onWrongMessageReceived(id, state)
+      ackMessage
 
     case WaitTriggerTimeout(id) =>
       log.debug("Trigger not received: {}", id)
       onWrongMessageReceived(id, state)
+      ackMessage
 
   }
 
@@ -138,7 +147,7 @@ class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeou
   }
 
   private def hasDuplicatedPhaseNames(phases: Seq[ExecutionPhase]): Boolean = {
-    val allNames = phases.map(_.name) :+ triggerPhaseName
+    val allNames = phases.map(_.name) :+ ExecutionPhase.triggerPhaseName
     allNames.diff(allNames.distinct).nonEmpty
   }
 
@@ -220,6 +229,10 @@ class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeou
       None,
       None
     )
+  }
+
+  private def ackMessage = {
+    sender() ! MessageAck
   }
 
 }

@@ -172,6 +172,10 @@ lazy val jmsJava = gatlingModule("gatling-jms-java")
   .dependsOn(coreJava, jms % "compile->compile;test->test")
   .settings(libraryDependencies ++= defaultJavaDependencies)
 
+lazy val decoupledResponse = gatlingModule("gatling-decoupled-response")
+  .dependsOn(core % "compile->compile;test->test", http % "compile->compile;test->test")
+  .settings(libraryDependencies ++= decoupledResponseDependencies)
+
 lazy val charts = gatlingModule("gatling-charts")
   .disablePlugins(SbtSpotless)
   .dependsOn(core % "compile->compile;test->test")
