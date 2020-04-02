@@ -21,18 +21,20 @@ import java.util.UUID
 import com.softwaremill.quicklens._
 import io.gatling.core.ValidationImplicits
 import io.gatling.core.action.Action
-import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.structure.ScenarioContext
+import io.gatling.decoupled.protocol.SqsActionBuilder
 import io.gatling.http.request.builder.HttpRequestBuilder
 
 final case class DecoupledResponseActionBuilder(name: String, httpRequestBuilder: HttpRequestBuilder, attributes: DecoupledResponseActionAttributes)
-    extends ActionBuilder
+    extends SqsActionBuilder
     with ValidationImplicits {
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
 
+    val sqsComponents = lookUpSqsComponents(ctx.protocolComponentsRegistry)
+
     val id = UUID.randomUUID()
-    val waitResponse = new WaitDecoupledResponseAction(name, next, id, ctx)
+    val waitResponse = new WaitDecoupledResponseAction(name, sqsComponents.pendingRequests, next, id, ctx)
 
     httpRequestBuilder.header(attributes.correlationIdHeader, stringToExpression(id.toString))
     httpRequestBuilder.build(ctx, waitResponse)
@@ -49,6 +51,7 @@ object DecoupledResponseActionAttributes {
   val Empty: DecoupledResponseActionAttributes = DecoupledResponseActionAttributes(
     correlationIdHeader = correlationIdHeader
   )
+
 }
 
 final case class DecoupledResponseActionAttributes(

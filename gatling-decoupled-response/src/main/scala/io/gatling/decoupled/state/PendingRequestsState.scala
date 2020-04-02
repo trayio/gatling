@@ -23,6 +23,7 @@ import akka.pattern.ask
 import akka.actor.ActorRefFactory
 import akka.util.Timeout
 import io.gatling.commons.util.Clock
+import io.gatling.core.CoreComponents
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
@@ -55,6 +56,22 @@ class ActorBasedPendingRequestsState(
 
   override def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done] = {
     (actor ? DecoupledResponseReceived(id, executionPhases)).map(_ => Done)
+  }
+
+}
+
+object ActorBasedPendingRequestsState {
+
+  def apply(coreComponents: CoreComponents, pendingTimeout: FiniteDuration, askTimeout: FiniteDuration): ActorBasedPendingRequestsState = {
+
+    new ActorBasedPendingRequestsState(
+      coreComponents.actorSystem,
+      coreComponents.statsEngine,
+      coreComponents.clock,
+      pendingTimeout,
+      askTimeout
+    )
+
   }
 
 }

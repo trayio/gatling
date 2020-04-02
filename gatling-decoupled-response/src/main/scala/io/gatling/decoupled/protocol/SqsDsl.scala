@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-package io.gatling.decoupled
+package io.gatling.decoupled.protocol
 
-import io.gatling.decoupled.protocol.SqsDsl
-
-object Predef extends DecoupledResponseDsl with SqsDsl
+trait SqsDsl {
+  def sqs(awsRegion: String, queueUrl: String): SqsProtocolBuilder = SqsProtocolBuilder(awsRegion, queueUrl)
+}

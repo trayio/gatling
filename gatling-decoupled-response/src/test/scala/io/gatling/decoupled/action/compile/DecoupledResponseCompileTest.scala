@@ -24,6 +24,8 @@ class DecoupledResponseCompileTest extends Simulation {
 
   private val httpProtocol = http
 
+  private val sqsProtocol = sqs("eu-west-1", "https://sqs.eu-west-1.amazonaws.com/481516234200/queue")
+
   private val decoupledScenario = scenario("Scn")
     .exec(
       decoupledResponse(
@@ -32,6 +34,6 @@ class DecoupledResponseCompileTest extends Simulation {
       ).correlationIdHeaderName("X-CORRELATION-ID")
     )
 
-  setUp(decoupledScenario.inject(atOnceUsers(1))).protocols(httpProtocol)
+  setUp(decoupledScenario.inject(atOnceUsers(1))).protocols(httpProtocol, sqsProtocol)
 
 }
