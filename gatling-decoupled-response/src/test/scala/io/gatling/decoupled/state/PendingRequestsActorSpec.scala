@@ -25,7 +25,7 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.{ ExecutionPhase, TriggerPhase }
+import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, TriggerPhase }
 import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, MessageAck, RequestTriggered }
 import io.netty.channel.EventLoop
 import org.scalatest.concurrent.Eventually
@@ -124,7 +124,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     )
     val next = mock[Action]
 
-    val executionId = UUID.randomUUID()
+    val executionId = ExecutionId(UUID.randomUUID().toString)
     val initialTime = Instant.now
     val brokenClock = new Clock {
       override def nowMillis: Long = initialTime.toEpochMilli + 1

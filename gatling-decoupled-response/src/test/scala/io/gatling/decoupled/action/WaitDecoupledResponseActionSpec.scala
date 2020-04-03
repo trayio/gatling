@@ -31,11 +31,14 @@ import io.gatling.core.pause.Constant
 import io.gatling.core.protocol.ProtocolComponentsRegistries
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.ScenarioContext
-import io.gatling.decoupled.models.TriggerPhase
+import io.gatling.decoupled.models.{ ExecutionId, TriggerPhase }
 import io.gatling.decoupled.state.PendingRequestsState
 import io.gatling.AkkaSpec
+import io.gatling.core.session.Expression
+import io.gatling.core.ValidationImplicits
 import io.netty.channel.EventLoopGroup
 import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 
 import scala.concurrent.Future
 
@@ -46,7 +49,7 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     val expectedTriggerPhase = TriggerPhase(Instant.ofEpochMilli(nowMilli))
     when(state.registerTrigger(id, expectedTriggerPhase, session, nextAction)).thenReturn(Future.successful(Done))
 
-    val action = new WaitDecoupledResponseAction("test", state, nextAction, id, scenario)
+    val action = new WaitDecoupledResponseAction("test", state, nextAction, idExpression, scenario)
     action.sendRequest("request", session)
 
     verify(state, times(1)).registerTrigger(id, expectedTriggerPhase, session, nextAction)
@@ -56,18 +59,19 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     val expectedTriggerPhase = TriggerPhase(Instant.ofEpochMilli(nowMilli))
     when(state.registerTrigger(id, expectedTriggerPhase, session, nextAction)).thenReturn(Future.successful(Done))
 
-    val action = new WaitDecoupledResponseAction("test", state, nextAction, id, scenario)
+    val action = new WaitDecoupledResponseAction("test", state, nextAction, idExpression, scenario)
     action.sendRequest("request", session)
 
     verify(nextAction, never()).!(session)
   }
 
-  trait Fixtures {
+  trait Fixtures extends ValidationImplicits {
 
     val nowMilli = 100
 
     val nextAction = mock[Action]
-    val id = UUID.randomUUID()
+    val id: ExecutionId = ExecutionId(UUID.randomUUID().toString)
+    val idExpression: Expression[ExecutionId] = _ => id
     val state = mock[PendingRequestsState]
     val session = EmptySession
     val configuration = GatlingConfiguration.loadForTest()

@@ -16,14 +16,13 @@
 
 package io.gatling.decoupled.state
 
-import java.util.UUID
-
 import akka.actor.{ Actor, ActorLogging, ActorRef, ActorRefFactory, Props, Timers }
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.models.ExecutionPhase
 
 import scala.concurrent.duration.FiniteDuration
@@ -37,8 +36,8 @@ object PendingRequestsActor {
   }
 
   final case class ActorState(
-      waitingResponse: Map[UUID, RequestTriggered],
-      waitingTrigger: Map[UUID, DecoupledResponseReceived]
+      waitingResponse: Map[ExecutionId, RequestTriggered],
+      waitingTrigger: Map[ExecutionId, DecoupledResponseReceived]
   ) {
     def withPendingResponse(response: DecoupledResponseReceived): ActorState = {
       copy(waitingTrigger = waitingTrigger + (response.id -> response))
@@ -48,7 +47,7 @@ object PendingRequestsActor {
       copy(waitingResponse = waitingResponse + (trigger.id -> trigger))
     }
 
-    def filterManagedId(id: UUID): ActorState = {
+    def filterManagedId(id: ExecutionId): ActorState = {
       copy(waitingResponse = waitingResponse - id, waitingTrigger = waitingTrigger - id)
     }
 
@@ -59,19 +58,19 @@ object PendingRequestsActor {
   }
 
   sealed trait ActorMessage
-  final case class RequestTriggered(id: UUID, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage
-  final case class DecoupledResponseReceived(id: UUID, executionPhases: Seq[ExecutionPhase]) extends ActorMessage
-  final case class WaitResponseTimeout(id: UUID) extends ActorMessage
-  final case class WaitTriggerTimeout(id: UUID) extends ActorMessage
+  final case class RequestTriggered(id: ExecutionId, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage
+  final case class DecoupledResponseReceived(id: ExecutionId, executionPhases: Seq[ExecutionPhase]) extends ActorMessage
+  final case class WaitResponseTimeout(id: ExecutionId) extends ActorMessage
+  final case class WaitTriggerTimeout(id: ExecutionId) extends ActorMessage
 
   sealed trait ActorResponse
   final case object MessageAck extends ActorResponse
 
-  def genName(id: UUID, from: String, to: String): String = {
+  def genName(id: ExecutionId, from: String, to: String): String = {
     s"$id: $from -> $to"
   }
   val errorName = "Error"
-  def genErrorName(id: UUID): String = {
+  def genErrorName(id: ExecutionId): String = {
     s"$id: $errorName"
   }
 }
@@ -191,7 +190,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
   }
 
-  private def onWrongMessageReceived(id: UUID, state: ActorState) = {
+  private def onWrongMessageReceived(id: ExecutionId, state: ActorState) = {
     state.waitingResponse.get(id).foreach { trigger =>
       logFailure(id, trigger.session, trigger.initialPhase)
     }
@@ -203,7 +202,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   }
 
   private def logPhaseTransition(
-      id: UUID,
+      id: ExecutionId,
       session: Session,
       from: ExecutionPhase,
       to: ExecutionPhase
@@ -219,7 +218,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
     )
   }
 
-  private def logFailure(id: UUID, session: Session, from: ExecutionPhase) = {
+  private def logFailure(id: ExecutionId, session: Session, from: ExecutionPhase) = {
     statsEngine.logResponse(
       session,
       genErrorName(id),
