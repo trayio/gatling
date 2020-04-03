@@ -23,6 +23,7 @@ import io.gatling.core.CoreDsl
 import io.gatling.core.config.GatlingConfiguration
 import io.netty.handler.codec.http.{ DefaultFullHttpResponse, FullHttpRequest, HttpResponseStatus, HttpVersion }
 import io.gatling.decoupled.DecoupledResponseDsl
+import io.gatling.http.request.builder.HttpRequestBuilder
 import io.gatling.http.{ HttpDsl, HttpSpec }
 import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelFutureListener

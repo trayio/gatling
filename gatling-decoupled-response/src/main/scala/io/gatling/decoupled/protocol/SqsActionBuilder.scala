@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-package io.gatling.decoupled
+package io.gatling.decoupled.protocol
 
-import io.gatling.decoupled.protocol.SqsDsl
+import io.gatling.core.action.builder.ActionBuilder
+import io.gatling.core.protocol.ProtocolComponentsRegistry
 
-object Predef extends DecoupledResponseDsl with SqsDsl
+abstract class SqsActionBuilder extends ActionBuilder {
+
+  def lookUpSqsComponents(protocolComponentsRegistry: ProtocolComponentsRegistry): SqsComponents =
+    protocolComponentsRegistry.components(SqsProtocol.SqsProtocolKey)
+
+}

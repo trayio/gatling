@@ -16,6 +16,7 @@
 
 package io.gatling.decoupled.action
 
+import java.time.Instant
 import java.util.UUID
 
 import io.gatling.commons.util.Clock
@@ -25,8 +26,12 @@ import io.gatling.core.session.{ Expression, Session, _ }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
+import io.gatling.decoupled.models.TriggerPhase
+import io.gatling.decoupled.state.PendingRequestsState
 
-class WaitDecoupledResponseAction(requestName: String, nextAction: Action, id: UUID, ctx: ScenarioContext) extends RequestAction with NameGen {
+class WaitDecoupledResponseAction(requestName: String, requestState: PendingRequestsState, nextAction: Action, id: UUID, ctx: ScenarioContext)
+    extends RequestAction
+    with NameGen {
 
   override def name: String = genName(requestName)
 
@@ -34,7 +39,8 @@ class WaitDecoupledResponseAction(requestName: String, nextAction: Action, id: U
 
   override def sendRequest(requestName: String, session: Session): Validation[Unit] = {
 
-    // TODO notify actor that a request is pending https://trayio.atlassian.net/browse/PSP-1658
+    val triggerTime = Instant.ofEpochMilli(ctx.coreComponents.clock.nowMillis)
+    requestState.registerTrigger(id, TriggerPhase(triggerTime), session, next)
 
     io.gatling.commons.validation.Success(())
 
