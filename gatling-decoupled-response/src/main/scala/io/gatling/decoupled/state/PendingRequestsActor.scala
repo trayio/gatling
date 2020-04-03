@@ -67,7 +67,7 @@ object PendingRequestsActor {
   final case object MessageAck extends ActorResponse
 
   def genName(id: ExecutionId, from: String, to: String): String = {
-    s"$id: $from -> $to"
+    s"$from -> $to"
   }
   val errorName = "Error"
   def genErrorName(id: ExecutionId): String = {
@@ -83,7 +83,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   private def receiveWithState(state: ActorState): Receive = {
 
     case trigger @ RequestTriggered(id, _, _, _) if state.waitingResponse.contains(id) =>
-      log.debug("Duplicate trigger received: {}", trigger)
+      log.error("Duplicate trigger received: {}", trigger)
       onWrongMessageReceived(id, state)
       ackMessage
 
@@ -97,12 +97,12 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
       ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if phases.isEmpty =>
-      log.debug("Response with no phases received: {}", response)
+      log.error("Response with no phases received: {}", response)
       onWrongMessageReceived(response.id, state)
       ackMessage
 
     case response @ DecoupledResponseReceived(_, phases) if hasDuplicatedPhaseNames(phases) =>
-      log.debug("Response with duplicate phase names received: {}", response)
+      log.error("Response with duplicate phase names received: {}", response)
       onWrongMessageReceived(response.id, state)
       ackMessage
 
@@ -116,12 +116,12 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
       ackMessage
 
     case WaitResponseTimeout(id) =>
-      log.debug("Response not received: {}", id)
+      log.error("Response not received: {}", id)
       onWrongMessageReceived(id, state)
       ackMessage
 
     case WaitTriggerTimeout(id) =>
-      log.debug("Trigger not received: {}", id)
+      log.error("Trigger not received: {}", id)
       onWrongMessageReceived(id, state)
       ackMessage
 
@@ -158,7 +158,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
       onValidTriggerAndResponseAvailable(trigger, allPhases, state)
 
     } else {
-      log.debug("Non sequential times received: {}", allPhases)
+      log.error("Non sequential times received: {}", allPhases)
       onWrongMessageReceived(response.id, state)
     }
 

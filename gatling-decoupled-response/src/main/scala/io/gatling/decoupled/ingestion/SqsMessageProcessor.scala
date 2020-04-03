@@ -16,15 +16,13 @@
 
 package io.gatling.decoupled.ingestion
 
-import java.util.UUID
-
 import akka.Done
 import io.gatling.decoupled.ingestion.SqsReader.MessageProcessor
 import io.gatling.decoupled.state.PendingRequestsState
 import software.amazon.awssdk.services.sqs.model.Message
 import io.circe.generic.auto._
 import io.circe.parser._
-import io.gatling.decoupled.models.{ ExecutionCompleted, ExecutionIdCirceFormat }
+import io.gatling.decoupled.models.{ ExecutionCompleted, ExecutionIdCirceFormat, ExecutionPhaseCirceFormat }
 
 import scala.concurrent.Future
 import scala.util.control.NoStackTrace
@@ -49,7 +47,7 @@ class SqsMessageProcessor(pendingRequests: PendingRequestsState) extends Message
   }
 }
 
-object SqsMessageProcessorCirceFormat extends ExecutionIdCirceFormat
+object SqsMessageProcessorCirceFormat extends ExecutionIdCirceFormat with ExecutionPhaseCirceFormat
 
 object SqsMessageProcessor {
   private val missingBody = new Exception("Message body is missing") with NoStackTrace
