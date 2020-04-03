@@ -16,4 +16,6 @@
 
 package io.gatling.decoupled
 
-object Predef extends DecoupledResponseDsl
+import io.gatling.decoupled.protocol.SqsDsl
+
+object Predef extends DecoupledResponseDsl with SqsDsl
