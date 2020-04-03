@@ -17,17 +17,16 @@
 package io.gatling.decoupled.ingestion
 
 import java.time.Instant
-import java.util.UUID
 
 import akka.Done
 import io.gatling.BaseSpec
-import io.gatling.decoupled.models.{ ExecutionPhase, NormalExecutionPhase }
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
+import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, NormalExecutionPhase }
 import io.gatling.decoupled.state.PendingRequestsState
 import org.mockito.Mockito.when
 import software.amazon.awssdk.services.sqs.model.Message
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers._
-import org.mockito.stubbing.OngoingStubbing
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.Future
@@ -73,10 +72,10 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
 
     val processor = new SqsMessageProcessor(state)
 
-    val id = UUID.fromString("17d754d8-6c15-4c0c-b13b-b7d6318095b6")
+    val id = ExecutionId("17d754d8-6c15-4c0c-b13b-b7d6318095b6")
     val phases = Seq(
-      NormalExecutionPhase("phase-1", Instant.parse("2020-02-13T09:57:38Z")),
-      NormalExecutionPhase("phase-2", Instant.parse("2020-02-13T10:57:38Z"))
+      NormalExecutionPhase("phase-1", Instant.ofEpochMilli(1585921485350L)),
+      NormalExecutionPhase("phase-2", Instant.ofEpochMilli(1585921485370L))
     )
 
     def givenProperMessage: Message = {
@@ -87,11 +86,11 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
           |  "phases": [
           |    {
           |      "name": "phase-1",
-          |      "time": "2020-02-13T09:57:38Z"
+          |      "time": 1585921485350
           |    },
           |    {
           |      "name": "phase-2",
-          |      "time": "2020-02-13T10:57:38Z"
+          |      "time": 1585921485370
           |    }
           |  ]
           |}""".stripMargin
@@ -113,11 +112,11 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
     }
 
     def givenRegistrationCallsWorks: Unit = {
-      when(state.registerResponse(any[UUID], any[Seq[NormalExecutionPhase]])) thenReturn Future.successful(Done)
+      when(state.registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])) thenReturn Future.successful(Done)
     }
 
     def givenRegistrationCallsFail: Unit = {
-      when(state.registerResponse(any[UUID], any[Seq[NormalExecutionPhase]])) thenReturn Future.failed(new Exception("error"))
+      when(state.registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])) thenReturn Future.failed(new Exception("error"))
     }
 
     def expectResponseRegistration: Unit = {
@@ -125,7 +124,7 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
     }
 
     def expectNoResponseRegistration: Unit = {
-      verify(state, never).registerResponse(any[UUID], any[Seq[NormalExecutionPhase]])
+      verify(state, never).registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])
     }
 
   }

@@ -16,17 +16,17 @@
 
 package io.gatling.decoupled.state
 
-import java.util.UUID
-
 import akka.Done
 import akka.pattern.ask
 import akka.actor.ActorRefFactory
 import akka.util.Timeout
+import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.util.Clock
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.models.{ NormalExecutionPhase, TriggerPhase }
 import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, RequestTriggered }
 
@@ -34,8 +34,8 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
 
 trait PendingRequestsState {
-  def registerTrigger(id: UUID, trigger: TriggerPhase, session: Session, next: Action): Future[Done]
-  def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done]
+  def registerTrigger(id: ExecutionId, trigger: TriggerPhase, session: Session, next: Action): Future[Done]
+  def registerResponse(id: ExecutionId, executionPhases: Seq[NormalExecutionPhase]): Future[Done]
 }
 
 class ActorBasedPendingRequestsState(
@@ -44,17 +44,20 @@ class ActorBasedPendingRequestsState(
     clock: Clock,
     pendingTimeout: FiniteDuration,
     askTimeout: FiniteDuration
-) extends PendingRequestsState {
+) extends PendingRequestsState
+    with StrictLogging {
   private implicit val executor: ExecutionContext = actorRefFactory.dispatcher
   private implicit val askTimeoutObject: Timeout = Timeout(askTimeout)
 
   private val actor = PendingRequestsActor(actorRefFactory, statsEngine, clock, pendingTimeout)
 
-  override def registerTrigger(id: UUID, trigger: TriggerPhase, session: Session, next: Action): Future[Done] = {
+  override def registerTrigger(id: ExecutionId, trigger: TriggerPhase, session: Session, next: Action): Future[Done] = {
+    logger.info("Registering trigger {}", id)
     (actor ? RequestTriggered(id, trigger, session, next)).map(_ => Done)
   }
 
-  override def registerResponse(id: UUID, executionPhases: Seq[NormalExecutionPhase]): Future[Done] = {
+  override def registerResponse(id: ExecutionId, executionPhases: Seq[NormalExecutionPhase]): Future[Done] = {
+    logger.info("Registering response {}", id)
     (actor ? DecoupledResponseReceived(id, executionPhases)).map(_ => Done)
   }
 

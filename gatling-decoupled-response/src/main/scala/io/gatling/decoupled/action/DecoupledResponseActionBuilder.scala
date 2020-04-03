@@ -21,7 +21,10 @@ import java.util.UUID
 import com.softwaremill.quicklens._
 import io.gatling.core.ValidationImplicits
 import io.gatling.core.action.Action
+import io.gatling.core.session.Expression
 import io.gatling.core.structure.ScenarioContext
+import io.gatling.decoupled.models.ExecutionId
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.protocol.SqsActionBuilder
 import io.gatling.http.request.builder.HttpRequestBuilder
 
@@ -31,17 +34,22 @@ final case class DecoupledResponseActionBuilder(name: String, httpRequestBuilder
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
 
+    val uniqueName = s"$name-${UUID.randomUUID()}"
+
+    val executionId: Expression[ExecutionId] = session => ExecutionId(s"$uniqueName-${session.userId}")
+
     val sqsComponents = lookUpSqsComponents(ctx.protocolComponentsRegistry)
 
-    val id = UUID.randomUUID()
-    val waitResponse = new WaitDecoupledResponseAction(name, sqsComponents.pendingRequests, next, id, ctx)
+    val waitResponse = new WaitDecoupledResponseAction(uniqueName, sqsComponents.pendingRequests, next, executionId, ctx)
 
-    httpRequestBuilder.header(attributes.correlationIdHeader, stringToExpression(id.toString))
-    httpRequestBuilder.build(ctx, waitResponse)
+    val httpRequest = httpRequestBuilder
+      .header(attributes.correlationIdHeader, executionId)
+      .build(ctx, waitResponse)
 
+    httpRequest
   }
 
-  def correlationIdHeaderName(name: String): DecoupledResponseActionBuilder = this.modify(_.attributes.correlationIdHeader).setTo(name)
+  def correlationIdHeaderName(headerName: String): DecoupledResponseActionBuilder = this.modify(_.attributes.correlationIdHeader).setTo(headerName)
 
 }
 

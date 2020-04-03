@@ -23,13 +23,14 @@ import akka.stream.alpakka.sqs.scaladsl.{ SqsAckSink, SqsSource }
 import akka.stream.scaladsl.Flow
 import akka.stream.{ ActorAttributes, Supervision }
 import com.github.matsluni.akkahttpspi.AkkaHttpClient
+import com.typesafe.scalalogging.StrictLogging
 import io.gatling.decoupled.ingestion.SqsReader.{ AwsKeys, MessageProcessor }
 import software.amazon.awssdk.auth.credentials.{ AwsBasicCredentials, StaticCredentialsProvider }
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sqs.model.Message
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 
 object SqsReader {
   type MessageProcessor = Message => Future[Done]
@@ -40,13 +41,16 @@ object SqsReader {
   }
 }
 
-class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String, awsKeys: Option[AwsKeys])(implicit actorSystem: ActorSystem) {
+class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String, awsKeys: Option[AwsKeys])(implicit actorSystem: ActorSystem)
+    extends StrictLogging {
   import SqsReader._
 
   private implicit val awsSqsClient = buildAwsClient
   registerTerminationHook
 
   def run: Unit = {
+    logger.info(s"Starting listening to SQS queue ${queueUrl}")
+
     SqsSource(queueUrl, SqsSourceSettings())
       .to(messageProcessing)
       .withAttributes(ActorAttributes.supervisionStrategy(alwaysResumeDecider))
@@ -71,9 +75,20 @@ class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String
   }
 
   private def messageProcessing = {
+    implicit val ec: ExecutionContext = actorSystem.dispatcher
+
     Flow[Message]
       .mapAsync(10) { message =>
-        processor(message).map(_ => message)(actorSystem.dispatcher)
+        processor(message)
+          .recover {
+            case _ =>
+              logger.error("Invalid message received {}", message)
+              Done
+          }
+          .map { _ =>
+            message
+          }
+
       }
       .map(MessageAction.Delete(_))
       .to(SqsAckSink(queueUrl))
