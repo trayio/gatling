@@ -16,21 +16,20 @@
 
 package io.gatling.decoupled.ingestion
 
-import java.util.UUID
-
 import akka.Done
 import io.gatling.decoupled.ingestion.SqsReader.MessageProcessor
 import io.gatling.decoupled.state.PendingRequestsState
 import software.amazon.awssdk.services.sqs.model.Message
 import io.circe.generic.auto._
 import io.circe.parser._
-import io.gatling.decoupled.models.NormalExecutionPhase
+import io.gatling.decoupled.models.{ ExecutionCompleted, ExecutionIdCirceFormat, ExecutionPhaseCirceFormat }
 
 import scala.concurrent.Future
 import scala.util.control.NoStackTrace
 
 class SqsMessageProcessor(pendingRequests: PendingRequestsState) extends MessageProcessor {
   import SqsMessageProcessor._
+  import SqsMessageProcessorCirceFormat._
 
   override def apply(message: Message): Future[Done] = {
     parseMessage(message.body) match {
@@ -39,16 +38,17 @@ class SqsMessageProcessor(pendingRequests: PendingRequestsState) extends Message
     }
   }
 
-  private def parseMessage(messageBody: String) = {
+  private def parseMessage(messageBody: String): Either[Exception, ExecutionCompleted] = {
     for {
       body <- Either.cond(messageBody != null, messageBody, missingBody)
       json <- parse(body)
-      sqsMessage <- json.as[SqsMessage]
+      sqsMessage <- json.as[ExecutionCompleted]
     } yield sqsMessage
   }
 }
 
+object SqsMessageProcessorCirceFormat extends ExecutionIdCirceFormat with ExecutionPhaseCirceFormat
+
 object SqsMessageProcessor {
-  final case class SqsMessage(id: UUID, phases: Seq[NormalExecutionPhase])
   private val missingBody = new Exception("Message body is missing") with NoStackTrace
 }

@@ -17,7 +17,6 @@
 package io.gatling.decoupled.action
 
 import java.time.Instant
-import java.util.UUID
 
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.Validation
@@ -26,11 +25,17 @@ import io.gatling.core.session.{ Expression, Session, _ }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.models.TriggerPhase
 import io.gatling.decoupled.state.PendingRequestsState
 
-class WaitDecoupledResponseAction(requestName: String, requestState: PendingRequestsState, nextAction: Action, id: UUID, ctx: ScenarioContext)
-    extends RequestAction
+class WaitDecoupledResponseAction(
+    requestName: String,
+    requestState: PendingRequestsState,
+    nextAction: Action,
+    executionIdExpression: Expression[ExecutionId],
+    ctx: ScenarioContext
+) extends RequestAction
     with NameGen {
 
   override def name: String = genName(requestName)
@@ -40,9 +45,14 @@ class WaitDecoupledResponseAction(requestName: String, requestState: PendingRequ
   override def sendRequest(requestName: String, session: Session): Validation[Unit] = {
 
     val triggerTime = Instant.ofEpochMilli(ctx.coreComponents.clock.nowMillis)
-    requestState.registerTrigger(id, TriggerPhase(triggerTime), session, next)
 
-    io.gatling.commons.validation.Success(())
+    val executionIdValidation = executionIdExpression(session)
+
+    executionIdValidation.foreach { executionId =>
+      requestState.registerTrigger(executionId, TriggerPhase(triggerTime), session, next)
+    }
+
+    executionIdValidation.map(_ => ())
 
   }
 

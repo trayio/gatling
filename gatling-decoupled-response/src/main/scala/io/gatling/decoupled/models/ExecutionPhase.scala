@@ -18,6 +18,10 @@ package io.gatling.decoupled.models
 
 import java.time.Instant
 
+import io.circe.Decoder
+
+import scala.util.Try
+
 sealed trait ExecutionPhase {
   def name: String
   def time: Instant
@@ -34,3 +38,9 @@ final case class TriggerPhase(time: Instant) extends ExecutionPhase {
 }
 
 final case class NormalExecutionPhase(name: String, time: Instant) extends ExecutionPhase
+
+trait ExecutionPhaseCirceFormat {
+  implicit val decodeInstant: Decoder[Instant] = Decoder.decodeLong.emapTry { millis =>
+    Try(Instant.ofEpochMilli(millis))
+  }
+}
