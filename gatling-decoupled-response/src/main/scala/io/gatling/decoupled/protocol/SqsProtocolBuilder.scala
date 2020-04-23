@@ -36,7 +36,7 @@ final case class SqsProtocolBuilder(protocol: SqsProtocol) {
 
   def decoupledResponseTimeoutSeconds(seconds: Int): SqsProtocolBuilder = this.modify(_.protocol.decoupledResponseTimeout).setTo(seconds.seconds)
 
-  def processingTimeout(seconds: Int): SqsProtocolBuilder = this.modify(_.protocol.processingTimeout).setTo(seconds.seconds)
+  def processingTimeoutSeconds(seconds: Int): SqsProtocolBuilder = this.modify(_.protocol.processingTimeout).setTo(seconds.seconds)
 
   def awsAccessKeyId(key: String): SqsProtocolBuilder = {
     val current = protocol.awsKeys.getOrElse(AwsKeys.empty)
