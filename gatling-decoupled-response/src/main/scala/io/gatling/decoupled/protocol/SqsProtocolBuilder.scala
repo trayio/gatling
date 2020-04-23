@@ -17,6 +17,7 @@
 package io.gatling.decoupled.protocol
 
 import com.softwaremill.quicklens._
+import io.gatling.decoupled.ingestion.SqsReader.{ AwsKeys, Secret }
 
 import scala.concurrent.duration._
 
@@ -36,6 +37,24 @@ final case class SqsProtocolBuilder(protocol: SqsProtocol) {
   def decoupledResponseTimeoutSeconds(seconds: Int): SqsProtocolBuilder = this.modify(_.protocol.decoupledResponseTimeout).setTo(seconds.seconds)
 
   def processingTimeout(seconds: Int): SqsProtocolBuilder = this.modify(_.protocol.processingTimeout).setTo(seconds.seconds)
+
+  def awsAccessKeyId(key: String): SqsProtocolBuilder = {
+    val current = protocol.awsKeys.getOrElse(AwsKeys.empty)
+    this
+      .modify(_.protocol.awsKeys)
+      .setTo(
+        Some(current.copy(accessKeyId = key))
+      )
+  }
+
+  def awsSecretAccessKey(secret: String): SqsProtocolBuilder = {
+    val current = protocol.awsKeys.getOrElse(AwsKeys.empty)
+    this
+      .modify(_.protocol.awsKeys)
+      .setTo(
+        Some(current.copy(secretAccessKey = Secret(secret)))
+      )
+  }
 
   def build: SqsProtocol = protocol
 

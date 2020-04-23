@@ -34,7 +34,16 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 object SqsReader {
   type MessageProcessor = Message => Future[Done]
-  final case class AwsKeys(accessKeyId: String, secretAccessKey: String)
+
+  final case class Secret(value: String) {
+    override def toString: String = "Secret(<REDACTED>)"
+  }
+
+  final case class AwsKeys(accessKeyId: String, secretAccessKey: Secret)
+
+  object AwsKeys {
+    val empty: AwsKeys = AwsKeys("", Secret(""))
+  }
 
   val alwaysResumeDecider: Supervision.Decider = {
     case _ => Supervision.Resume
@@ -64,7 +73,10 @@ class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String
       .httpClient(AkkaHttpClient.builder().withActorSystem(actorSystem).build())
 
     awsKeys.foreach(
-      keys => awsSqsClientBuilder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(keys.accessKeyId, keys.secretAccessKey)))
+      keys =>
+        awsSqsClientBuilder.credentialsProvider(
+          StaticCredentialsProvider.create(AwsBasicCredentials.create(keys.accessKeyId, keys.secretAccessKey.value))
+        )
     )
 
     awsSqsClientBuilder.build()

@@ -22,6 +22,7 @@ import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.protocol.{ Protocol, ProtocolComponents, ProtocolKey }
 import io.gatling.core.session.Session
+import io.gatling.decoupled.ingestion.SqsReader.AwsKeys
 import io.gatling.decoupled.ingestion.{ SqsMessageProcessor, SqsReader }
 import io.gatling.decoupled.state.{ ActorBasedPendingRequestsState, PendingRequestsState }
 import software.amazon.awssdk.regions.Region
@@ -46,7 +47,7 @@ object SqsProtocol {
         new SqsMessageProcessor(state),
         protocol.awsRegion,
         protocol.queueUrl.toExternalForm,
-        None
+        protocol.awsKeys
       )(coreComponents.actorSystem)
 
       sqsReader.run
@@ -60,7 +61,8 @@ object SqsProtocol {
       new URL(queueUrl),
       Region.of(awsRegion),
       10.minutes,
-      30.seconds
+      30.seconds,
+      None
     )
   }
 
@@ -70,7 +72,8 @@ final case class SqsProtocol(
     queueUrl: URL,
     awsRegion: Region,
     decoupledResponseTimeout: FiniteDuration,
-    processingTimeout: FiniteDuration
+    processingTimeout: FiniteDuration,
+    awsKeys: Option[AwsKeys]
 ) extends Protocol
 
 final case class SqsComponents(pendingRequests: PendingRequestsState, reader: SqsReader) extends ProtocolComponents {
