@@ -18,6 +18,7 @@ package io.gatling.decoupled.protocol
 
 import java.net.URL
 
+import com.github.benmanes.caffeine.cache.{ Cache, Caffeine }
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.protocol.{ Protocol, ProtocolComponents, ProtocolKey }
@@ -36,24 +37,33 @@ object SqsProtocol {
     override def defaultProtocolValue(configuration: GatlingConfiguration): SqsProtocol =
       throw new IllegalStateException("Can't provide a default value for SqsProtocol")
 
+    private val components: Cache[SqsProtocol, SqsComponents] = Caffeine.newBuilder().build()
+
     override def newComponents(coreComponents: CoreComponents): SqsProtocol => SqsComponents = { protocol =>
-      val state = ActorBasedPendingRequestsState(
-        coreComponents,
-        protocol.decoupledResponseTimeout,
-        protocol.processingTimeout
+      components.get(
+        protocol,
+        createSqsComponents(coreComponents, _)
       )
-
-      val sqsReader = new SqsReader(
-        new SqsMessageProcessor(state),
-        protocol.awsRegion,
-        protocol.queueUrl.toExternalForm,
-        protocol.awsKeys
-      )(coreComponents.actorSystem)
-
-      sqsReader.run
-
-      SqsComponents(state, sqsReader)
     }
+  }
+
+  private def createSqsComponents(coreComponents: CoreComponents, protocol: SqsProtocol): SqsComponents = {
+    val state = ActorBasedPendingRequestsState(
+      coreComponents,
+      protocol.decoupledResponseTimeout,
+      protocol.processingTimeout
+    )
+
+    val sqsReader = new SqsReader(
+      new SqsMessageProcessor(state),
+      protocol.awsRegion,
+      protocol.queueUrl.toExternalForm,
+      protocol.awsKeys
+    )(coreComponents.actorSystem)
+
+    sqsReader.run
+
+    SqsComponents(state, sqsReader)
   }
 
   def default(awsRegion: String, queueUrl: String): SqsProtocol = {
