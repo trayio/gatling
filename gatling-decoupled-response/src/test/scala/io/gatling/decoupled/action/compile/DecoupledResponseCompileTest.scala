@@ -24,7 +24,12 @@ class DecoupledResponseCompileTest extends Simulation {
 
   private val httpProtocol = http
 
-  private val sqsProtocol = sqs("eu-west-1", "https://sqs.eu-west-1.amazonaws.com/481516234200/queue")
+  private val sqsProtocol =
+    sqs("eu-west-1", "https://sqs.eu-west-1.amazonaws.com/481516234200/queue")
+      .awsAccessKeyId("id")
+      .awsSecretAccessKey("secret")
+      .decoupledResponseTimeoutSeconds(10)
+      .processingTimeoutSeconds(5)
 
   private val decoupledScenario = scenario("Scn")
     .exec(
