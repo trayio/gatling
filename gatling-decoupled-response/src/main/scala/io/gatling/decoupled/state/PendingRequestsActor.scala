@@ -16,6 +16,8 @@
 
 package io.gatling.decoupled.state
 
+import java.time.Instant
+
 import akka.actor.{ Actor, ActorLogging, ActorRef, ActorRefFactory, Props, Timers }
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.util.Clock
@@ -23,7 +25,7 @@ import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import io.gatling.decoupled.models.ExecutionId.ExecutionId
-import io.gatling.decoupled.models.ExecutionPhase
+import io.gatling.decoupled.models.{ ExecutionPhase, MissingPhase }
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -37,7 +39,8 @@ object PendingRequestsActor {
 
   final case class ActorState(
       waitingResponse: Map[ExecutionId, RequestTriggered],
-      waitingTrigger: Map[ExecutionId, DecoupledResponseReceived]
+      waitingTrigger: Map[ExecutionId, DecoupledResponseReceived],
+      expectedPhases: Seq[String]
   ) {
     def withPendingResponse(response: DecoupledResponseReceived): ActorState = {
       copy(waitingTrigger = waitingTrigger + (response.id -> response))
@@ -51,10 +54,14 @@ object PendingRequestsActor {
       copy(waitingResponse = waitingResponse - id, waitingTrigger = waitingTrigger - id)
     }
 
+    def withExpectedPhases(names: Seq[String]): ActorState = {
+      copy(expectedPhases = names)
+    }
+
   }
 
   object ActorState {
-    val empty: ActorState = ActorState(Map.empty, Map.empty)
+    val empty: ActorState = ActorState(Map.empty, Map.empty, Seq.empty)
   }
 
   sealed trait ActorMessage
@@ -115,10 +122,13 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
       onOnlyResponseAvailable(response, state)
       ackMessage
 
-    case WaitResponseTimeout(id) =>
+    case WaitResponseTimeout(id) if state.expectedPhases.nonEmpty && state.waitingResponse.contains(id) =>
       log.error("Response not received: {}", id)
-      onWrongMessageReceived(id, state)
+      onPhasesTimeout(state.waitingResponse(id), state)
       ackMessage
+
+    case WaitResponseTimeout(id) =>
+      startResponseTimeout(id)
 
     case WaitTriggerTimeout(id) =>
       log.error("Trigger not received: {}", id)
@@ -128,12 +138,16 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   }
 
   private def onOnlyTriggerAvailable(trigger: RequestTriggered, state: ActorState): Unit = {
-    timers.startSingleTimer(trigger.id, WaitResponseTimeout(trigger.id), pendingTimeout)
+    startResponseTimeout(trigger.id)
 
     context.become(
       receiveWithState(state.withPendingTrigger(trigger)),
       true
     )
+  }
+
+  private def startResponseTimeout(id: ExecutionId) = {
+    timers.startSingleTimer(id, WaitResponseTimeout(id), pendingTimeout)
   }
 
   private def onOnlyResponseAvailable(response: DecoupledResponseReceived, state: ActorState): Unit = {
@@ -173,18 +187,16 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   }
 
   private def onValidTriggerAndResponseAvailable(trigger: RequestTriggered, allPhases: List[ExecutionPhase], state: ActorState) = {
-    val id = trigger.id
-
-    allPhases.sliding(2).foreach {
-      case from :: to :: Nil =>
-        logPhaseTransition(id, trigger.session, from, to)
-      case _ => ()
-    }
+    logAllPhases(trigger.id, trigger.session, allPhases)
 
     trigger.next ! trigger.session
 
     context.become(
-      receiveWithState(state.filterManagedId(id)),
+      receiveWithState(
+        state
+          .filterManagedId(trigger.id)
+          .withExpectedPhases(allPhases.map(_.name))
+      ),
       true
     )
 
@@ -201,18 +213,58 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
     )
   }
 
+  private def onPhasesTimeout(trigger: RequestTriggered, state: ActorState) = {
+
+    val otherPhases = state.waitingTrigger.get(trigger.id).toList.flatMap(_.executionPhases)
+
+    val availablePhases = (trigger.initialPhase +: otherPhases)
+
+    val filledPhases = fillMissingPhases(availablePhases, state.expectedPhases, Instant.ofEpochMilli(clock.nowMillis))
+
+    logAllPhases(trigger.id, trigger.session, filledPhases)
+
+    context.become(
+      receiveWithState(state.filterManagedId(trigger.id)),
+      true
+    )
+  }
+
+  private def fillMissingPhases(phases: Seq[ExecutionPhase], expectedPhases: Seq[String], timeoutTime: Instant) = {
+
+    val availablePhases = phases.map(phase => (phase.name, phase)).toMap
+
+    expectedPhases.map { phaseName =>
+      availablePhases.getOrElse(phaseName, MissingPhase(phaseName, timeoutTime))
+    }
+
+  }
+
+  private def logAllPhases(id: ExecutionId, session: Session, allPhases: Seq[ExecutionPhase]) = {
+    allPhases.sliding(2).foreach {
+      case from :: to :: Nil =>
+        logPhaseTransition(id, session, from, to)
+      case _ => ()
+    }
+  }
+
   private def logPhaseTransition(
       id: ExecutionId,
       session: Session,
       from: ExecutionPhase,
       to: ExecutionPhase
   ) = {
+
+    val state = to match {
+      case _: MissingPhase => KO
+      case _               => OK
+    }
+
     statsEngine.logResponse(
       session,
       genName(id, from.name, to.name),
       from.time.toEpochMilli,
       to.time.toEpochMilli,
-      OK,
+      state,
       None,
       None
     )
