@@ -96,7 +96,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(otherExecutionId, phases)
 
     verifyPhasesLogs(triggerPhase +: timeoutPhases)
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "error all steps in case of timeout on phases (even if timeout is received before phases are known)" in new Fixtures {
@@ -108,7 +108,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(otherExecutionId, phases)
 
     verifyPhasesLogs(triggerPhase +: timeoutPhases)
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "error if trigger is received twice" in new Fixtures {

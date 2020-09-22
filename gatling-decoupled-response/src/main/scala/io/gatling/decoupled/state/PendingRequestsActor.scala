@@ -223,6 +223,8 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
     logAllPhases(trigger.id, trigger.session, filledPhases)
 
+    trigger.next ! trigger.session
+
     context.become(
       receiveWithState(state.filterManagedId(trigger.id)),
       true
