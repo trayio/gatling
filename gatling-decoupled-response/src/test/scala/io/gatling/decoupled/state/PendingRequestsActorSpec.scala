@@ -70,7 +70,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(executionId, Seq.empty)
 
     verifyStatsEngineErrorCall
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "error if there are duplicated phase names" in new Fixtures {
@@ -78,7 +78,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(executionId, triggerPhase +: phases)
 
     verifyStatsEngineErrorCall
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "error if times are reversed" in new Fixtures {
@@ -86,7 +86,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(executionId, phases.reverse)
 
     verifyStatsEngineErrorCall
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "error all steps in case of timeout on phases" in new Fixtures {
@@ -117,7 +117,7 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     actor ! DecoupledResponseReceived(executionId, phases)
 
     verifyStatsEngineErrorCall
-    verifyNextActionNotTriggered
+    verifyNextActionTriggered
   }
 
   it should "acknowledge messages" in new Fixtures {

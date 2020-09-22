@@ -65,7 +65,11 @@ object PendingRequestsActor {
   }
 
   sealed trait ActorMessage
-  final case class RequestTriggered(id: ExecutionId, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage
+  final case class RequestTriggered(id: ExecutionId, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage {
+    def triggerNextAction: Unit = {
+      next ! session
+    }
+  }
   final case class DecoupledResponseReceived(id: ExecutionId, executionPhases: Seq[ExecutionPhase]) extends ActorMessage
   final case class WaitResponseTimeout(id: ExecutionId) extends ActorMessage
   final case class WaitTriggerTimeout(id: ExecutionId) extends ActorMessage
@@ -189,7 +193,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   private def onValidTriggerAndResponseAvailable(trigger: RequestTriggered, allPhases: List[ExecutionPhase], state: ActorState) = {
     logAllPhases(trigger.id, trigger.session, allPhases)
 
-    trigger.next ! trigger.session
+    trigger.triggerNextAction
 
     context.become(
       receiveWithState(
@@ -205,6 +209,8 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
   private def onWrongMessageReceived(id: ExecutionId, state: ActorState) = {
     state.waitingResponse.get(id).foreach { trigger =>
       logFailure(id, trigger.session, trigger.initialPhase)
+
+      trigger.triggerNextAction
     }
 
     context.become(
@@ -223,7 +229,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
     logAllPhases(trigger.id, trigger.session, filledPhases)
 
-    trigger.next ! trigger.session
+    trigger.triggerNextAction
 
     context.become(
       receiveWithState(state.filterManagedId(trigger.id)),
