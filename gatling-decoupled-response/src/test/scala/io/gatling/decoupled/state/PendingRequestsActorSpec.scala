@@ -25,8 +25,8 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, TriggerPhase }
-import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, MessageAck, RequestTriggered }
+import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, MissingPhase, TriggerPhase }
+import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, MessageAck, RequestTriggered, WaitResponseTimeout }
 import io.netty.channel.EventLoop
 import org.scalatest.concurrent.Eventually
 import org.mockito.Mockito._
@@ -39,69 +39,89 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
   behavior of "PendingRequestsActor"
 
   it should "log in StatsEngine time distance between triggering and first execution phase" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, phases)
 
     verifyPhasesLogs(Seq(triggerPhase, phases.head))
   }
 
   it should "log in StatsEngine time distance before two consecutive execution phases" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, phases)
 
     verifyPhasesLogs(phases)
   }
   it should "manage case when response is received before trigger" in new Fixtures {
     actor ! DecoupledResponseReceived(executionId, phases)
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
 
     verifyPhasesLogs(triggerPhase +: phases)
   }
 
   it should "trigger next action once response is received" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, phases)
 
     verifyNextActionTriggered
   }
 
   it should "error if no phases in response" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, Seq.empty)
 
-    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+    verifyStatsEngineErrorCall
+    verifyNextActionTriggered
   }
 
   it should "error if there are duplicated phase names" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, triggerPhase +: phases)
 
-    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+    verifyStatsEngineErrorCall
+    verifyNextActionTriggered
   }
 
   it should "error if times are reversed" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, phases.reverse)
 
-    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+    verifyStatsEngineErrorCall
+    verifyNextActionTriggered
   }
 
-  it should "error after a timeout if response does not come in" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+  it should "error all steps in case of timeout on phases" in new Fixtures {
+    actor ! RequestTriggered(otherExecutionId, triggerPhase, otherSession, otherNextAction)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
 
-    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+    actor ! DecoupledResponseReceived(otherExecutionId, phases)
+
+    verifyPhasesLogs(triggerPhase +: timeoutPhases)
+    verifyNextActionTriggered
+  }
+
+  it should "error all steps in case of timeout on phases (even if timeout is received before phases are known)" in new Fixtures {
+    actor ! RequestTriggered(otherExecutionId, triggerPhase, otherSession, otherNextAction)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
+
+    actor ! WaitResponseTimeout(executionId)
+
+    actor ! DecoupledResponseReceived(otherExecutionId, phases)
+
+    verifyPhasesLogs(triggerPhase +: timeoutPhases)
+    verifyNextActionTriggered
   }
 
   it should "error if trigger is received twice" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     actor ! DecoupledResponseReceived(executionId, phases)
 
-    verifyStatsEngineErrorCallAndNextActionIsNotExecuted
+    verifyStatsEngineErrorCall
+    verifyNextActionTriggered
   }
 
   it should "acknowledge messages" in new Fixtures {
-    actor ! RequestTriggered(executionId, triggerPhase, session, next)
+    actor ! RequestTriggered(executionId, triggerPhase, session, nextAction)
     expectMsg(MessageAck)
 
     actor ! DecoupledResponseReceived(executionId, phases)
@@ -122,9 +142,14 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
       _ => (),
       mock[EventLoop]
     )
-    val next = mock[Action]
+    val otherSession = session.copy(userId = 1)
+
+    val nextAction = mock[Action]
+    val otherNextAction = mock[Action]
 
     val executionId = ExecutionId(UUID.randomUUID().toString)
+    val otherExecutionId = ExecutionId(UUID.randomUUID().toString)
+
     val initialTime = Instant.now
     val brokenClock = new Clock {
       override def nowMillis: Long = initialTime.toEpochMilli + 1
@@ -137,6 +162,9 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     val triggerPhase = TriggerPhase(initialTime)
     val phases = (1 to 5).map { i =>
       ExecutionPhase(s"phase-$i", initialTime.plusMillis(i * 1000))
+    }.toList
+    val timeoutPhases: Seq[ExecutionPhase] = phases.map { phase =>
+      MissingPhase(phase.name, Instant.ofEpochMilli(brokenClock.nowMillis))
     }
 
     def verifyPhasesLogs(phases: Seq[ExecutionPhase]): Unit = {
@@ -147,20 +175,26 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     }
 
     def verifyStatsEngineCall(from: ExecutionPhase, to: ExecutionPhase): Unit = {
+
+      val state = to match {
+        case _: MissingPhase => KO
+        case _               => OK
+      }
+
       eventually {
         verify(statsEngine, times(1)).logResponse(
           session,
           PendingRequestsActor.genName(executionId, from.name, to.name),
           from.time.toEpochMilli,
           to.time.toEpochMilli,
-          OK,
+          state,
           None,
           None
         )
       }
     }
 
-    def verifyStatsEngineErrorCallAndNextActionIsNotExecuted: Unit = {
+    def verifyStatsEngineErrorCall: Unit = {
       eventually {
         verify(statsEngine, times(1)).logResponse(
           session,
@@ -171,15 +205,16 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
           None,
           None
         )
-
-        verify(next, never) ! any[Session]
       }
+    }
 
+    def verifyNextActionNotTriggered: Unit = {
+      verify(nextAction, never) ! any[Session]
     }
 
     def verifyNextActionTriggered: Unit = {
       eventually {
-        verify(next, times(1)) ! any[Session]
+        verify(nextAction, times(1)) ! any[Session]
       }
     }
 
