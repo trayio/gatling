@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,10 @@ object SqsProtocolBuilder {
 
   implicit def toSqsProtocol(builder: SqsProtocolBuilder): SqsProtocol = builder.build
 
-  def apply(awsRegion: String, queueUrl: String): SqsProtocolBuilder = {
+  def apply(awsRegion: String, queueUrl: String): SqsProtocolBuilder =
     SqsProtocolBuilder(
       SqsProtocol.default(awsRegion, queueUrl)
     )
-  }
 }
 
 final case class SqsProtocolBuilder(protocol: SqsProtocol) {

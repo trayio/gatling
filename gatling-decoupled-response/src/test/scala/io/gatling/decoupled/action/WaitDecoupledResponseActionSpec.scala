@@ -37,12 +37,12 @@ import io.gatling.AkkaSpec
 import io.gatling.core.session.Expression
 import io.gatling.core.ValidationImplicits
 import io.netty.channel.EventLoopGroup
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.EmptySession
 import io.gatling.decoupled.models.ExecutionId.ExecutionId
 
 import scala.concurrent.Future
 
-class WaitDecoupledResponseActionSpec extends AkkaSpec {
+class WaitDecoupledResponseActionSpec extends AkkaSpec with EmptySession {
 
   "WaitDecoupledResponseAction" should "notify state there is a response to be waited" in new Fixtures {
 
@@ -50,7 +50,7 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     when(state.registerTrigger(id, expectedTriggerPhase, session, nextAction)).thenReturn(Future.successful(Done))
 
     val action = new WaitDecoupledResponseAction("test", state, nextAction, idExpression, scenario)
-    action.sendRequest("request", session)
+    action.sendRequest(session)
 
     verify(state, times(1)).registerTrigger(id, expectedTriggerPhase, session, nextAction)
   }
@@ -60,7 +60,7 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     when(state.registerTrigger(id, expectedTriggerPhase, session, nextAction)).thenReturn(Future.successful(Done))
 
     val action = new WaitDecoupledResponseAction("test", state, nextAction, idExpression, scenario)
-    action.sendRequest("request", session)
+    action.sendRequest(session)
 
     verify(nextAction, never()).!(session)
   }
@@ -73,7 +73,7 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     val id: ExecutionId = ExecutionId(UUID.randomUUID().toString)
     val idExpression: Expression[ExecutionId] = _ => id
     val state = mock[PendingRequestsState]
-    val session = EmptySession
+    val session = emptySession
     val configuration = GatlingConfiguration.loadForTest()
 
     val clock = new Clock {
@@ -81,7 +81,7 @@ class WaitDecoupledResponseActionSpec extends AkkaSpec {
     }
 
     val coreComponents =
-      new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], mock[Throttler], mock[StatsEngine], clock, mock[Action], configuration)
+      new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], Option(mock[Throttler]), mock[StatsEngine], clock, mock[Action], configuration)
     val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, Map.empty).scenarioRegistry(Map.empty)
     val scenario = new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false)
 

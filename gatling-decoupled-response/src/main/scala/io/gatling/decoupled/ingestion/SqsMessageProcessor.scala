@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,20 +31,18 @@ class SqsMessageProcessor(pendingRequests: PendingRequestsState) extends Message
   import SqsMessageProcessor._
   import SqsMessageProcessorCirceFormat._
 
-  override def apply(message: Message): Future[Done] = {
+  override def apply(message: Message): Future[Done] =
     parseMessage(message.body) match {
       case Right(message) => pendingRequests.registerResponse(message.id, message.phases)
       case Left(error)    => Future.failed(error)
     }
-  }
 
-  private def parseMessage(messageBody: String): Either[Exception, ExecutionCompleted] = {
+  private def parseMessage(messageBody: String): Either[Exception, ExecutionCompleted] =
     for {
       body <- Either.cond(messageBody != null, messageBody, missingBody)
       json <- parse(body)
       sqsMessage <- json.as[ExecutionCompleted]
     } yield sqsMessage
-  }
 }
 
 object SqsMessageProcessorCirceFormat extends ExecutionIdCirceFormat with ExecutionPhaseCirceFormat

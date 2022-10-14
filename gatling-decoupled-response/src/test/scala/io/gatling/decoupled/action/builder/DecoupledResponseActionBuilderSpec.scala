@@ -67,11 +67,10 @@ class DecoupledResponseActionBuilderSpec extends HttpSpec with CoreDsl with Http
 
   }
 
-  val catchAllHandler: Handler = {
-    case _ =>
-      val bytes = "Hello".getBytes(StandardCharsets.UTF_8)
-      val response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(bytes))
-      ctx => ctx.channel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
+  val catchAllHandler: Handler = { case _ =>
+    val bytes = "Hello".getBytes(StandardCharsets.UTF_8)
+    val response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(bytes))
+    ctx => ctx.channel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
   }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ object SqsProtocol {
     SqsComponents(state, sqsReader)
   }
 
-  def default(awsRegion: String, queueUrl: String): SqsProtocol = {
+  def default(awsRegion: String, queueUrl: String): SqsProtocol =
     SqsProtocol(
       new URL(queueUrl),
       Region.of(awsRegion),
@@ -74,7 +74,6 @@ object SqsProtocol {
       30.seconds,
       None
     )
-  }
 
 }
 

@@ -18,21 +18,21 @@ package io.gatling.decoupled.state
 
 import java.time.Instant
 import java.util.UUID
-
 import io.gatling.AkkaSpec
-import io.gatling.commons.stats.{ KO, OK }
+import io.gatling.commons.stats.{KO, OK}
 import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, MissingPhase, TriggerPhase }
-import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, MessageAck, RequestTriggered, WaitResponseTimeout }
+import io.gatling.decoupled.models.{ExecutionId, ExecutionPhase, MissingPhase, TriggerPhase}
+import io.gatling.decoupled.state.PendingRequestsActor.{DecoupledResponseReceived, MessageAck, RequestTriggered, WaitResponseTimeout}
 import io.netty.channel.EventLoop
 import org.scalatest.concurrent.Eventually
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers._
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.language.postfixOps
 
 class PendingRequestsActorSpec extends AkkaSpec with Eventually {
 
@@ -135,7 +135,6 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
     val session = Session(
       "PendingRequestsActorSpec",
       0,
-      0,
       Map.empty,
       OK,
       List.empty,
@@ -167,12 +166,10 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
       MissingPhase(phase.name, Instant.ofEpochMilli(brokenClock.nowMillis))
     }
 
-    def verifyPhasesLogs(phases: Seq[ExecutionPhase]): Unit = {
-      phases.sliding(2).foreach {
-        case pair =>
-          verifyStatsEngineCall(pair.head, pair.tail.head)
+    def verifyPhasesLogs(phases: Seq[ExecutionPhase]): Unit =
+      phases.sliding(2).foreach { case pair =>
+        verifyStatsEngineCall(pair.head, pair.tail.head)
       }
-    }
 
     def verifyStatsEngineCall(from: ExecutionPhase, to: ExecutionPhase): Unit = {
 
@@ -183,7 +180,8 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
 
       eventually {
         verify(statsEngine, times(1)).logResponse(
-          session,
+          session.scenario,
+          session.groups,
           PendingRequestsActor.genName(executionId, from.name, to.name),
           from.time.toEpochMilli,
           to.time.toEpochMilli,
@@ -194,10 +192,11 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
       }
     }
 
-    def verifyStatsEngineErrorCall: Unit = {
+    def verifyStatsEngineErrorCall: Unit =
       eventually {
         verify(statsEngine, times(1)).logResponse(
-          session,
+          session.scenario,
+          session.groups,
           PendingRequestsActor.genErrorName(executionId),
           initialTime.toEpochMilli,
           brokenClock.nowMillis,
@@ -206,17 +205,14 @@ class PendingRequestsActorSpec extends AkkaSpec with Eventually {
           None
         )
       }
-    }
 
-    def verifyNextActionNotTriggered: Unit = {
+    def verifyNextActionNotTriggered: Unit =
       verify(nextAction, never) ! any[Session]
-    }
 
-    def verifyNextActionTriggered: Unit = {
+    def verifyNextActionTriggered: Unit =
       eventually {
         verify(nextAction, times(1)) ! any[Session]
       }
-    }
 
   }
 

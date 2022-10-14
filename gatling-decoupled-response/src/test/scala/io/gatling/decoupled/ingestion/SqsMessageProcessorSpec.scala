@@ -78,7 +78,7 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
       NormalExecutionPhase("phase-2", Instant.ofEpochMilli(1585921485370L))
     )
 
-    def givenProperMessage: Message = {
+    def givenProperMessage: Message =
       message(
         """
           |{
@@ -95,37 +95,31 @@ class SqsMessageProcessorSpec extends BaseSpec with ScalaFutures {
           |  ]
           |}""".stripMargin
       )
-    }
 
-    def givenInvalidMessage: Message = {
+    def givenInvalidMessage: Message =
       message(
         """[{
           | "name": "phase-1"
           | "time": "yesterday" 
           |}]""".stripMargin
       )
-    }
 
     private def message(body: String) = {
       val builder = Message.builder()
       builder.body(body).build()
     }
 
-    def givenRegistrationCallsWorks: Unit = {
+    def givenRegistrationCallsWorks: Unit =
       when(state.registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])) thenReturn Future.successful(Done)
-    }
 
-    def givenRegistrationCallsFail: Unit = {
+    def givenRegistrationCallsFail: Unit =
       when(state.registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])) thenReturn Future.failed(new Exception("error"))
-    }
 
-    def expectResponseRegistration: Unit = {
+    def expectResponseRegistration: Unit =
       verify(state, times(1)).registerResponse(id, phases)
-    }
 
-    def expectNoResponseRegistration: Unit = {
+    def expectNoResponseRegistration: Unit =
       verify(state, never).registerResponse(any[ExecutionId], any[Seq[NormalExecutionPhase]])
-    }
 
   }
 

@@ -229,3 +229,5 @@ lazy val publicSamples = Project("gatling-samples", file("gatling-samples"))
   .settings(
     skipPublishing
   )
+
+dependencyOverrides += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.1.1"

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,32 +31,27 @@ import scala.concurrent.duration.FiniteDuration
 
 object PendingRequestsActor {
 
-  private[state] def apply(actorRefFactory: ActorRefFactory, statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration): ActorRef = {
+  private[state] def apply(actorRefFactory: ActorRefFactory, statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration): ActorRef =
     actorRefFactory.actorOf(
       Props(new PendingRequestsActor(statsEngine, clock, pendingTimeout))
     )
-  }
 
   final case class ActorState(
       waitingResponse: Map[ExecutionId, RequestTriggered],
       waitingTrigger: Map[ExecutionId, DecoupledResponseReceived],
       expectedPhases: Seq[String]
   ) {
-    def withPendingResponse(response: DecoupledResponseReceived): ActorState = {
+    def withPendingResponse(response: DecoupledResponseReceived): ActorState =
       copy(waitingTrigger = waitingTrigger + (response.id -> response))
-    }
 
-    def withPendingTrigger(trigger: RequestTriggered): ActorState = {
+    def withPendingTrigger(trigger: RequestTriggered): ActorState =
       copy(waitingResponse = waitingResponse + (trigger.id -> trigger))
-    }
 
-    def filterManagedId(id: ExecutionId): ActorState = {
+    def filterManagedId(id: ExecutionId): ActorState =
       copy(waitingResponse = waitingResponse - id, waitingTrigger = waitingTrigger - id)
-    }
 
-    def withExpectedPhases(names: Seq[String]): ActorState = {
+    def withExpectedPhases(names: Seq[String]): ActorState =
       copy(expectedPhases = names)
-    }
 
   }
 
@@ -66,9 +61,8 @@ object PendingRequestsActor {
 
   sealed trait ActorMessage
   final case class RequestTriggered(id: ExecutionId, initialPhase: ExecutionPhase, session: Session, next: Action) extends ActorMessage {
-    def triggerNextAction: Unit = {
+    def triggerNextAction: Unit =
       next ! session
-    }
   }
   final case class DecoupledResponseReceived(id: ExecutionId, executionPhases: Seq[ExecutionPhase]) extends ActorMessage
   final case class WaitResponseTimeout(id: ExecutionId) extends ActorMessage
@@ -77,13 +71,11 @@ object PendingRequestsActor {
   sealed trait ActorResponse
   final case object MessageAck extends ActorResponse
 
-  def genName(id: ExecutionId, from: String, to: String): String = {
+  def genName(id: ExecutionId, from: String, to: String): String =
     s"$from -> $to"
-  }
   val errorName = "Error"
-  def genErrorName(id: ExecutionId): String = {
+  def genErrorName(id: ExecutionId): String =
     s"$id: $errorName"
-  }
 }
 
 private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock, pendingTimeout: FiniteDuration) extends Actor with ActorLogging with Timers {
@@ -150,9 +142,8 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
     )
   }
 
-  private def startResponseTimeout(id: ExecutionId) = {
+  private def startResponseTimeout(id: ExecutionId) =
     timers.startSingleTimer(id, WaitResponseTimeout(id), pendingTimeout)
-  }
 
   private def onOnlyResponseAvailable(response: DecoupledResponseReceived, state: ActorState): Unit = {
     timers.startSingleTimer(response.id, WaitTriggerTimeout(response.id), pendingTimeout)
@@ -182,13 +173,11 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
   }
 
-  private def phaseTimesAreSequential(phases: List[ExecutionPhase]) = {
-
+  private def phaseTimesAreSequential(phases: List[ExecutionPhase]) =
     phases.sliding(2).forall {
       case from :: to :: Nil => from.time.isBefore(to.time)
       case _                 => false
     }
-  }
 
   private def onValidTriggerAndResponseAvailable(trigger: RequestTriggered, allPhases: List[ExecutionPhase], state: ActorState) = {
     logAllPhases(trigger.id, trigger.session, allPhases)
@@ -223,7 +212,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
     val otherPhases = state.waitingTrigger.get(trigger.id).toList.flatMap(_.executionPhases)
 
-    val availablePhases = (trigger.initialPhase +: otherPhases)
+    val availablePhases = trigger.initialPhase +: otherPhases
 
     val filledPhases = fillMissingPhases(availablePhases, state.expectedPhases, Instant.ofEpochMilli(clock.nowMillis))
 
@@ -247,13 +236,12 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
   }
 
-  private def logAllPhases(id: ExecutionId, session: Session, allPhases: Seq[ExecutionPhase]) = {
+  private def logAllPhases(id: ExecutionId, session: Session, allPhases: Seq[ExecutionPhase]) =
     allPhases.sliding(2).foreach {
       case from :: to :: Nil =>
         logPhaseTransition(id, session, from, to)
       case _ => ()
     }
-  }
 
   private def logPhaseTransition(
       id: ExecutionId,
@@ -268,7 +256,8 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
     }
 
     statsEngine.logResponse(
-      session,
+      session.scenario,
+      session.groups,
       genName(id, from.name, to.name),
       from.time.toEpochMilli,
       to.time.toEpochMilli,
@@ -278,9 +267,10 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
     )
   }
 
-  private def logFailure(id: ExecutionId, session: Session, from: ExecutionPhase) = {
+  private def logFailure(id: ExecutionId, session: Session, from: ExecutionPhase) =
     statsEngine.logResponse(
-      session,
+      session.scenario,
+      session.groups,
       genErrorName(id),
       from.time.toEpochMilli,
       clock.nowMillis,
@@ -288,10 +278,8 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
       None,
       None
     )
-  }
 
-  private def ackMessage = {
+  private def ackMessage =
     sender() ! MessageAck
-  }
 
 }

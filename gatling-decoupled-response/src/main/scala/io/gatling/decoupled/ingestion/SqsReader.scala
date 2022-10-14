@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ object SqsReader {
     val empty: AwsKeys = AwsKeys("", Secret(""))
   }
 
-  val alwaysResumeDecider: Supervision.Decider = {
-    case _ => Supervision.Resume
+  val alwaysResumeDecider: Supervision.Decider = { case _ =>
+    Supervision.Resume
   }
 }
 
@@ -58,7 +58,7 @@ class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String
   registerTerminationHook
 
   def run: Unit = {
-    logger.info(s"Starting listening to SQS queue ${queueUrl}")
+    logger.info(s"Starting listening to SQS queue $queueUrl")
 
     SqsSource(queueUrl, SqsSourceSettings())
       .to(messageProcessing)
@@ -72,19 +72,17 @@ class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String
       .region(awsRegion)
       .httpClient(AkkaHttpClient.builder().withActorSystem(actorSystem).build())
 
-    awsKeys.foreach(
-      keys =>
-        awsSqsClientBuilder.credentialsProvider(
-          StaticCredentialsProvider.create(AwsBasicCredentials.create(keys.accessKeyId, keys.secretAccessKey.value))
-        )
+    awsKeys.foreach(keys =>
+      awsSqsClientBuilder.credentialsProvider(
+        StaticCredentialsProvider.create(AwsBasicCredentials.create(keys.accessKeyId, keys.secretAccessKey.value))
+      )
     )
 
     awsSqsClientBuilder.build()
   }
 
-  private def registerTerminationHook = {
+  private def registerTerminationHook =
     actorSystem.registerOnTermination(awsSqsClient.close())
-  }
 
   private def messageProcessing = {
     implicit val ec: ExecutionContext = actorSystem.dispatcher
@@ -92,10 +90,9 @@ class SqsReader(processor: MessageProcessor, awsRegion: Region, queueUrl: String
     Flow[Message]
       .mapAsync(10) { message =>
         processor(message)
-          .recover {
-            case _ =>
-              logger.error("Invalid message received {}", message)
-              Done
+          .recover { case _ =>
+            logger.error("Invalid message received {}", message)
+            Done
           }
           .map { _ =>
             message

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class WaitDecoupledResponseAction(
 
   override def requestName: Expression[String] = name.expressionSuccess
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] = {
+  override def sendRequest(session: Session): Validation[Unit] = {
 
     val triggerTime = Instant.ofEpochMilli(ctx.coreComponents.clock.nowMillis)
 
