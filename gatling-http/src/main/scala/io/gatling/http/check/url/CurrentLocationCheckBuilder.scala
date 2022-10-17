@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.gatling.http.check.url
 
 import io.gatling.commons.validation._
-import io.gatling.core.check.{ CheckMaterializer, DefaultFindCheckBuilder, FindExtractor }
+import io.gatling.core.check.{ CheckBuilder, CheckMaterializer, FindExtractor }
 import io.gatling.core.session._
 import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
 import io.gatling.http.check.HttpCheckBuilders._
@@ -27,13 +27,12 @@ import io.gatling.http.response.Response
 trait CurrentLocationCheckType
 
 object CurrentLocationCheckBuilder
-    extends DefaultFindCheckBuilder[CurrentLocationCheckType, String, String](
+    extends CheckBuilder.Find.Default[CurrentLocationCheckType, String, String](
       extractor = new FindExtractor[String, String]("currentLocation", Some(_).success).expressionSuccess,
       displayActualValue = true
     )
 
 object CurrentLocationCheckMaterializer {
-
   val Instance: CheckMaterializer[CurrentLocationCheckType, HttpCheck, Response, String] =
     new HttpCheckMaterializer[CurrentLocationCheckType, String](Url, UrlStringPreparer)
 }

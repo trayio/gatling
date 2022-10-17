@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package io.gatling.http.action.ws.fsm
 
-import java.util.{ HashMap => JHashMap }
-
-import io.gatling.commons.stats.{ KO, OK }
+import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.util.Throwables._
 import io.gatling.commons.validation.{ Failure, Success }
 import io.gatling.core.action.Action
 import io.gatling.core.check.Check
 import io.gatling.core.session.Session
-import io.gatling.http.check.ws.{ WsBinaryFrameCheck, WsFrameCheck, WsFrameCheckSequence, WsTextFrameCheck }
+import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
 import io.gatling.http.client.WebSocket
 
 import com.typesafe.scalalogging.StrictLogging
@@ -35,19 +34,19 @@ final case class WsPerformingCheckState(
     remainingChecks: List[WsFrameCheck],
     checkSequenceStart: Long,
     remainingCheckSequences: List[WsFrameCheckSequence[WsFrameCheck]],
+    remainingReconnects: Int,
     session: Session,
     next: Either[Action, SendFrame]
 ) extends WsState(fsm)
     with StrictLogging {
-
   import fsm._
 
   override def onTimeout(): NextWsState = {
     logger.debug(s"Check timeout")
     // check timeout
     // fail check, send next and goto Idle
-    val errorMessage = s"Check ${currentCheck.name} timeout"
-    val newSession = logResponse(session, currentCheck.name, checkSequenceStart, clock.nowMillis, KO, None, Some(errorMessage))
+    val errorMessage = s"Check ${currentCheck.resolvedName} timeout"
+    val newSession = logCheckResult(session, clock.nowMillis, KO, None, Some(errorMessage))
     val nextAction = next match {
       case Left(n) =>
         logger.debug("Check timeout, failing it and performing next action")
@@ -55,7 +54,7 @@ final case class WsPerformingCheckState(
       case Right(sendFrame) =>
         // logging crash
         logger.debug("Check timeout while trying to reconnect, failing pending send message and performing next action")
-        statsEngine.logCrash(newSession, sendFrame.actionName, s"Couldn't reconnect: $errorMessage")
+        statsEngine.logCrash(session.scenario, session.groups, sendFrame.actionName, s"Couldn't reconnect: $errorMessage")
         sendFrame.next
     }
 
@@ -63,31 +62,36 @@ final case class WsPerformingCheckState(
       new WsIdleState(
         fsm,
         newSession,
-        webSocket
+        webSocket,
+        remainingReconnects
       ),
       () => nextAction ! newSession
     )
   }
 
   override def onTextFrameReceived(message: String, timestamp: Long): NextWsState =
-    currentCheck match {
-      case WsTextFrameCheck(_, matchConditions, checks) =>
-        tryApplyingChecks(message, timestamp, matchConditions, checks)
+    if (autoReplyTextFrames(message, webSocket)) {
+      NextWsState(this)
+    } else {
+      currentCheck match {
+        case WsFrameCheck.Text(_, matchConditions, checks, _, _) =>
+          tryApplyingChecks(message, timestamp, matchConditions, checks)
 
-      case _ =>
-        logger.debug(s"Received unmatched text frame $message")
-        // server unmatched message, just log
-        logUnmatchedServerMessage(session)
-        NextWsState(this)
+        case _ =>
+          logger.debug(s"Received unmatched text frame $message")
+          // server unmatched message, just log
+          logUnmatchedServerMessage(session)
+          NextWsState(this)
+      }
     }
 
   override def onBinaryFrameReceived(message: Array[Byte], timestamp: Long): NextWsState =
     currentCheck match {
-      case WsBinaryFrameCheck(_, matchConditions, checks) =>
+      case WsFrameCheck.Binary(_, matchConditions, checks, _, _) =>
         tryApplyingChecks(message, timestamp, matchConditions, checks)
 
       case _ =>
-        logger.debug(s"Received unmatched binary frame $message")
+        logger.debug("Received unmatched binary frame")
         // server unmatched message, just log
         logUnmatchedServerMessage(session)
         NextWsState(this)
@@ -95,15 +99,27 @@ final case class WsPerformingCheckState(
 
   override def onWebSocketClosed(code: Int, reason: String, timestamp: Long): NextWsState = {
     // unexpected close, fail check
-    logger.debug("WebSocket remotely closed while waiting for checks")
+    logger.debug(s"WebSocket remotely closed while in $stateName state")
     cancelTimeout()
-    handleWebSocketCheckCrash(currentCheck.name, session, next, checkSequenceStart, Some(Integer.toString(code)), reason)
+    handleWebSocketCheckCrash(session, next, Some(Integer.toString(code)), reason)
   }
 
-  private def tryApplyingChecks[T](message: T, timestamp: Long, matchConditions: List[Check[T]], checks: List[Check[T]]): NextWsState = {
+  override def onWebSocketCrashed(t: Throwable, timestamp: Long): NextWsState = {
+    logger.debug(s"WebSocket crashed by the server while in $stateName state", t)
+    cancelTimeout()
+    handleWebSocketCheckCrash(session, next, None, t.rootMessage)
+  }
 
+  private def logCheckResult(sessionWithCheckUpdate: Session, end: Long, status: Status, code: Option[String], reason: Option[String]): Session =
+    if (currentCheck.isSilent) {
+      sessionWithCheckUpdate
+    } else {
+      logResponse(sessionWithCheckUpdate, currentCheck.resolvedName, checkSequenceStart, end, status, code, reason)
+    }
+
+  private def tryApplyingChecks[T](message: T, timestamp: Long, matchConditions: List[Check[T]], checks: List[Check[T]]): NextWsState = {
     // cache is used for both matching and checking
-    val preparedCache: JHashMap[Any, Any] = new JHashMap(2)
+    val preparedCache = Check.newPreparedCache
 
     // if matchConditions isEmpty, all messages are considered to be matching
     val messageMatches = matchConditions.forall {
@@ -121,7 +137,7 @@ final case class WsPerformingCheckState(
       checkError match {
         case Some(Failure(errorMessage)) =>
           logger.debug("Check failure")
-          val newSession = logResponse(sessionWithCheckUpdate, currentCheck.name, checkSequenceStart, timestamp, KO, None, Some(errorMessage))
+          val newSession = logCheckResult(sessionWithCheckUpdate, timestamp, KO, None, Some(errorMessage))
 
           val nextAction = next match {
             case Left(n) =>
@@ -130,42 +146,41 @@ final case class WsPerformingCheckState(
             case Right(sendMessage) =>
               // failed to reconnect, logging crash
               logger.debug("Check failed while trying to reconnect, failing pending send message and performing next action")
-              statsEngine.logCrash(newSession, sendMessage.actionName, s"Couldn't reconnect: $errorMessage")
+              statsEngine.logCrash(session.scenario, session.groups, sendMessage.actionName, s"Couldn't reconnect: $errorMessage")
               sendMessage.next
           }
 
           NextWsState(
-            new WsIdleState(fsm, newSession, webSocket),
+            new WsIdleState(fsm, newSession, webSocket, remainingReconnects),
             () => nextAction ! newSession
           )
 
         case _ =>
           logger.debug("Current check success")
           // check success
-          val newSession = logResponse(sessionWithCheckUpdate, currentCheck.name, checkSequenceStart, timestamp, OK, None, None)
+          val newSession = logCheckResult(sessionWithCheckUpdate, timestamp, OK, None, None)
           remainingChecks match {
             case nextCheck :: nextRemainingChecks =>
               // perform next check
               logger.debug("Perform next check of current check sequence")
-              //[fl]
+              // [e]
               //
-              //[fl]
+              // [e]
               NextWsState(this.copy(currentCheck = nextCheck, remainingChecks = nextRemainingChecks, session = newSession))
 
             case _ =>
               remainingCheckSequences match {
-                case WsFrameCheckSequence(timeout, newCurrentCheck :: newRemainingChecks) :: nextRemainingCheckSequences =>
+                case WsFrameCheckSequence(timeout, nextCheck :: nextRemainingChecks) :: nextRemainingCheckSequences =>
                   logger.debug("Perform next check sequence")
                   // perform next CheckSequence
                   scheduleTimeout(timeout)
-                  //[fl]
+                  // [e]
                   //
-                  //[fl]
-
+                  // [e]
                   NextWsState(
                     this.copy(
-                      currentCheck = newCurrentCheck,
-                      remainingChecks = newRemainingChecks,
+                      currentCheck = nextCheck,
+                      remainingChecks = nextRemainingChecks,
                       checkSequenceStart = timestamp,
                       remainingCheckSequences = nextRemainingCheckSequences,
                       session = newSession
@@ -178,10 +193,10 @@ final case class WsPerformingCheckState(
                   val nextStateAction =
                     next match {
                       case Left(nextAction) => () => nextAction ! newSession
-                      case Right(sendFrame) => sendFrameNextAction(newSession, sendFrame)
+                      case Right(sendFrame) => () => sendFrameNextAction(newSession, sendFrame)
                     }
                   NextWsState(
-                    new WsIdleState(fsm, newSession, webSocket),
+                    new WsIdleState(fsm, newSession, webSocket, remainingReconnects),
                     nextStateAction
                   )
               }
@@ -196,16 +211,15 @@ final case class WsPerformingCheckState(
   }
 
   private def handleWebSocketCheckCrash(
-      checkName: String,
       session: Session,
       next: Either[Action, SendFrame],
-      checkSequenceStart: Long,
       code: Option[String],
       errorMessage: String
   ): NextWsState = {
+    cancelTimeout()
     val fullMessage = s"WebSocket crashed while waiting for check: $errorMessage"
 
-    val newSession = logResponse(session, checkName, checkSequenceStart, clock.nowMillis, KO, code, Some(fullMessage))
+    val newSession = logCheckResult(session, clock.nowMillis, KO, code, Some(fullMessage))
     val nextAction = next match {
       case Left(n) =>
         // failed to connect
@@ -215,12 +229,12 @@ final case class WsPerformingCheckState(
       case Right(sendTextMessage) =>
         // failed to reconnect, logging crash
         logger.debug("WebSocket crashed while trying to reconnect, failing pending send message and performing next action")
-        statsEngine.logCrash(newSession, sendTextMessage.actionName, s"Couldn't reconnect: $errorMessage")
+        statsEngine.logCrash(session.scenario, session.groups, sendTextMessage.actionName, s"Couldn't reconnect: $errorMessage")
         sendTextMessage.next
     }
 
     NextWsState(
-      new WsCrashedState(fsm, Some(errorMessage)),
+      new WsCrashedState(fsm, Some(errorMessage), remainingReconnects),
       () => nextAction ! newSession
     )
   }

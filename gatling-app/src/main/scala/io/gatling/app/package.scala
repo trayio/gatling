@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,10 @@
 
 package io.gatling
 
-import io.gatling.core.scenario.Simulation
-
 import scala.collection.mutable
 
 package object app {
-
   type ConfigOverrides = mutable.Map[String, _]
 
-  type SelectedSimulationClass = Option[Class[Simulation]]
-  type SimulationClasses = List[Class[Simulation]]
+  type JavaSimulation = io.gatling.javaapi.core.Simulation
 }

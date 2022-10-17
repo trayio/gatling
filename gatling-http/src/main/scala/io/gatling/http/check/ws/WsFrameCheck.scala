@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,30 +18,72 @@ package io.gatling.http.check.ws
 
 import scala.concurrent.duration.FiniteDuration
 
+import io.gatling.commons.validation.Validation
+import io.gatling.core.session.{ Expression, Session }
+
 import com.softwaremill.quicklens._
 
 final case class WsFrameCheckSequence[+T <: WsFrameCheck](timeout: FiniteDuration, checks: List[T]) {
-  require(checks.nonEmpty, "Can't pass empty check sequence")
+  require(checks.nonEmpty, "Can't pass an empty check sequence")
 }
 
-sealed trait WsFrameCheck {
-  def name: String
+sealed trait WsFrameCheck extends Product with Serializable {
+  def resolvedName: String
+  def isSilent: Boolean
 }
 
-final case class WsBinaryFrameCheck(name: String, matchConditions: List[WsBinaryCheck], checks: List[WsBinaryCheck]) extends WsFrameCheck {
+object WsFrameCheck {
+  final case class Binary(
+      name: Expression[String],
+      matchConditions: List[WsCheck.Binary],
+      checks: List[WsCheck.Binary],
+      isSilent: Boolean,
+      resolvedName: String
+  ) extends WsFrameCheck {
+    def matching(newMatchConditions: WsCheck.Binary*): Binary = {
+      require(!newMatchConditions.contains(null), "Matching conditions can't contain null elements. Forward reference issue?")
+      this.modify(_.matchConditions)(_ ::: newMatchConditions.toList)
+    }
 
-  def matching(newMatchConditions: WsBinaryCheck*): WsBinaryFrameCheck =
-    this.modify(_.matchConditions).using(_ ::: newMatchConditions.toList)
+    def check(newChecks: WsCheck.Binary*): Binary = {
+      require(!newChecks.contains(null), "Checks can't contain null elements. Forward reference issue?")
+      this.modify(_.checks)(_ ::: newChecks.toList)
+    }
 
-  def check(newChecks: WsBinaryCheck*): WsBinaryFrameCheck =
-    this.modify(_.checks).using(_ ::: newChecks.toList)
-}
+    def checkIf(condition: Expression[Boolean])(thenChecks: WsCheck.Binary*): Binary =
+      check(thenChecks.map(_.checkIf(condition)): _*)
 
-final case class WsTextFrameCheck(name: String, matchConditions: List[WsTextCheck], checks: List[WsTextCheck]) extends WsFrameCheck {
+    def checkIf(condition: (Array[Byte], Session) => Validation[Boolean])(thenChecks: WsCheck.Binary*): Binary =
+      check(thenChecks.map(_.checkIf(condition)): _*)
 
-  def matching(newMatchConditions: WsTextCheck*): WsTextFrameCheck =
-    this.modify(_.matchConditions).using(_ ::: newMatchConditions.toList)
+    def silent: Binary =
+      copy(isSilent = true)
+  }
 
-  def check(newChecks: WsTextCheck*): WsTextFrameCheck =
-    this.modify(_.checks).using(_ ::: newChecks.toList)
+  final case class Text(
+      name: Expression[String],
+      matchConditions: List[WsCheck.Text],
+      checks: List[WsCheck.Text],
+      isSilent: Boolean,
+      resolvedName: String
+  ) extends WsFrameCheck {
+    def matching(newMatchConditions: WsCheck.Text*): Text = {
+      require(!newMatchConditions.contains(null), "Matching conditions can't contain null elements. Forward reference issue?")
+      this.modify(_.matchConditions)(_ ::: newMatchConditions.toList)
+    }
+
+    def check(newChecks: WsCheck.Text*): Text = {
+      require(!newChecks.contains(null), "Checks can't contain null elements. Forward reference issue?")
+      this.modify(_.checks)(_ ::: newChecks.toList)
+    }
+
+    def checkIf(condition: Expression[Boolean])(thenChecks: WsCheck.Text*): Text =
+      check(thenChecks.map(_.checkIf(condition)): _*)
+
+    def checkIf(condition: (String, Session) => Validation[Boolean])(thenChecks: WsCheck.Text*): Text =
+      check(thenChecks.map(_.checkIf(condition)): _*)
+
+    def silent: Text =
+      copy(isSilent = true)
+  }
 }

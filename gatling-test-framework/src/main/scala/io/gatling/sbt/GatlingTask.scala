@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,27 +17,26 @@
 package io.gatling.sbt
 
 import java.io.{ PrintWriter, StringWriter }
+
+import io.gatling.app.Gatling
 import io.gatling.app.cli.StatusCode
+import io.gatling.core.scenario.Simulation
 
 import sbt.testing.{ EventHandler, Logger, OptionalThrowable, Task, TaskDef, TestSelector }
 
-import io.gatling.app.Gatling
-import io.gatling.core.scenario.Simulation
-
 /**
- * The main worker of the test framework :
- * <ul>
- *   <li>Loads the simulation from the test ClassLoader.</li>
- *   <li>Run Gatling with the specified simulation.</li>
- *   <li>Fire the appropriate event, depending on the outcome of the run.</li>
- * </ul>
- * @param taskDef the selected simulation metadata
- * @param testClassLoader the test ClassLoader, provided by SBT.
- * @param args the arguments for the new run
- * @param remoteArgs the arguments for the run in a forked JVM
+ * The main worker of the test framework : <ul> <li>Loads the simulation from the test ClassLoader.</li> <li>Run Gatling with the specified simulation.</li>
+ * <li>Fire the appropriate event, depending on the outcome of the run.</li> </ul>
+ * @param taskDef
+ *   the selected simulation metadata
+ * @param testClassLoader
+ *   the test ClassLoader, provided by SBT.
+ * @param args
+ *   the arguments for the new run
+ * @param remoteArgs
+ *   the arguments for the run in a forked JVM
  */
 class GatlingTask(val taskDef: TaskDef, testClassLoader: ClassLoader, args: Array[String], remoteArgs: Array[String]) extends Task {
-
   override val tags: Array[String] = Array.empty
 
   def execute(eventHandler: EventHandler, loggers: Array[Logger]): Array[Task] = {
@@ -49,7 +48,7 @@ class GatlingTask(val taskDef: TaskDef, testClassLoader: ClassLoader, args: Arra
     val before = System.nanoTime()
     val (returnCode, exception) =
       try {
-        (Gatling.fromArgs(args, Some(simulationClass)), None)
+        (Gatling.fromSbtTestFramework(args ++ Array("-l", "sbt"), simulationClass), None)
       } catch {
         case e: Exception =>
           val sw = new StringWriter

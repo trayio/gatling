@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.DefaultClock
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.EmptySession
 import io.gatling.core.session.el.El
 import io.gatling.core.stats.StatsEngine
 
@@ -26,20 +26,18 @@ import org.scalatest.GivenWhenThen
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
-class IfSpec extends AnyFlatSpec with MockitoSugar with GivenWhenThen {
-
+class IfSpec extends AnyFlatSpec with MockitoSugar with GivenWhenThen with EmptySession {
   private val clock = new DefaultClock
   private val condition = "${condition}".el[Boolean]
 
   "If" should "send the session to thenNext when condition evaluates to true" in {
-
     Given("an If Action")
     val thenNext = mock[Action]
     val elseNext = mock[Action]
     val ifAction = new If(condition, thenNext, elseNext, mock[StatsEngine], clock, mock[Action])
 
     When("being sent a Session that causes condition to be evaluated as true")
-    val session = EmptySession.set("condition", true)
+    val session = emptySession.set("condition", true)
     ifAction ! session
 
     Then("Session should be propagated to thenNext")
@@ -50,14 +48,13 @@ class IfSpec extends AnyFlatSpec with MockitoSugar with GivenWhenThen {
   }
 
   it should "send the session to elseNext when condition evaluates to false" in {
-
     Given("an IfAction")
     val thenNext = mock[Action]
     val elseNext = mock[Action]
     val ifAction = new If(condition, thenNext, elseNext, mock[StatsEngine], clock, mock[Action])
 
     When("being sent a Session that causes condition to be evaluated as false")
-    val session = EmptySession.set("condition", false)
+    val session = emptySession.set("condition", false)
     ifAction ! session
 
     Then("Session should be propagated to elseNext")

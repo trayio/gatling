@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,26 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.Clock
-import io.gatling.core.stats.StatsEngine
 import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
-class If(condition: Expression[Boolean], thenNext: Action, elseNext: Action, val statsEngine: StatsEngine, val clock: Clock, val next: Action)
-    extends ExitableAction
+private final class If(
+    condition: Expression[Boolean],
+    thenNext: Action,
+    elseNext: Action,
+    val statsEngine: StatsEngine,
+    val clock: Clock,
+    val next: Action
+) extends ExitableAction
     with NameGen {
-
   override val name: String = genName("if")
 
   /**
    * Evaluates the condition and decides what to do next
    *
-   * @param session the session of the virtual user
+   * @param session
+   *   the session of the virtual user
    */
   override def execute(session: Session): Unit = recover(session) {
     condition(session).map { condition =>

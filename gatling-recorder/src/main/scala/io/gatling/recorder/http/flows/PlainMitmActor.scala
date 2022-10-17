@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package io.gatling.recorder.http.flows
 
 import io.gatling.commons.util.Clock
 import io.gatling.recorder.http.{ ClientHandler, TrafficLogger }
-import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.Mitm._
+import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM._
 import io.gatling.recorder.http.flows.MitmMessage._
 
@@ -33,7 +33,6 @@ abstract class PlainMitmActor(
     trafficLogger: TrafficLogger,
     clock: Clock
 ) extends MitmActor(clientBootstrap) {
-
   protected def propagatedRequest(originalRequest: FullHttpRequest): FullHttpRequest
 
   startWith(Init, NoData)

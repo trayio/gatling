@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,58 +18,99 @@ package io.gatling.http.client.impl;
 
 import io.gatling.http.client.HttpClientConfig;
 import io.gatling.http.client.HttpListener;
-import io.gatling.http.client.util.HttpUtils;
 import io.gatling.http.client.impl.request.WritableRequest;
 import io.gatling.http.client.impl.request.WritableRequestBuilder;
 import io.gatling.http.client.pool.ChannelPool;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
+import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http2.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-
 public class Http2AppHandler extends ChannelDuplexHandler {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(Http2AppHandler.class);
-  private static final IOException REMOTELY_CLOSED_EXCEPTION = new IOException("Channel was closed before handshake completed");
+  public static final class StreamTimeout {
+    private final int streamId;
 
-  private final Http2Connection connection;
-  private final Http2Connection.PropertyKey propertyKey;
+    public StreamTimeout(int streamId) {
+      this.streamId = streamId;
+    }
+  }
+
+  public static final class GoAwayFrame {
+    private final int lastStreamId;
+    private final long errorCode;
+
+    public GoAwayFrame(int lastStreamId, long errorCode) {
+      this.lastStreamId = lastStreamId;
+      this.errorCode = errorCode;
+    }
+
+    @Override
+    public String toString() {
+      return "GoAwayFrame{lastStreamId=" + lastStreamId + ", errorCode=" + errorCode + '}';
+    }
+  }
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(Http2AppHandler.class);
+  private static final IOException REMOTELY_CLOSED_EXCEPTION =
+      new IOException("Channel was closed before handshake completed");
+
+  private final DefaultHttpClient client;
   private final Http2ConnectionHandler http2ConnectionHandler;
   private final ChannelPool channelPool;
   private final HttpClientConfig config;
 
   // mutable state
+  private boolean writeReached = false;
   private int nextStreamId = 1;
+  private final Map<Integer, HttpTx> txByStreamId = new HashMap<>();
 
-  Http2AppHandler(Http2Connection connection, Http2ConnectionHandler http2ConnectionHandler, ChannelPool channelPool, HttpClientConfig config) {
-    this.connection = connection;
-    this.propertyKey = connection.newKey();
+  Http2AppHandler(
+      DefaultHttpClient client,
+      Http2ConnectionHandler http2ConnectionHandler,
+      ChannelPool channelPool,
+      HttpClientConfig config) {
+    this.client = client;
     this.http2ConnectionHandler = http2ConnectionHandler;
     this.channelPool = channelPool;
     this.config = config;
   }
 
   @Override
+  public boolean isSharable() {
+    return false;
+  }
+
+  @Override
   public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+    writeReached = true;
     HttpTx tx = (HttpTx) msg;
-    nextStreamId += 2;
 
     if (tx.requestTimeout.isDone()) {
       channelPool.offer(ctx.channel());
       return;
     }
+    nextStreamId += 2; // that's how Netty works, 1 is reserved for the connection itself
+    int thisStreamId = nextStreamId;
+    txByStreamId.put(thisStreamId, tx);
 
     try {
-      WritableRequest request = WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, true);
+      WritableRequest request =
+          WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, true);
       LOGGER.debug("Write request {}", request);
-
       tx.listener.onWrite(ctx.channel());
+
+      request
+          .getRequest()
+          .headers()
+          .setInt(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text(), thisStreamId);
 
       ChannelFuture whenWrite;
       if (HttpUtil.is100ContinueExpected(request.getRequest())) {
@@ -80,14 +121,20 @@ public class Http2AppHandler extends ChannelDuplexHandler {
         whenWrite = request.write(ctx);
       }
 
-      whenWrite.addListener(f -> {
-        if (f.isSuccess()) {
-          Http2Stream stream = connection.stream(nextStreamId);
-          stream.setProperty(propertyKey, tx);
-        } else {
-          crash(ctx, f.cause(), tx.listener, true);
-        }
-      });
+      whenWrite.addListener(
+          f -> {
+            if (f.isSuccess()) {
+              if (tx.requestTimeout.isDone()) {
+                resetStream(ctx, thisStreamId, Http2Error.CANCEL);
+              } else {
+                tx.requestTimeout.setStreamId(thisStreamId);
+              }
+
+            } else {
+              tx.requestTimeout.cancel();
+              tx.listener.onThrowable(f.cause());
+            }
+          });
     } catch (Exception e) {
       crash(ctx, e, tx.listener, true);
     }
@@ -97,14 +144,13 @@ public class Http2AppHandler extends ChannelDuplexHandler {
   public void channelRead(ChannelHandlerContext ctx, Object msg) {
     if (msg instanceof HttpResponse) {
       HttpResponse response = (HttpResponse) msg;
-      Integer streamId = response.headers().getInt(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text());
-      Http2Stream stream = connection.stream(streamId);
-      HttpTx tx = stream.getProperty(propertyKey);
+      Integer streamId =
+          response.headers().getInt(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text());
+      HttpTx tx = txByStreamId.get(streamId);
 
       if (tx.requestTimeout.isDone()) {
         tx.releasePendingRequestExpectingContinue();
-        http2ConnectionHandler.resetStream(ctx, streamId, 8, ctx.newPromise());
-        channelPool.offer(ctx.channel());
+        resetStream(ctx, streamId, Http2Error.CANCEL);
         return;
       }
 
@@ -117,22 +163,22 @@ public class Http2AppHandler extends ChannelDuplexHandler {
 
         } else {
           // TODO implement 417 support
-          LOGGER.debug("Request was sent with Expect:100-Continue but received response with status {}, dropping", status);
+          LOGGER.debug(
+              "Request was sent with Expect:100-Continue but received response with status {}, dropping",
+              status);
           tx.releasePendingRequestExpectingContinue();
         }
       }
 
       tx.listener.onHttpResponse(status, response.headers());
 
-    } else if (msg instanceof Http2Content){
+    } else if (msg instanceof Http2Content) {
       Http2Content content = (Http2Content) msg;
       int streamId = content.getStreamId();
-      Http2Stream stream = connection.stream(streamId);
-      HttpTx tx = stream.getProperty(propertyKey);
+      HttpTx tx = txByStreamId.get(streamId);
 
       if (tx.requestTimeout.isDone()) {
-        http2ConnectionHandler.resetStream(ctx, streamId, 8, ctx.newPromise());
-        channelPool.offer(ctx.channel());
+        resetStream(ctx, streamId, Http2Error.CANCEL);
         return;
       }
 
@@ -151,27 +197,28 @@ public class Http2AppHandler extends ChannelDuplexHandler {
       tx.listener.onHttpResponseBodyChunk(httpContent.content(), last);
       if (last) {
         tx.requestTimeout.cancel();
-        channelPool.offer(ctx.channel());
+        closeStream(ctx, streamId);
       }
     }
   }
 
-  private void crash(ChannelHandlerContext ctx, Throwable cause, HttpListener nonActiveStreamListener, boolean close) {
+  private void crash(
+      ChannelHandlerContext ctx,
+      Throwable cause,
+      HttpListener nonActiveStreamListener,
+      boolean close) {
     try {
       if (nonActiveStreamListener != null) {
         nonActiveStreamListener.onThrowable(cause);
       }
-      connection.forEachActiveStream(stream -> {
-        HttpTx tx = stream.getProperty(propertyKey);
-        tx.releasePendingRequestExpectingContinue();
-        tx.listener.onThrowable(cause);
-        return true;
-      });
-
-    } catch (Http2Exception e) {
-      LOGGER.error("Can't properly close active streams");
+      txByStreamId.forEach(
+          (id, tx) -> {
+            tx.releasePendingRequestExpectingContinue();
+            tx.listener.onThrowable(cause);
+          });
     } finally {
       if (close) {
+        // FIXME shouldn't we close the connection?
         ctx.close();
       }
     }
@@ -184,12 +231,61 @@ public class Http2AppHandler extends ChannelDuplexHandler {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-    crash(ctx, cause, null,true);
+    crash(ctx, cause, null, true);
   }
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) {
-    // FIXME retry?
-    crash(ctx, REMOTELY_CLOSED_EXCEPTION, null, false);
+    if (!writeReached) {
+      crash(ctx, REMOTELY_CLOSED_EXCEPTION, null, false);
+    }
+  }
+
+  @Override
+  public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+    if (evt instanceof GoAwayFrame) {
+      GoAwayFrame goAway = (GoAwayFrame) evt;
+
+      LOGGER.debug("Received GOAWAY frame: {}", goAway);
+      ChannelPool.markAsGoAway(ctx.channel());
+
+      List<HttpTx> retryTxs = new ArrayList<>(3);
+
+      List<Map.Entry<Integer, HttpTx>> droppedStreams =
+          txByStreamId.entrySet().stream()
+              .filter(entry -> entry.getKey() > goAway.lastStreamId)
+              .collect(Collectors.toList());
+
+      droppedStreams.forEach(
+          entry -> {
+            txByStreamId.remove(entry.getKey());
+            HttpTx tx = entry.getValue();
+            if (goAway.errorCode == Http2Error.NO_ERROR.code() && client.canRetry(tx)) {
+              retryTxs.add(tx);
+            } else {
+              tx.listener.onThrowable(REMOTELY_CLOSED_EXCEPTION);
+            }
+          });
+
+      if (!retryTxs.isEmpty()) {
+        client.retryHttp2(retryTxs, ctx.channel().eventLoop());
+      }
+
+    } else if (evt instanceof StreamTimeout) {
+      resetStream(ctx, ((StreamTimeout) evt).streamId, Http2Error.CANCEL);
+    }
+  }
+
+  private void closeStream(ChannelHandlerContext ctx, int streamId) {
+    txByStreamId.remove(streamId);
+    http2ConnectionHandler.connection().stream(streamId).close();
+    channelPool.offer(ctx.channel());
+  }
+
+  private void resetStream(ChannelHandlerContext ctx, int streamId, Http2Error error) {
+    txByStreamId.remove(streamId);
+    http2ConnectionHandler
+        .resetStream(ctx, streamId, error.code(), ctx.newPromise())
+        .addListener((ChannelFutureListener) future -> channelPool.offer(ctx.channel()));
   }
 }

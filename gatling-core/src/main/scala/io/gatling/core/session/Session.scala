@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 
 package io.gatling.core.session
 
-import scala.annotation.tailrec
-import scala.collection.breakOut
+import java.util.UUID
+
 import scala.reflect.ClassTag
 
 import io.gatling.commons.NotNothing
 import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.TypeCaster
-import io.gatling.commons.util.TypeHelper._
+import io.gatling.commons.util.TypeHelper
 import io.gatling.commons.validation._
 import io.gatling.core.action.Action
 import io.gatling.core.session.el.ElMessages
@@ -32,30 +32,31 @@ import io.gatling.core.stats.message.ResponseTimings
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.channel.EventLoop
 
-/**
- * Private Gatling Session attributes
- */
-object SessionPrivateAttributes {
+private[gatling] object SessionPrivateAttributes {
+  private val PrivateAttributePrefix = "gatling."
 
-  val PrivateAttributePrefix = "gatling."
+  def isAttributePrivate(attributeName: String): Boolean = attributeName.startsWith(PrivateAttributePrefix)
+
+  def generatePrivateAttribute(base: String): String = PrivateAttributePrefix + base
+
+  def generateRandomUuidPrivateAttribute(): String = PrivateAttributePrefix + UUID.randomUUID()
 }
 
 final case class SessionAttribute(session: Session, key: String) {
-
   def as[T: TypeCaster: ClassTag: NotNothing]: T = session.attributes.get(key) match {
-    case Some(value) => value.as[T]
+    case Some(value) => TypeHelper.cast[T](key, value)
     case _           => throw new NoSuchElementException(ElMessages.undefinedSessionAttribute(key).message)
   }
-  def asOption[T: TypeCaster: ClassTag: NotNothing]: Option[T] = session.attributes.get(key).flatMap(_.asOption[T])
+  def asOption[T: TypeCaster: ClassTag: NotNothing]: Option[T] = session.attributes.get(key).map(TypeHelper.cast[T](key, _))
   def validate[T: TypeCaster: ClassTag: NotNothing]: Validation[T] = session.attributes.get(key) match {
-    case Some(value) => value.asValidation[T]
+    case Some(value) => TypeHelper.validate[T](key, value)
     case _           => ElMessages.undefinedSessionAttribute(key)
   }
 }
 
 object Session {
   val MarkAsFailedUpdate: Session => Session = _.markAsFailed
-  val Identity: Session => Session = identity[Session]
+  val Identity: Session => Session = identity
   val NothingOnExit: Session => Unit = _ => ()
 
   private[session] def timestampName(counterName: String) = "timestamp." + counterName
@@ -63,22 +64,19 @@ object Session {
   def apply(
       scenario: String,
       userId: Long,
-      startDate: Long,
       eventLoop: EventLoop
   ): Session =
-    apply(scenario, userId, startDate, Session.NothingOnExit, eventLoop)
+    apply(scenario, userId, Session.NothingOnExit, eventLoop)
 
   private[core] def apply(
       scenario: String,
       userId: Long,
-      startDate: Long,
       onExit: Session => Unit,
       eventLoop: EventLoop
   ): Session =
     Session(
       scenario = scenario,
       userId = userId,
-      startDate = startDate,
       attributes = Map.empty,
       baseStatus = OK,
       blockStack = Nil,
@@ -92,30 +90,34 @@ object Session {
  *
  * This session stores all needed data between requests
  *
- * @constructor creates a new session
- * @param scenario the name of the current scenario
- * @param userId the id of the current user
- * @param attributes the map that stores all values needed
- * @param startDate when the user was started
- * @param baseStatus the status when not in a TryMax blocks hierarchy
- * @param blockStack the block stack
- * @param onExit hook to execute once the user reaches the exit
+ * @constructor
+ *   creates a new session
+ * @param scenario
+ *   the name of the current scenario
+ * @param userId
+ *   the id of the current user
+ * @param attributes
+ *   the map that stores all values needed
+ * @param baseStatus
+ *   the status when not in a TryMax blocks hierarchy
+ * @param blockStack
+ *   the block stack
+ * @param onExit
+ *   hook to execute once the user reaches the exit
  */
 final case class Session(
     scenario: String,
     userId: Long,
-    startDate: Long,
     attributes: Map[String, Any],
     baseStatus: Status,
     blockStack: List[Block],
     onExit: Session => Unit,
     eventLoop: EventLoop
 ) extends LazyLogging {
-
   import Session._
 
   def apply(name: String): SessionAttribute = SessionAttribute(this, name)
-  def setAll(newAttributes: (String, Any)*): Session = setAll(newAttributes.toIterable)
+  def setAll(newAttributes: (String, Any)*): Session = copy(attributes = attributes ++ newAttributes)
   def setAll(newAttributes: Iterable[(String, Any)]): Session = copy(attributes = attributes ++ newAttributes)
   def set(key: String, value: Any): Session = copy(attributes = attributes + (key -> value))
   def remove(key: String): Session = if (contains(key)) copy(attributes = attributes - key) else this
@@ -126,32 +128,31 @@ final case class Session(
     val newAttributes =
       if (blockStack.isEmpty) {
         // not in a block
-        Map.empty[String, Any]
+        attributes.view.filterKeys(SessionPrivateAttributes.isAttributePrivate)
       } else {
-        val counterNames: Set[String] = blockStack.collect { case counterBlock: CounterBlock => counterBlock.counterName }(breakOut)
+        val counterNames: Set[String] = blockStack.view.collect { case loopBlock: LoopBlock => loopBlock.counterName }.to(Set)
         if (counterNames.isEmpty) {
           // no counter based blocks (only groups)
-          Map.empty[String, Any]
+          attributes.view.filterKeys(SessionPrivateAttributes.isAttributePrivate)
         } else {
           val timestampNames: Set[String] = counterNames.map(timestampName)
-          attributes.filter {
-            case (key, _) => counterNames.contains(key) || timestampNames.contains(key) || key.startsWith(SessionPrivateAttributes.PrivateAttributePrefix)
-          }
+          attributes.view.filterKeys(key => counterNames.contains(key) || timestampNames.contains(key) || SessionPrivateAttributes.isAttributePrivate(key))
         }
       }
-    copy(attributes = newAttributes)
+    copy(attributes = newAttributes.to(Map))
   }
 
   def loopCounterValue(counterName: String): Int = attributes(counterName).asInstanceOf[Int]
 
   def loopTimestampValue(counterName: String): Long = attributes(timestampName(counterName)).asInstanceOf[Long]
 
+  @SuppressWarnings(Array("org.wartremover.warts.ListAppend"))
   private[gatling] def enterGroup(groupName: String, nowMillis: Long): Session = {
-    val groupHierarchy = blockStack.collectFirst { case g: GroupBlock => g.hierarchy } match {
+    val groups = blockStack.collectFirst { case g: GroupBlock => g.groups } match {
       case Some(l) => l :+ groupName
-      case _       => List(groupName)
+      case _       => groupName :: Nil
     }
-    copy(blockStack = GroupBlock(groupHierarchy, nowMillis, 0, OK) :: blockStack)
+    copy(blockStack = GroupBlock(groups, nowMillis, 0, OK) :: blockStack)
   }
 
   private[core] def exitGroup(tail: List[Block]): Session = copy(blockStack = tail)
@@ -167,20 +168,8 @@ final case class Session(
       })
     }
 
-  def groupHierarchy: List[String] = {
-
-    @tailrec
-    def gh(blocks: List[Block]): List[String] = blocks match {
-      case head :: tail =>
-        head match {
-          case g: GroupBlock => g.hierarchy
-          case _             => gh(tail)
-        }
-      case _ => Nil
-    }
-
-    gh(blockStack)
-  }
+  def groups: List[String] =
+    blockStack.collectFirst { case g: GroupBlock => g.groups }.getOrElse(Nil)
 
   private[core] def enterTryMax(counterName: String, loopAction: Action) =
     copy(
@@ -188,14 +177,8 @@ final case class Session(
       attributes = newAttributesWithCounter(counterName, withTimestamp = false, 0L)
     )
 
-  private[core] def exitTryMax: Session = blockStack match {
-    case TryMaxBlock(counterName, _, status) :: tail =>
-      copy(blockStack = tail).updateStatus(status).removeCounter(counterName)
-
-    case _ =>
-      logger.error(s"exitTryMax called but stack head $blockStack isn't a TryMaxBlock, please report.")
-      this
-  }
+  private[core] def exitTryMax(counterName: String, status: Status, tail: List[Block]): Session =
+    copy(blockStack = tail).updateStatus(status).removeCounter(counterName)
 
   def isFailed: Boolean = baseStatus == KO || blockStack.exists {
     case TryMaxBlock(_, _, KO) => true
@@ -280,12 +263,8 @@ final case class Session(
       attributes = newAttributesWithCounter(counterName, withTimestamp = true, nowMillis)
     )
 
-  private[core] def exitLoop: Session = blockStack match {
-    case LoopBlock(counterName) :: tail => copy(blockStack = tail).removeCounter(counterName)
-    case _ =>
-      logger.error(s"exitLoop called but stack head $blockStack isn't a Loop Block, please report.")
-      this
-  }
+  private[core] def exitLoop(counterName: String, tail: List[Block]): Session =
+    copy(blockStack = tail).removeCounter(counterName)
 
   private def newAttributesWithCounter(counterName: String, withTimestamp: Boolean, nowMillis: Long): Map[String, Any] = {
     val withCounter = attributes.updated(counterName, 0)

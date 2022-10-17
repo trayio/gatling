@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,12 @@ import io.gatling.core.stats.writer.RunMessage
 import io.gatling.graphite.types._
 
 abstract class GraphitePathPattern(runMessage: RunMessage, configuration: GatlingConfiguration) {
-
   def allUsersPath: GraphitePath
   def usersPath(scenario: String): GraphitePath
   def allResponsesPath: GraphitePath
   def responsePath(requestName: String, groups: List[String]): GraphitePath
 
   def metrics(userBreakdowns: Map[GraphitePath, UserBreakdown], responseMetricsByStatus: Map[GraphitePath, MetricByStatus]): Iterator[(String, Long)] = {
-
     val userMetrics = userBreakdowns.iterator.flatMap(byProgress)
 
     val targetResponseMetrics =

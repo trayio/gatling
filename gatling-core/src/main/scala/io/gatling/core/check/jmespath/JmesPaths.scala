@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,24 +21,22 @@ import io.gatling.core.check.jsonpath.JsonFilter
 import io.gatling.core.util.cache.Cache
 
 import com.fasterxml.jackson.databind.JsonNode
-import io.burt.jmespath.function.{ FunctionRegistry, Function => JmesPathFunction }
-import io.burt.jmespath.jackson.JacksonRuntime
 import io.burt.jmespath.{ Expression, RuntimeConfiguration }
+import io.burt.jmespath.function.{ Function => JmesPathFunction, FunctionRegistry }
+import io.burt.jmespath.jackson.JacksonRuntime
 
 private[gatling] object JmesPathFunctions {
-
   private[jmespath] var functions: Seq[JmesPathFunction] = Nil
 
   def register(functions: Seq[JmesPathFunction]): Unit = {
-    if (functions.nonEmpty) {
+    if (this.functions.nonEmpty) {
       throw new UnsupportedOperationException("JmesPath functions have already been registered")
     }
     this.functions = functions
   }
 }
 
-private[gatling] class JmesPaths(cacheMaxCapacity: Long) {
-
+final class JmesPaths(cacheMaxCapacity: Long) {
   private val runtime = new JacksonRuntime(
     new RuntimeConfiguration.Builder().withFunctionRegistry(FunctionRegistry.defaultRegistry.extend(JmesPathFunctions.functions: _*)).build
   )
@@ -53,7 +51,7 @@ private[gatling] class JmesPaths(cacheMaxCapacity: Long) {
   def extract[X: JsonFilter](json: JsonNode, expression: String): Validation[Option[X]] =
     compileJmesPath(expression).map { compiledExpression =>
       val node = compiledExpression.search(json)
-      JsonFilter[X].filter.lift(node)
+      if (node.isNull) None else JsonFilter[X].filter.lift(node)
     }
 
   private def compileJmesPath(expression: String): Validation[Expression[JsonNode]] = jmesPathCache.get(expression)

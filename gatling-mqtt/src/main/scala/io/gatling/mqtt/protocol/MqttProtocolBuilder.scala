@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@
 
 package io.gatling.mqtt.protocol
 
-import java.net.InetSocketAddress
+import java.net.{ InetAddress, InetSocketAddress }
+import javax.net.ssl.KeyManagerFactory
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -24,11 +25,10 @@ import io.gatling.commons.model.Credentials
 import io.gatling.core.session.Expression
 import io.gatling.mqtt.check.MessageCorrelator
 
-import io.netty.handler.codec.mqtt.{ MqttQoS, MqttVersion }
 import com.softwaremill.quicklens._
+import io.netty.handler.codec.mqtt.{ MqttQoS, MqttVersion }
 
 final case class MqttProtocolBuilder(mqttProtocol: MqttProtocol) {
-
   def mqttVersion_3_1: MqttProtocolBuilder =
     this.modify(_.mqttProtocol.version).setTo(MqttVersion.MQTT_3_1)
 
@@ -36,10 +36,13 @@ final case class MqttProtocolBuilder(mqttProtocol: MqttProtocol) {
     this.modify(_.mqttProtocol.version).setTo(MqttVersion.MQTT_3_1_1)
 
   def broker(hostname: String, port: Int): MqttProtocolBuilder =
-    this.modify(_.mqttProtocol.brokerAddress).setTo(new InetSocketAddress(hostname, port))
+    this.modify(_.mqttProtocol.brokerAddress).setTo(new InetSocketAddress(InetAddress.getByName(hostname), port))
 
   def useTls(useTls: Boolean): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.useTls).setTo(useTls)
+
+  def perUserKeyManagerFactory(f: Long => KeyManagerFactory): MqttProtocolBuilder =
+    this.modify(_.mqttProtocol.perUserKeyManagerFactory).setTo(Some(f))
 
   def clientId(clientId: Expression[String]): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.clientId).setTo(Some(clientId))
@@ -78,13 +81,13 @@ final case class MqttProtocolBuilder(mqttProtocol: MqttProtocol) {
   def reconnectAttemptsMax(reconnectAttemptsMax: Int): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.reconnect.reconnectAttemptsMax).setTo(reconnectAttemptsMax)
 
-  def reconnectDelay(reconnectDelay: Long): MqttProtocolBuilder =
+  def reconnectDelay(reconnectDelay: FiniteDuration): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.reconnect.reconnectDelay).setTo(reconnectDelay)
 
   def reconnectBackoffMultiplier(reconnectBackOffMultiplier: Float): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.reconnect.reconnectBackOffMultiplier).setTo(reconnectBackOffMultiplier)
 
-  def resendDelay(delay: Int): MqttProtocolBuilder =
+  def resendDelay(delay: FiniteDuration): MqttProtocolBuilder =
     this.modify(_.mqttProtocol.resend.resendDelay).setTo(delay)
 
   def resendBackoffMultiplier(multiplier: Float): MqttProtocolBuilder =
@@ -100,7 +103,6 @@ final case class MqttProtocolBuilder(mqttProtocol: MqttProtocol) {
 }
 
 object MqttProtocolBuilder {
-
   implicit def toMqttProtocol(builder: MqttProtocolBuilder): MqttProtocol = builder.build
 
   val Default: MqttProtocolBuilder = MqttProtocolBuilder(MqttProtocol.Default)

@@ -1,6 +1,6 @@
 @ECHO OFF
 @REM
-@REM Copyright 2011-2016 GatlingCorp (http://gatling.io)
+@REM Copyright 2011-2022 GatlingCorp (http://gatling.io)
 @REM
 @REM Licensed under the Apache License, Version 2.0 (the "License");
 @REM you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 @REM
 
 setlocal
+
+set USER_ARGS=%*
 
 rem set GATLING_HOME automatically if possible
 set "OLD_DIR=%cd%"
@@ -38,10 +40,9 @@ goto :noHome
 
 echo GATLING_HOME is set to "%GATLING_HOME%"
 
-set JAVA_OPTS=-Xms512M -Xmx512M -Xmn100M %JAVA_OPTS%
+set JAVA_OPTS=%JAVA_OPTS% -Xms32M -Xmx128M
 
-set CLASSPATH="%GATLING_HOME%"\lib\*;"%GATLING_HOME%"\conf;%JAVA_CLASSPATH%
-set COMMAND=-cp %CLASSPATH% io.gatling.recorder.GatlingRecorder
+set CLASSPATH="%GATLING_HOME%"\lib\*
 
 set JAVA=java
 if exist "%JAVA_HOME%\bin\java.exe" goto setJavaHome
@@ -51,24 +52,22 @@ goto run
 set JAVA="%JAVA_HOME%\bin\java.exe"
 
 :run
-echo JAVA = "%JAVA%"
-
-%JAVA% %JAVA_OPTS% %COMMAND% %1 %2 %3 %4 %5 %6 %7 %8 %9
+echo JAVA = %JAVA%
+%JAVA% %JAVA_OPTS% -cp %CLASSPATH% io.gatling.bundle.RecorderCLI %USER_ARGS%
 
 goto exit
 
-
 :badHome
-echo The GATLING_HOME environnement variable points to the wrong directory.
+echo The GATLING_HOME environment variable points to the wrong directory.
 echo Please set it to the correct folder and try to launch Gatling again.
 goto exit
 
 :noHome
-echo GATLING_HOME environnement variable is not set and could not be guessed automatically.
+echo GATLING_HOME environment variable is not set and could not be guessed automatically.
 echo Please set GATLING_HOME and try to launch Gatling again.
 goto exit
 
 :exit
-pause
+if not defined NO_PAUSE pause
 endlocal
 exit /b 0

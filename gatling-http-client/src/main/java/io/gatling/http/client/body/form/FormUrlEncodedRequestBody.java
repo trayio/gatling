@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,34 @@
 
 package io.gatling.http.client.body.form;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.gatling.http.client.Param;
 import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
-import io.gatling.netty.util.StringBuilderPool;
-import io.gatling.netty.util.Utf8UrlEncoder;
+import io.gatling.http.client.util.Utf8UrlEncoder;
+import io.gatling.jdk.util.StringBuilderPool;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.List;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
+public final class FormUrlEncodedRequestBody extends RequestBody.Base<List<Param>> {
 
   private final Charset charset;
 
-  public FormUrlEncodedRequestBody(List<Param> content, String contentType, Charset charset) {
-    super(content, contentType);
+  private final CharSequence patchedContentType;
+  private static final StringBuilderPool SB_POOL = new StringBuilderPool();
+
+  public FormUrlEncodedRequestBody(
+      List<Param> content, CharSequence patchedContentType, Charset charset) {
+    super(content);
     this.charset = charset;
+    this.patchedContentType = patchedContentType;
   }
 
   @Override
@@ -52,7 +56,7 @@ public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
   }
 
   private StringBuilder encode() {
-    StringBuilder sb = StringBuilderPool.DEFAULT.get();
+    StringBuilder sb = SB_POOL.get();
 
     for (Param param : content) {
       encodeAndAppendFormParam(sb, param.getName(), param.getValue(), charset);
@@ -61,7 +65,8 @@ public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
     return sb;
   }
 
-  private static void encodeAndAppendFormParam(StringBuilder sb, String name, String value, Charset charset) {
+  private static void encodeAndAppendFormParam(
+      StringBuilder sb, String name, String value, Charset charset) {
     encodeAndAppendFormField(sb, name, charset);
     if (value != null) {
       sb.append('=');
@@ -84,10 +89,9 @@ public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
   }
 
   @Override
-  public RequestBodyBuilder<List<Param>> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new FormUrlEncodedRequestBodyBuilder(content);
   }
-
 
   @Override
   public byte[] getBytes() {
@@ -95,11 +99,19 @@ public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
   }
 
   @Override
+  public CharSequence getPatchedContentType() {
+    return patchedContentType;
+  }
+
+  @Override
   public String toString() {
-    return "FormUrlEncodedRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
-      ", charset=" + charset +
-      '}';
+    return "FormUrlEncodedRequestBody{"
+        + "patchedContentType='"
+        + patchedContentType
+        + "', charset="
+        + charset
+        + ", content="
+        + encode()
+        + '}';
   }
 }

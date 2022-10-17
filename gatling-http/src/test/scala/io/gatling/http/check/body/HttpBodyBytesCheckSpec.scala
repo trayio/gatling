@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,51 +17,32 @@
 package io.gatling.http.check.body
 
 import java.nio.charset.StandardCharsets._
-import java.util.{ HashMap => JHashMap }
 
 import io.gatling.{ BaseSpec, ValidationValues }
 import io.gatling.core.CoreDsl
-import io.gatling.core.check.{ CheckMaterializer, CheckResult }
+import io.gatling.core.EmptySession
+import io.gatling.core.check.{ Check, CheckMaterializer, CheckResult }
 import io.gatling.core.check.bytes.BodyBytesCheckType
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.http.HttpDsl
 import io.gatling.http.check.HttpCheck
-import io.gatling.http.response.{ ByteArrayResponseBody, Response }
+import io.gatling.http.response.Response
 
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpResponseStatus }
-
-class HttpBodyBytesCheckSpec extends BaseSpec with ValidationValues with CoreDsl with HttpDsl {
-
+class HttpBodyBytesCheckSpec extends BaseSpec with ValidationValues with CoreDsl with HttpDsl with EmptySession {
   override implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
   private implicit val materializer: CheckMaterializer[BodyBytesCheckType, HttpCheck, Response, Array[Byte]] = HttpBodyBytesCheckMaterializer.Instance
-
-  private def mockResponse(body: Array[Byte]): Response =
-    Response(
-      request = null,
-      wireRequestHeaders = new DefaultHttpHeaders,
-      status = HttpResponseStatus.OK,
-      headers = new DefaultHttpHeaders,
-      body = new ByteArrayResponseBody(body, UTF_8),
-      checksums = null,
-      bodyLength = 0,
-      charset = null,
-      startTimestamp = 0,
-      endTimestamp = 0,
-      isHttp2 = false
-    )
 
   "bodyBytes.find.is" should "support byte arrays equality" in {
     val string = "Hello World"
     val responseBytes = string.getBytes(UTF_8)
     val response = mockResponse(responseBytes)
-    bodyBytes.find.is(string.getBytes(UTF_8)).check(response, EmptySession, new JHashMap[Any, Any]).succeeded shouldBe CheckResult(Some(responseBytes), None)
+    bodyBytes.find.is(string.getBytes(UTF_8)).check(response, emptySession, Check.newPreparedCache).succeeded shouldBe CheckResult(Some(responseBytes), None)
   }
 
   it should "fail when byte arrays are different" in {
     val string = "Hello World"
     val responseBytes = string.getBytes(UTF_8)
     val response = mockResponse(responseBytes)
-    bodyBytes.find.is("HELLO WORLD".getBytes(UTF_8)).check(response, EmptySession, new JHashMap[Any, Any]).failed shouldBe a[String]
+    bodyBytes.find.is("HELLO WORLD".getBytes(UTF_8)).check(response, emptySession, Check.newPreparedCache).failed shouldBe a[String]
   }
 }

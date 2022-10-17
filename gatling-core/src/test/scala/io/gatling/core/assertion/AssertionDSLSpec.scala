@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,7 @@ import io.gatling.commons.stats.assertion._
 import io.gatling.core.config.GatlingConfiguration
 
 class AssertionDSLSpec extends BaseSpec with AssertionSupport {
-
   "The Assertion DSL builders" should "produce the expected Assertions ASTs" in {
-
     implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
     global.responseTime.min.is(100) shouldBe Assertion(Global, TimeTarget(ResponseTime, Min), Is(100))

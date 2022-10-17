@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,15 @@
 
 package io.gatling.recorder.config
 
-import java.util.{ List => JList }
+import java.{ util => ju }
 
 import scala.collection.mutable
 
+import io.gatling.commons.util.Java
 import io.gatling.recorder.config.ConfigKeys._
+import io.gatling.recorder.render.template.Format
 
 class RecorderPropertiesBuilder {
-
   private val props = mutable.Map.empty[String, Any]
 
   def mode(mode: RecorderMode): RecorderPropertiesBuilder = {
@@ -56,6 +57,37 @@ class RecorderPropertiesBuilder {
     this
   }
 
+  def simulationFormatJava: RecorderPropertiesBuilder =
+    simulationFormat(
+      if (Java.MajorVersion >= 17) {
+        Format.Java17
+      } else if (Java.MajorVersion >= 11) {
+        Format.Java11
+      } else {
+        Format.Java8
+      }
+    )
+
+  def simulationFormatJava8: RecorderPropertiesBuilder =
+    simulationFormat(Format.Java8)
+
+  def simulationFormatJava11: RecorderPropertiesBuilder =
+    simulationFormat(Format.Java11)
+
+  def simulationFormatJava17: RecorderPropertiesBuilder =
+    simulationFormat(Format.Java17)
+
+  def simulationFormatKotlin: RecorderPropertiesBuilder =
+    simulationFormat(Format.Kotlin)
+
+  def simulationFormatScala: RecorderPropertiesBuilder =
+    simulationFormat(Format.Scala)
+
+  private[recorder] def simulationFormat(format: Format): RecorderPropertiesBuilder = {
+    props += core.Format -> format.configValue
+    this
+  }
+
   def thresholdForPauseCreation(threshold: String): RecorderPropertiesBuilder = {
     props += core.ThresholdForPauseCreation -> threshold
     this
@@ -76,18 +108,18 @@ class RecorderPropertiesBuilder {
     this
   }
 
-  def filterStrategy(strategy: String): RecorderPropertiesBuilder = {
-    props += filters.FilterStrategy -> strategy
+  def enableFilters(enable: Boolean): RecorderPropertiesBuilder = {
+    props += filters.Enable -> enable
     this
   }
 
-  def whitelist(patterns: JList[String]): RecorderPropertiesBuilder = {
-    props += filters.WhitelistPatterns -> patterns
+  def allowList(patterns: ju.List[String]): RecorderPropertiesBuilder = {
+    props += filters.AllowListPatterns -> patterns
     this
   }
 
-  def blacklist(patterns: JList[String]): RecorderPropertiesBuilder = {
-    props += filters.BlacklistPatterns -> patterns
+  def denyList(patterns: ju.List[String]): RecorderPropertiesBuilder = {
+    props += filters.DenyListPatterns -> patterns
     this
   }
 
@@ -118,6 +150,11 @@ class RecorderPropertiesBuilder {
 
   def useSimulationAsPrefix(status: Boolean): RecorderPropertiesBuilder = {
     props += http.UseSimulationAsPrefix -> status
+    this
+  }
+
+  def useMethodAndUriAsPostfix(status: Boolean): RecorderPropertiesBuilder = {
+    props += http.UseMethodAndUriAsPostfix -> status
     this
   }
 

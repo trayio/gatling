@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,52 +26,56 @@ import io.gatling.commons.util.StringHelper._
 import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
 import io.gatling.core.scenario.Simulation
 
-final class Selection(val simulationClass: Class[Simulation], val simulationId: String, val description: String)
+final class Selection(val simulationClass: SimulationClass, val simulationId: String, val description: String)
 
 object Selection {
-
   private val MaxReadSimulationNumberAttempts = 10
 
-  def apply(selectedSimulationClass: SelectedSimulationClass, configuration: GatlingConfiguration): Selection =
-    new Selector(selectedSimulationClass).selection(configuration)
+  def apply(forcedSimulationClass: Option[SimulationClass], configuration: GatlingConfiguration): Selection =
+    new Selector(forcedSimulationClass).selection(configuration)
 
-  private class Selector(selectedSimulationClass: SelectedSimulationClass) {
-
+  private class Selector(forcedSimulationClass: Option[SimulationClass]) {
     def selection(configuration: GatlingConfiguration): Selection = {
-      val userDefinedSimulationClass = configuration.core.simulationClass
+      val configDefinedSimulationClassName = configuration.core.simulationClass
 
-      val simulation: Class[Simulation] =
-        selectedSimulationClass.getOrElse {
-          val simulationClasses: SimulationClasses =
+      val simulation: SimulationClass =
+        forcedSimulationClass.getOrElse {
+          val simulationClasses: List[SimulationClass] =
             if (configuration.core.directory.reportsOnly.isDefined) {
               Nil
             } else {
-              SimulationClassLoader(GatlingFiles.binariesDirectory(configuration)).simulationClasses.sortBy(_.getName)
+              SimulationClassLoader(GatlingFiles.binariesDirectory(configuration)).simulationClasses.sortBy(_.canonicalName)
             }
 
-          singleSimulationFromConfig(simulationClasses, userDefinedSimulationClass)
+          singleSimulationFromConfig(simulationClasses, configDefinedSimulationClassName)
             .orElse(singleSimulationFromList(simulationClasses))
             .getOrElse(interactiveSelect(simulationClasses))
         }
 
-      // -- Ask for simulation ID and run description if required -- //
+      // ask for simulation ID and run description if required
       val simulationId = defaultOutputDirectoryBaseName(simulation, configuration)
       val runDescription =
-        configuration.core.runDescription.getOrElse(if (userDefinedSimulationClass.isDefined || selectedSimulationClass.isDefined) "" else askRunDescription())
+        configuration.core.runDescription.getOrElse(
+          if (configDefinedSimulationClassName.isDefined || forcedSimulationClass.isDefined) "" else askRunDescription()
+        )
 
       new Selection(simulation, simulationId, runDescription)
     }
 
-    private def singleSimulationFromConfig(simulationClasses: SimulationClasses, userDefinedSimulationClass: Option[String]): SelectedSimulationClass = {
+    private def singleSimulationFromConfig(
+        simulationClasses: List[SimulationClass],
+        configDefinedSimulationClassName: Option[String]
+    ): Option[SimulationClass] = {
+      def findUserDefinedSimulationAmongstCompiledOnes(className: String): Option[SimulationClass] =
+        simulationClasses.find(_.canonicalName == className)
 
-      def findUserDefinedSimulationAmongstCompiledOnes(className: String): SelectedSimulationClass =
-        simulationClasses.find(_.getCanonicalName == className)
-
-      def findUserDefinedSimulationInClassloader(className: String): SelectedSimulationClass =
+      def findUserDefinedSimulationInClassloader(className: String): Option[SimulationClass] =
         Try(Class.forName(className)) match {
           case Success(clazz) =>
             if (classOf[Simulation].isAssignableFrom(clazz)) {
-              Some(clazz.asInstanceOf[Class[Simulation]])
+              Some(SimulationClass.Scala(clazz.asInstanceOf[Class[Simulation]]))
+            } else if (classOf[JavaSimulation].isAssignableFrom(clazz)) {
+              Some(SimulationClass.Java(clazz.asInstanceOf[Class[JavaSimulation]]))
             } else {
               throw new IllegalArgumentException(s"User defined Simulation class $className does not extend of Simulation")
             }
@@ -80,39 +84,41 @@ object Selection {
             throw new IllegalArgumentException(s"User defined Simulation class $className could not be loaded", t)
         }
 
-      userDefinedSimulationClass.flatMap { userDefinedSimulationClassName =>
-        findUserDefinedSimulationAmongstCompiledOnes(userDefinedSimulationClassName)
-          .orElse(findUserDefinedSimulationInClassloader(userDefinedSimulationClassName))
+      configDefinedSimulationClassName.flatMap { cn =>
+        findUserDefinedSimulationAmongstCompiledOnes(cn).orElse(findUserDefinedSimulationInClassloader(cn))
       }
     }
 
-    private def singleSimulationFromList(simulationClasses: SimulationClasses) = simulationClasses match {
-      case simulation :: Nil =>
-        println(s"${simulation.getName} is the only simulation, executing it.")
-        Some(simulation)
+    private def singleSimulationFromList(simulationClasses: List[SimulationClass]) =
+      simulationClasses match {
+        case List(simulationClass) =>
+          println(s"${simulationClass.canonicalName} is the only simulation, executing it.")
+          Some(simulationClass)
 
-      case _ => None
-    }
+        case _ => None
+      }
 
-    private def interactiveSelect(simulationClasses: SimulationClasses): Class[Simulation] = {
+    private def interactiveSelect(simulationClasses: List[SimulationClass]): SimulationClass = {
       val validRange = simulationClasses.indices
 
       @tailrec
-      def readSimulationNumber(attempts: Int): Int = {
+      def readSimulationNumber(attempts: Int): Int =
         if (attempts > MaxReadSimulationNumberAttempts) {
           println(s"Max attempts of reading simulation number ($MaxReadSimulationNumberAttempts) reached. Aborting.")
-          sys.exit()
+          System.out.flush()
+          sys.exit(1)
         } else {
           println("Choose a simulation number:")
           for ((simulation, index) <- simulationClasses.zipWithIndex) {
-            println(s"     [$index] ${simulation.getName}")
+            println(s"     [$index] ${simulation.canonicalName}")
           }
 
           Try(StdIn.readInt()) match {
             case Success(number) =>
-              if (validRange contains number) number
-              else {
-                println(s"Invalid selection, must be in $validRange")
+              if (validRange.contains(number)) {
+                number
+              } else {
+                println(s"Invalid selection, must be in [0, ${simulationClasses.length - 1}].")
                 readSimulationNumber(attempts + 1)
               }
             case _ =>
@@ -120,11 +126,11 @@ object Selection {
               readSimulationNumber(attempts + 1)
           }
         }
-      }
 
       if (simulationClasses.isEmpty) {
-        println("There is no simulation script. Please check that your scripts are in user-files/simulations")
-        sys.exit()
+        println("Couldn't find any Simulation class. Please check that your Simulations are in the correct location.")
+        System.out.flush()
+        sys.exit(1)
       }
       simulationClasses(readSimulationNumber(0))
     }
@@ -134,7 +140,7 @@ object Selection {
       StdIn.readLine().trim
     }
 
-    private def defaultOutputDirectoryBaseName(clazz: Class[Simulation], configuration: GatlingConfiguration) =
-      configuration.core.outputDirectoryBaseName.getOrElse(clazz.getSimpleName.clean)
+    private def defaultOutputDirectoryBaseName(clazz: SimulationClass, configuration: GatlingConfiguration) =
+      configuration.core.outputDirectoryBaseName.getOrElse(clazz.simpleName.clean)
   }
 }

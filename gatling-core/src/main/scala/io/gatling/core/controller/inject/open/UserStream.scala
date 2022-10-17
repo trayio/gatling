@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,13 @@ import scala.concurrent.duration._
 
 import io.gatling.commons.util.PushbackIterator
 
-private[inject] object UserStreamBatchResult {
+private object UserStreamBatchResult {
   val Empty = UserStreamBatchResult(0, continue = false)
 }
 
-private[inject] final case class UserStreamBatchResult(count: Long, continue: Boolean)
+private final case class UserStreamBatchResult(count: Long, continue: Boolean)
 
-object UserStream {
+private object UserStream {
   def apply(steps: Iterable[OpenInjectionStep]): UserStream = {
     val users = steps.foldRight(Iterator.empty: Iterator[FiniteDuration]) { (step, iterator) =>
       step.chain(iterator)
@@ -35,8 +35,7 @@ object UserStream {
   }
 }
 
-private[inject] class UserStream(users: Iterator[FiniteDuration]) {
-
+private class UserStream(users: Iterator[FiniteDuration]) {
   private val stream: PushbackIterator[FiniteDuration] = new PushbackIterator(users)
 
   def withStream(batchWindow: FiniteDuration, injectTime: Long, startTime: Long)(f: FiniteDuration => Unit): UserStreamBatchResult =

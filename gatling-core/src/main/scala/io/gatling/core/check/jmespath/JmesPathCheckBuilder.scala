@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.check.jmespath
 
-import io.gatling.core.check.{ DefaultFindCheckBuilder, FindCriterionExtractor }
+import io.gatling.core.check.{ CheckBuilder, FindCriterionExtractor }
 import io.gatling.core.check.jsonpath.JsonFilter
 import io.gatling.core.session.Expression
 
@@ -26,20 +26,19 @@ abstract class JmesPathCheckBuilderBase[T, X: JsonFilter](
     name: String,
     private[jmespath] val path: Expression[String],
     private[jmespath] val jmesPaths: JmesPaths
-) extends DefaultFindCheckBuilder[T, JsonNode, X](path.map(new JmesPathExtractor(name, _, jmesPaths)), displayActualValue = true)
+) extends CheckBuilder.Find.Default[T, JsonNode, X](path.map(new JmesPathExtractor(name, _, jmesPaths)), displayActualValue = true)
 
 class JmesPathExtractor[X: JsonFilter](name: String, path: String, jmesPaths: JmesPaths)
     extends FindCriterionExtractor[JsonNode, String, X](name, path, 0, jmesPaths.extract(_, path))
 
-trait JmesPathCheckType
+sealed trait JmesPathCheckType
 
-trait JmesPathOfType { self: JmesPathCheckBuilder[String] =>
+sealed trait JmesPathOfType { self: JmesPathCheckBuilder[String] =>
 
-  def ofType[X: JsonFilter]: JmesPathCheckBuilder[X] = new JmesPathCheckBuilder[X](path, jmesPaths)
+  def ofType[X: JsonFilter]: CheckBuilder.Find[JmesPathCheckType, JsonNode, X] = new JmesPathCheckBuilder[X](path, jmesPaths)
 }
 
 object JmesPathCheckBuilder {
-
   def jmesPath(path: Expression[String], jmesPaths: JmesPaths): JmesPathCheckBuilder[String] with JmesPathOfType =
     new JmesPathCheckBuilder[String](path, jmesPaths) with JmesPathOfType
 }

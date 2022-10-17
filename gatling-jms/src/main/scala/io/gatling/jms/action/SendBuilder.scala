@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,30 +17,21 @@
 package io.gatling.jms.action
 
 import io.gatling.core.action.Action
-import io.gatling.core.action.builder.ActionBuilder
-import io.gatling.core.protocol.ProtocolComponentsRegistry
 import io.gatling.core.structure.ScenarioContext
-import io.gatling.jms.protocol.{ JmsComponents, JmsProtocol }
 import io.gatling.jms.request.JmsAttributes
 
-final class SendBuilder(attributes: JmsAttributes) extends ActionBuilder {
-
-  private def components(protocolComponentsRegistry: ProtocolComponentsRegistry): JmsComponents =
-    protocolComponentsRegistry.components(JmsProtocol.JmsProtocolKey)
-
+final class SendBuilder(attributes: JmsAttributes) extends JmsActionBuilder {
   override def build(ctx: ScenarioContext, next: Action): Action = {
-    import ctx._
-    val jmsComponents = components(protocolComponentsRegistry)
+    val jmsComponents = components(ctx.protocolComponentsRegistry)
 
     new Send(
       attributes,
       jmsComponents.jmsProtocol,
       jmsComponents.jmsConnectionPool,
-      coreComponents.statsEngine,
-      coreComponents.clock,
+      ctx.coreComponents.statsEngine,
+      ctx.coreComponents.clock,
       next,
-      coreComponents.throttler,
-      ctx.throttled
+      ctx.coreComponents.throttler.filter(_ => ctx.throttled)
     )
   }
 }

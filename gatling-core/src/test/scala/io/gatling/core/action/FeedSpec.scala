@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,26 +19,24 @@ package io.gatling.core.action
 import io.gatling.AkkaSpec
 import io.gatling.commons.util.DefaultClock
 import io.gatling.core.session._
-import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.core.stats.StatsEngine
 
 import akka.testkit._
 import org.scalatestplus.mockito.MockitoSugar
 
 class FeedSpec extends AkkaSpec with MockitoSugar {
-
   private val clock = new DefaultClock
 
   "Feed" should "send a FeedMessage to the SingletonFeed actor" in {
     val feedActor = TestProbe()
     val next = new ActorDelegatingAction("next", self)
 
-    val feed = new Feed(feedActor.ref, 1.expressionSuccess, mock[StatsEngine], clock, next)
+    val feed = new Feed(feedActor.ref, None, mock[StatsEngine], clock, next)
 
-    feed ! EmptySession
+    feed ! emptySession
 
     val feedMessage = feedActor.expectMsgType[FeedMessage]
-    feedMessage.session shouldBe EmptySession
+    feedMessage.session shouldBe emptySession
     feedMessage.next shouldBe next
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ private[graphite] class TcpSender(
     clock: Clock
 ) extends MetricsSender
     with TcpSenderFSM {
-
   import Tcp._
 
   // Initial ask for a connection to IO manager
@@ -91,10 +90,9 @@ private[graphite] class TcpSender(
       }
   }
 
-  when(RetriesExhausted) {
-    case _ =>
-      logger.debug("All connection/sending retries have been exhausted, ignore further messages")
-      stay()
+  when(RetriesExhausted) { case _ =>
+    logger.debug("All connection/sending retries have been exhausted, ignore further messages")
+    stay()
   }
 
   initialize()
@@ -108,7 +106,6 @@ private[graphite] class TcpSender(
 }
 
 private[sender] class Retry private (maxRetryLimit: Int, retryWindow: FiniteDuration, retries: List[Long], clock: Clock) {
-
   def this(maxRetryLimit: Int, retryWindow: FiniteDuration, clock: Clock) =
     this(maxRetryLimit, retryWindow, Nil, clock)
 
@@ -117,7 +114,7 @@ private[sender] class Retry private (maxRetryLimit: Int, retryWindow: FiniteDura
 
   def newRetry: Retry = copyWithNewRetries(clock.nowMillis :: cleanupOldRetries)
 
-  def isLimitReached = cleanupOldRetries.length >= maxRetryLimit
+  def isLimitReached = cleanupOldRetries.sizeIs >= maxRetryLimit
 
   private def cleanupOldRetries: List[Long] = {
     val now = clock.nowMillis

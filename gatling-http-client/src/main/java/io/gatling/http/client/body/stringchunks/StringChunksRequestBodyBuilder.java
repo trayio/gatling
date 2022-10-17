@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,23 +20,23 @@ import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.string.StringRequestBody;
 import io.gatling.netty.util.StringWithCachedBytes;
-
 import java.nio.charset.Charset;
 import java.util.List;
 
-public class StringChunksRequestBodyBuilder extends RequestBodyBuilder<List<StringWithCachedBytes>> {
+public class StringChunksRequestBodyBuilder
+    extends RequestBodyBuilder.Base<List<StringWithCachedBytes>> {
 
   public StringChunksRequestBodyBuilder(List<StringWithCachedBytes> content) {
     super(content);
   }
 
   @Override
-  public RequestBody<?> build(String contentType, Charset charset, Charset defaultCharset) {
+  public RequestBody build(String contentType, Charset charset, Charset defaultCharset) {
     if (charset == null || charset.equals(defaultCharset)) {
-      return new StringChunksRequestBody(content, contentType);
+      return new StringChunksRequestBody(content, defaultCharset);
     } else {
       // cached bytes are not for the correct encoding
-      return new StringRequestBody(StringWithCachedBytes.toString(content), contentType, charset);
+      return new StringRequestBody(StringWithCachedBytes.toString(content), charset);
     }
   }
 }

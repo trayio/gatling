@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import io.gatling.core.feeder.{ FeederBuilderBase, InMemoryFeederSource, SourceF
 import io.gatling.jdbc.feeder.JdbcFeederSource
 
 object Predef {
-
   def jdbcFeeder(url: String, username: String, password: String, sql: String)(implicit configuration: GatlingConfiguration): FeederBuilderBase[Any] =
-    SourceFeederBuilder(InMemoryFeederSource(JdbcFeederSource(url, username, password, sql)), configuration)
+    SourceFeederBuilder(InMemoryFeederSource(JdbcFeederSource(url, username, password, sql), s"jdbc($sql)"), configuration)
 }

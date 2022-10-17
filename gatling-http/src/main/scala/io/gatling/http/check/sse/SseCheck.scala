@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,15 @@
 
 package io.gatling.http.check.sse
 
-import java.util.{ Map => JMap }
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check.{ Check, CheckResult }
-import io.gatling.core.session.Session
+import io.gatling.core.session.{ Expression, Session }
 
-final case class SseCheck(wrapped: Check[String]) extends Check[String] {
-  override def check(message: String, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
+final class SseCheck(wrapped: Check[String]) extends Check[String] {
+  override def check(message: String, session: Session, preparedCache: Check.PreparedCache): Validation[CheckResult] =
     wrapped.check(message, session, preparedCache)
+
+  override def checkIf(condition: Expression[Boolean]): SseCheck = new SseCheck(wrapped.checkIf(condition))
+
+  override def checkIf(condition: (String, Session) => Validation[Boolean]): SseCheck = new SseCheck(wrapped.checkIf(condition))
 }

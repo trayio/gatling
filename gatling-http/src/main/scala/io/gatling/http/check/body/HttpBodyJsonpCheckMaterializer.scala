@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,12 @@ import io.gatling.commons.validation._
 import io.gatling.core.check.{ CheckMaterializer, Preparer }
 import io.gatling.core.json.JsonParsers
 import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
-import io.gatling.http.response.Response
 import io.gatling.http.check.HttpCheckScope.Body
+import io.gatling.http.response.Response
 
 import com.fasterxml.jackson.databind.JsonNode
 
 object HttpBodyJsonpCheckMaterializer {
-
   private val JsonpRegex = """^\w+(?:\[\"\w+\"\]|\.\w+)*\((.*)\);?\s*$""".r
   private val JsonpRegexFailure = "Regex could not extract JSON object from JSONP response".failure
 

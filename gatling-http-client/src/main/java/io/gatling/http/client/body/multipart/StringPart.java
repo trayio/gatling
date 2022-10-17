@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,29 +19,29 @@ package io.gatling.http.client.body.multipart;
 import io.gatling.http.client.Param;
 import io.gatling.http.client.body.multipart.impl.PartImpl;
 import io.gatling.http.client.body.multipart.impl.StringPartImpl;
-
 import java.nio.charset.Charset;
 import java.util.List;
 
 public class StringPart extends Part<String> {
 
-  public StringPart(String name,
-                    String content,
-                    Charset charset,
-                    String transferEncoding,
-                    String contentId,
-                    String dispositionType,
-                    String contentType,
-                    List<Param> customHeaders) {
-    super(name,
-      content,
-      charset,
-      transferEncoding,
-      contentId,
-      dispositionType,
-      contentType,
-      customHeaders
-    );
+  public StringPart(
+      String name,
+      String content,
+      Charset charset,
+      String transferEncoding,
+      String contentId,
+      String dispositionType,
+      String contentType,
+      List<Param> customHeaders) {
+    super(
+        name,
+        content,
+        charset,
+        transferEncoding,
+        contentId,
+        dispositionType,
+        contentType,
+        customHeaders);
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,39 +17,38 @@
 package io.gatling.http.engine
 
 import java.net.InetSocketAddress
+import javax.net.ssl.KeyManagerFactory
 
 import scala.concurrent.{ Await, Promise }
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
+import io.gatling.commons.util.Clock
 import io.gatling.commons.util.Throwables._
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.core.util.NameGen
-import io.gatling.http.HeaderNames._
-import io.gatling.http.HeaderValues._
 import io.gatling.http.client.{ HttpClient, HttpListener, Request, RequestBuilder }
+import io.gatling.http.client.resolver._
+import io.gatling.http.client.uri.Uri
+import io.gatling.http.client.util.Pair
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.request.builder.Http
-import io.gatling.http.client.resolver.InetAddressNameResolverWrapper
-import io.gatling.http.client.uri.Uri
-import io.gatling.http.client.util.{ Pair => JavaPair }
 import io.gatling.http.util.{ SslContexts, SslContextsFactory }
+import io.gatling.netty.util.Transports
 
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.buffer.ByteBuf
 import io.netty.channel.{ EventLoop, EventLoopGroup }
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaders, HttpMethod, HttpResponseStatus }
+import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderNames, HttpHeaderValues, HttpHeaders, HttpMethod, HttpResponseStatus }
 import io.netty.handler.ssl.SslContext
 import io.netty.resolver.dns._
-import javax.net.ssl.KeyManagerFactory
 
 object HttpEngine {
   def apply(coreComponents: CoreComponents): HttpEngine = {
-    val sslContextsFactory = new SslContextsFactory(coreComponents.configuration.http)
+    val sslContextsFactory = new SslContextsFactory(coreComponents.configuration.ssl)
     val httpClient = new HttpClientFactory(sslContextsFactory, coreComponents.configuration).newClient
-    new HttpEngine(sslContextsFactory, httpClient, coreComponents.eventLoopGroup, coreComponents.configuration)
+    new HttpEngine(sslContextsFactory, httpClient, coreComponents.eventLoopGroup, coreComponents.clock, coreComponents.configuration)
   }
 }
 
@@ -57,30 +56,29 @@ class HttpEngine(
     sslContextsFactory: SslContextsFactory,
     httpClient: HttpClient,
     eventLoopGroup: EventLoopGroup,
+    clock: Clock,
     configuration: GatlingConfiguration
 ) extends AutoCloseable
-    with NameGen
     with StrictLogging {
-
   private[this] var warmedUp = false
 
   def warmUp(httpComponents: HttpComponents): Unit =
     if (!warmedUp) {
-      logger.info("Start warm up")
+      logger.debug("Start warm up")
       warmedUp = true
 
       import httpComponents._
 
       httpProtocol.warmUpUrl match {
         case Some(url) =>
-          val requestBuilder = new RequestBuilder(HttpMethod.GET, Uri.create(url))
+          val requestBuilder = new RequestBuilder("warmUp", HttpMethod.GET, Uri.create(url), InetAddressNameResolver.JAVA_RESOLVER)
             .setHeaders(
               new DefaultHttpHeaders()
-                .add(Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .add(AcceptLanguage, "en-US,en;q=0.5")
-                .add(AcceptEncoding, "gzip")
-                .add(Connection, Close)
-                .add(UserAgent, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:16.0) Gecko/20100101 Firefox/16.0")
+                .add(HttpHeaderNames.ACCEPT, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .add(HttpHeaderNames.ACCEPT_LANGUAGE, "en-US,en;q=0.5")
+                .add(HttpHeaderNames.ACCEPT_ENCODING, HttpHeaderValues.GZIP)
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE)
+                .add(HttpHeaderNames.USER_AGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:16.0) Gecko/20100101 Firefox/16.0")
             )
             .setRequestTimeout(1000)
             .setDefaultCharset(configuration.core.charset)
@@ -89,7 +87,7 @@ class HttpEngine(
           val eventLoop = eventLoopGroup.next()
 
           try {
-            val p = Promise[Unit]
+            val p = Promise[Unit]()
             httpClient.sendRequest(
               requestBuilder.build,
               0,
@@ -107,14 +105,14 @@ class HttpEngine(
               null,
               null
             )
-            Await.result(p.future, 2 seconds)
+            Await.result(p.future, 2.seconds)
             logger.debug(s"Warm up request $url successful")
           } catch {
             case NonFatal(e) =>
               if (logger.underlying.isDebugEnabled)
                 logger.debug(s"Couldn't execute warm up request $url", e)
               else
-                logger.info(s"Couldn't execute warm up request $url: ${e.rootMessage}")
+                logger.debug(s"Couldn't execute warm up request $url: ${e.rootMessage}")
           } finally {
             httpClient.flushClientIdChannels(0, eventLoop)
           }
@@ -122,20 +120,20 @@ class HttpEngine(
         case _ =>
           val expression = "foo".expressionSuccess
 
-          Http(expression)
+          new Http(expression)
             .get(expression)
             .header("bar", expression)
             .queryParam(expression, expression)
             .build(httpComponents.httpCaches, httpComponents.httpProtocol, throttled = false, configuration)
 
-          Http(expression)
+          new Http(expression)
             .post(expression)
             .header("bar", expression)
             .formParam(expression, expression)
             .build(httpComponents.httpCaches, httpComponents.httpProtocol, throttled = false, configuration)
       }
 
-      logger.info("Warm up done")
+      logger.debug("Warm up done")
     }
 
   def executeRequest(
@@ -152,7 +150,7 @@ class HttpEngine(
     }
 
   def executeHttp2Requests(
-      requestsAndListeners: Iterable[JavaPair[Request, HttpListener]],
+      requestsAndListeners: Iterable[Pair[Request, HttpListener]],
       clientId: Long,
       shared: Boolean,
       eventLoop: EventLoop,
@@ -163,15 +161,36 @@ class HttpEngine(
       httpClient.sendHttp2Requests(requestsAndListeners.toArray, if (shared) -1 else clientId, eventLoop, sslContext, alpnSslContext)
     }
 
-  def newAsyncDnsNameResolver(eventLoop: EventLoop, dnsServers: Array[InetSocketAddress]): InetAddressNameResolverWrapper =
+  // [e]
+  //
+  //
+  // [e]
+
+  def newJavaDnsNameResolver: InetAddressNameResolver =
+    // [e]
+    //
+    //
+    //
+    // [e]
+    InetAddressNameResolver.JAVA_RESOLVER
+
+  def newAsyncDnsNameResolver(eventLoop: EventLoop, dnsServers: Array[InetSocketAddress], cache: DnsCache): InetAddressNameResolver =
+    // [e]
+    //
+    //
+    //
+    //
+    // [e]
     new InetAddressNameResolverWrapper(
       new DnsNameResolverBuilder(eventLoop)
+        .channelFactory(Transports.newDatagramChannelFactory(configuration.netty.useNativeTransport, configuration.netty.useIoUring))
         .nameServerProvider(
           if (dnsServers.length == 0) DnsServerAddressStreamProviders.platformDefault
           else new SequentialDnsServerAddressStreamProvider(dnsServers: _*)
         )
         .queryTimeoutMillis(configuration.http.dns.queryTimeout.toMillis.toInt)
         .maxQueriesPerResolve(configuration.http.dns.maxQueriesPerResolve)
+        .resolveCache(cache)
         .build()
     )
 

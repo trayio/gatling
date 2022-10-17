@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,45 +18,57 @@ package io.gatling.http.action.ws.fsm
 
 import java.util.concurrent.{ ScheduledFuture, TimeUnit }
 
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.http.check.ws.{ WsBinaryFrameCheck, WsFrameCheck, WsFrameCheckSequence, WsTextFrameCheck }
+import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
 import io.gatling.http.client.{ Request, WebSocket }
 import io.gatling.http.engine.HttpEngine
 import io.gatling.http.protocol.HttpProtocol
 
+import com.typesafe.scalalogging.StrictLogging
 import io.netty.channel.EventLoop
 import io.netty.handler.codec.http.cookie.Cookie
-
-import scala.concurrent.duration.FiniteDuration
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus
 
 class WsFsm(
     private[fsm] val wsName: String,
     private[fsm] val connectRequest: Request,
-    private[fsm] val subprotocol: Option[String],
-    private[fsm] val connectActionName: String,
     private[fsm] val connectCheckSequence: List[WsFrameCheckSequence[WsFrameCheck]],
     private[fsm] val onConnected: Option[Action],
     private[fsm] val statsEngine: StatsEngine,
     private[fsm] val httpEngine: HttpEngine,
     private[fsm] val httpProtocol: HttpProtocol,
-    private[fsm] val eventLoop: EventLoop,
+    eventLoop: EventLoop,
     private[fsm] val clock: Clock
-) {
-
+) extends StrictLogging {
   private var currentState: WsState = new WsInitState(this)
   private var currentTimeout: ScheduledFuture[Unit] = _
-  private[fsm] def scheduleTimeout(dur: FiniteDuration): Unit =
-    eventLoop.schedule(() => {
-      currentTimeout = null
-      currentState.onTimeout()
-    }, dur.toMillis, TimeUnit.MILLISECONDS)
+  private[fsm] def scheduleTimeout(dur: FiniteDuration): Unit = {
+    currentTimeout = eventLoop.schedule(
+      () => {
+        logger.debug(s"Timeout ${currentTimeout.hashCode} triggered")
+        currentTimeout = null
+        execute(currentState.onTimeout())
+      },
+      dur.toMillis,
+      TimeUnit.MILLISECONDS
+    )
+    logger.debug(s"Timeout ${currentTimeout.hashCode} scheduled")
+  }
 
   private[fsm] def cancelTimeout(): Unit =
-    if (currentTimeout != null) {
-      currentTimeout.cancel(true)
+    if (currentTimeout == null) {
+      logger.debug("Couldn't cancel timeout because it wasn't set")
+    } else {
+      if (currentTimeout.cancel(true)) {
+        logger.debug(s"Timeout ${currentTimeout.hashCode} cancelled")
+      } else {
+        logger.debug(s"Failed to cancel timeout ${currentTimeout.hashCode}")
+      }
       currentTimeout = null
     }
 
@@ -75,7 +87,7 @@ class WsFsm(
   def onSendTextFrame(
       actionName: String,
       message: String,
-      checkSequences: List[WsFrameCheckSequence[WsTextFrameCheck]],
+      checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
       session: Session,
       next: Action
   ): Unit =
@@ -84,7 +96,7 @@ class WsFsm(
   def onSendBinaryFrame(
       actionName: String,
       message: Array[Byte],
-      checkSequences: List[WsFrameCheckSequence[WsBinaryFrameCheck]],
+      checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
       session: Session,
       next: Action
   ): Unit =
@@ -102,6 +114,6 @@ class WsFsm(
   def onWebSocketCrashed(t: Throwable, timestamp: Long): Unit =
     execute(currentState.onWebSocketCrashed(t, timestamp))
 
-  def onClientCloseRequest(actionName: String, session: Session, next: Action): Unit =
-    execute(currentState.onClientCloseRequest(actionName, session, next))
+  def onClientCloseRequest(actionName: String, closeStatus: WebSocketCloseStatus, session: Session, next: Action): Unit =
+    execute(currentState.onClientCloseRequest(actionName, closeStatus, session, next))
 }

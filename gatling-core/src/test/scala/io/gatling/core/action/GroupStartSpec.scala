@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.DefaultClock
-import io.gatling.core.session.el.El
+import io.gatling.core.EmptySession
 import io.gatling.core.session.{ GroupBlock, Session }
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.session.el.El
 import io.gatling.core.stats.StatsEngine
 
 import org.mockito.ArgumentCaptor
@@ -29,18 +29,16 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
-class GroupStartSpec extends AnyFlatSpec with Matchers with MockitoSugar with GivenWhenThen {
-
+class GroupStartSpec extends AnyFlatSpec with Matchers with MockitoSugar with GivenWhenThen with EmptySession {
   private val clock = new DefaultClock
 
   "GroupStart" should "resolve the group name from the session and create a new group" in {
-
     Given("a GroupStart Action with a dynamic name")
     val next = mock[Action]
     val groupStart = new GroupStart("${theGroupName}".el[String], mock[StatsEngine], clock, next)
 
     When("being sent a Session that resolves the group name")
-    val session = EmptySession.copy(attributes = Map("theGroupName" -> "foo"))
+    val session = emptySession.copy(attributes = Map("theGroupName" -> "foo"))
     groupStart ! session
 
     Then("next Action should receive a Session")
@@ -51,6 +49,6 @@ class GroupStartSpec extends AnyFlatSpec with Matchers with MockitoSugar with Gi
     And("this Session's blockStack should match the resolved group name")
     val nextBlock = nextSession.blockStack.head
     nextBlock shouldBe an[GroupBlock]
-    nextBlock.asInstanceOf[GroupBlock].hierarchy shouldBe List("foo")
+    nextBlock.asInstanceOf[GroupBlock].groups shouldBe List("foo")
   }
 }

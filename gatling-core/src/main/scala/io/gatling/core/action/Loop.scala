@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@
 
 package io.gatling.core.action
 
+import scala.runtime.LongRef
+
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.{ Expression, LoopBlock, Session }
 import io.gatling.core.stats.StatsEngine
 
-class Loop(
+private final class Loop(
     continueCondition: Expression[Boolean],
     counterName: String,
     exitASAP: Boolean,
@@ -30,11 +32,9 @@ class Loop(
     override val name: String,
     next: Action
 ) extends Action {
-
   private[this] var innerLoop: Action = _
 
   private[core] def initialize(loopNext: Action): Unit = {
-
     val counterIncrement = (session: Session) =>
       if (session.contains(counterName)) {
         session.incrementCounter(counterName)
@@ -44,7 +44,7 @@ class Loop(
         session.enterLoop(counterName, continueCondition, next, exitASAP)
       }
 
-    innerLoop = new InnerLoop(continueCondition, loopNext, counterIncrement, counterName, name + "-inner", next)
+    innerLoop = new InnerLoop(continueCondition, loopNext, counterIncrement, name + "-inner", next)
   }
 
   override def execute(session: Session): Unit =
@@ -58,42 +58,48 @@ class InnerLoop(
     continueCondition: Expression[Boolean],
     loopNext: Action,
     counterIncrement: Session => Session,
-    counterName: String,
     val name: String,
     val next: Action
 ) extends ChainableAction {
-
-  private[this] val lastUserIdThreadLocal = new ThreadLocal[Long]
+  private[this] val lastUserIdThreadLocal = ThreadLocal.withInitial(() => LongRef.zero())
 
   private[this] def getAndSetLastUserId(session: Session): Long = {
-    val lastUserId = lastUserIdThreadLocal.get()
-    lastUserIdThreadLocal.set(session.userId)
-    lastUserId
+    val lastUserIdRef = lastUserIdThreadLocal.get()
+    val prev = lastUserIdRef.elem
+    lastUserIdRef.elem = session.userId
+    prev
   }
 
   /**
-   * Evaluates the condition and if true executes the first action of loopNext
-   * else it executes next
+   * Evaluates the condition and if true executes the first action of loopNext else it executes next
    *
-   * @param session the session of the virtual user
+   * @param session
+   *   the session of the virtual user
    */
   def execute(session: Session): Unit = {
     val incrementedSession = counterIncrement(session)
     val lastUserId = getAndSetLastUserId(session)
 
     if (LoopBlock.continue(continueCondition, incrementedSession)) {
-
       if (incrementedSession.userId == lastUserId) {
         // except if we're running only one user per core, it's very likely we're hitting an empty loop
         // let's dispatch so we don't spin
-        session.eventLoop.execute(() => loopNext ! incrementedSession)
-
+        val eventLoop = session.eventLoop
+        if (!eventLoop.isShutdown) {
+          eventLoop.execute(() => loopNext ! incrementedSession)
+        }
       } else {
         loopNext ! incrementedSession
       }
-
     } else {
-      next ! incrementedSession.exitLoop
+      val newSession = incrementedSession.blockStack match {
+        case LoopBlock(counterName) :: tail => incrementedSession.exitLoop(counterName, tail)
+        case blockStack =>
+          logger.error(s"exitLoop called but stack $blockStack head isn't a Loop Block, please report.")
+          incrementedSession
+      }
+
+      next ! newSession
     }
   }
 }

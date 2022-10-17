@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,119 +16,119 @@
 
 package io.gatling.core.controller.inject.closed
 
-import io.gatling.BaseSpec
-
 import scala.concurrent.duration._
 
-class ClosedInjectionStepSpec extends BaseSpec {
+import io.gatling.BaseSpec
 
-  "ConstantConcurrentNumberInjection" should "return the correct number of users target" in {
-    val step = ConstantConcurrentNumberInjection(5, 2 second)
-    step.valueAt(0 seconds) shouldBe 5
-    step.valueAt(1 seconds) shouldBe 5
-    step.valueAt(2 seconds) shouldBe 5
+class ClosedInjectionStepSpec extends BaseSpec {
+  "ConstantConcurrentUsersInjection" should "return the correct number of users target" in {
+    val step = ConstantConcurrentUsersInjection(5, 2.second)
+    step.valueAt(0.seconds) shouldBe 5
+    step.valueAt(1.seconds) shouldBe 5
+    step.valueAt(2.seconds) shouldBe 5
   }
 
-  "RampConcurrentNumberInjection" should "return the correct number of users target" in {
-    val step = RampConcurrentNumberInjection(5, 10, 5 second)
-    step.valueAt(0 seconds) shouldBe 5
-    step.valueAt(1 seconds) shouldBe 6
-    step.valueAt(2 seconds) shouldBe 7
-    step.valueAt(3 seconds) shouldBe 8
-    step.valueAt(4 seconds) shouldBe 9
-    step.valueAt(5 seconds) shouldBe 10
+  "RampConcurrentUsersInjection" should "return the correct number of users target" in {
+    val step = RampConcurrentUsersInjection(5, 10, 5.second)
+    step.valueAt(0.seconds) shouldBe 5
+    step.valueAt(1.seconds) shouldBe 6
+    step.valueAt(2.seconds) shouldBe 7
+    step.valueAt(3.seconds) shouldBe 8
+    step.valueAt(4.seconds) shouldBe 9
+    step.valueAt(5.seconds) shouldBe 10
   }
 
   it should "inject once a full user is reached" in {
-    val step = RampConcurrentNumberInjection(1, 100, 60 * 99 second)
-    step.valueAt(0 seconds) shouldBe 1
-    step.valueAt(30 seconds) shouldBe 1
-    step.valueAt(60 seconds) shouldBe 2
+    val step = RampConcurrentUsersInjection(1, 100, (60 * 99).second)
+    step.valueAt(0.seconds) shouldBe 1
+    step.valueAt(30.seconds) shouldBe 1
+    step.valueAt(60.seconds) shouldBe 2
   }
 
-  "composite.injectionSteps" should "produce the expected injection profile with ramps and starting users" in {
-    val steps = IncreasingConcurrentUsersCompositeStep(
-      concurrentUsers = 10,
-      nbOfSteps = 5,
-      levelDuration = 10 seconds,
+  "composite.injectionSteps" should "produce the expected injection profile with starting users and with ramps" in {
+    val steps = StairsConcurrentUsersCompositeStep(
+      usersIncrement = 10,
+      levels = 5,
+      levelDuration = 10.seconds,
       startingUsers = 5,
-      rampDuration = 20 seconds
-    ).composite.injectionSteps
+      rampDuration = 20.seconds
+    ).composite.steps
 
     val expected = List(
-      ConstantConcurrentNumberInjection(5, 10 seconds),
-      RampConcurrentNumberInjection(5, 15, 20 seconds),
-      ConstantConcurrentNumberInjection(15, 10 seconds),
-      RampConcurrentNumberInjection(15, 25, 20 seconds),
-      ConstantConcurrentNumberInjection(25, 10 seconds),
-      RampConcurrentNumberInjection(25, 35, 20 seconds),
-      ConstantConcurrentNumberInjection(35, 10 seconds),
-      RampConcurrentNumberInjection(35, 45, 20 seconds),
-      ConstantConcurrentNumberInjection(45, 10 seconds)
+      ConstantConcurrentUsersInjection(5, 10.seconds),
+      RampConcurrentUsersInjection(5, 15, 20.seconds),
+      ConstantConcurrentUsersInjection(15, 10.seconds),
+      RampConcurrentUsersInjection(15, 25, 20.seconds),
+      ConstantConcurrentUsersInjection(25, 10.seconds),
+      RampConcurrentUsersInjection(25, 35, 20.seconds),
+      ConstantConcurrentUsersInjection(35, 10.seconds),
+      RampConcurrentUsersInjection(35, 45, 20.seconds),
+      ConstantConcurrentUsersInjection(45, 10.seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile without starting users and ramp" in {
-    val steps = IncreasingConcurrentUsersCompositeStep(
-      concurrentUsers = 10,
-      nbOfSteps = 5,
-      levelDuration = 10 seconds,
+  it should "produce the expected injection profile without starting users and without ramps" in {
+    val steps = StairsConcurrentUsersCompositeStep(
+      usersIncrement = 10,
+      levels = 5,
+      levelDuration = 10.seconds,
       startingUsers = 0,
       rampDuration = Duration.Zero
-    ).composite.injectionSteps
+    ).composite.steps
 
     val expected = List(
-      ConstantConcurrentNumberInjection(10, 10 seconds),
-      ConstantConcurrentNumberInjection(20, 10 seconds),
-      ConstantConcurrentNumberInjection(30, 10 seconds),
-      ConstantConcurrentNumberInjection(40, 10 seconds),
-      ConstantConcurrentNumberInjection(50, 10 seconds)
+      ConstantConcurrentUsersInjection(0, 10.seconds),
+      ConstantConcurrentUsersInjection(10, 10.seconds),
+      ConstantConcurrentUsersInjection(20, 10.seconds),
+      ConstantConcurrentUsersInjection(30, 10.seconds),
+      ConstantConcurrentUsersInjection(40, 10.seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile with starting users and without ramp" in {
-    val steps = IncreasingConcurrentUsersCompositeStep(
-      concurrentUsers = 10,
-      nbOfSteps = 5,
-      levelDuration = 10 seconds,
+  it should "produce the expected injection profile with starting users and without ramps" in {
+    val steps = StairsConcurrentUsersCompositeStep(
+      usersIncrement = 10,
+      levels = 5,
+      levelDuration = 10.seconds,
       startingUsers = 5,
       rampDuration = Duration.Zero
-    ).composite.injectionSteps
+    ).composite.steps
 
     val expected = List(
-      ConstantConcurrentNumberInjection(5, 10 seconds),
-      ConstantConcurrentNumberInjection(15, 10 seconds),
-      ConstantConcurrentNumberInjection(25, 10 seconds),
-      ConstantConcurrentNumberInjection(35, 10 seconds),
-      ConstantConcurrentNumberInjection(45, 10 seconds)
+      ConstantConcurrentUsersInjection(5, 10.seconds),
+      ConstantConcurrentUsersInjection(15, 10.seconds),
+      ConstantConcurrentUsersInjection(25, 10.seconds),
+      ConstantConcurrentUsersInjection(35, 10.seconds),
+      ConstantConcurrentUsersInjection(45, 10.seconds)
     )
 
     steps.shouldBe(expected)
   }
 
   it should "produce the expected injection profile without starting users and with ramps" in {
-    val steps = IncreasingConcurrentUsersCompositeStep(
-      concurrentUsers = 10,
-      nbOfSteps = 5,
-      levelDuration = 10 seconds,
+    val steps = StairsConcurrentUsersCompositeStep(
+      usersIncrement = 10,
+      levels = 5,
+      levelDuration = 10.seconds,
       startingUsers = 0,
-      rampDuration = 80 seconds
-    ).composite.injectionSteps
+      rampDuration = 80.seconds
+    ).composite.steps
 
     val expected = Seq(
-      ConstantConcurrentNumberInjection(10, 10 seconds),
-      RampConcurrentNumberInjection(10, 20, 80 seconds),
-      ConstantConcurrentNumberInjection(20, 10 seconds),
-      RampConcurrentNumberInjection(20, 30, 80 seconds),
-      ConstantConcurrentNumberInjection(30, 10 seconds),
-      RampConcurrentNumberInjection(30, 40, 80 seconds),
-      ConstantConcurrentNumberInjection(40, 10 seconds),
-      RampConcurrentNumberInjection(40, 50, 80 seconds),
-      ConstantConcurrentNumberInjection(50, 10 seconds)
+      RampConcurrentUsersInjection(0, 10, 80.seconds),
+      ConstantConcurrentUsersInjection(10, 10.seconds),
+      RampConcurrentUsersInjection(10, 20, 80.seconds),
+      ConstantConcurrentUsersInjection(20, 10.seconds),
+      RampConcurrentUsersInjection(20, 30, 80.seconds),
+      ConstantConcurrentUsersInjection(30, 10.seconds),
+      RampConcurrentUsersInjection(30, 40, 80.seconds),
+      ConstantConcurrentUsersInjection(40, 10.seconds),
+      RampConcurrentUsersInjection(40, 50, 80.seconds),
+      ConstantConcurrentUsersInjection(50, 10.seconds)
     )
 
     steps.shouldBe(expected)

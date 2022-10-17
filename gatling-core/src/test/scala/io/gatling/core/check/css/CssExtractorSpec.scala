@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,17 @@ package io.gatling.core.check.css
 
 import java.nio.charset.StandardCharsets.UTF_8
 
+import scala.util.Using
+
 import io.gatling.{ BaseSpec, ValidationValues }
 import io.gatling.commons.util.Io._
+
 import jodd.lagarto.dom.NodeSelector
 
 class CssExtractorSpec extends BaseSpec with ValidationValues {
-
   private val cssSelectors = new CssSelectors(Long.MaxValue)
 
-  private def prepared(file: String): NodeSelector = withCloseable(getClass.getResourceAsStream(file)) { is =>
+  private def prepared(file: String): NodeSelector = Using.resource(getClass.getResourceAsStream(file)) { is =>
     val string = is.toString(UTF_8)
     cssSelectors.parse(string.toCharArray)
   }

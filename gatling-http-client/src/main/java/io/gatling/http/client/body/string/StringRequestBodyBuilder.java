@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,20 @@
 
 package io.gatling.http.client.body.string;
 
-import io.gatling.http.client.body.RequestBody;
-import io.gatling.http.client.body.RequestBodyBuilder;
-
-import java.nio.charset.Charset;
-
 import static io.gatling.http.client.util.MiscUtils.withDefault;
 
-public class StringRequestBodyBuilder extends RequestBodyBuilder<String> {
+import io.gatling.http.client.body.RequestBody;
+import io.gatling.http.client.body.RequestBodyBuilder;
+import java.nio.charset.Charset;
+
+public class StringRequestBodyBuilder extends RequestBodyBuilder.Base<String> {
 
   public StringRequestBodyBuilder(String content) {
     super(content);
   }
 
   @Override
-  public RequestBody<String> build(String contentType, Charset charset, Charset defaultCharset) {
-    return new StringRequestBody(content, contentType, withDefault(charset, defaultCharset));
+  public RequestBody build(String contentType, Charset charset, Charset defaultCharset) {
+    return new StringRequestBody(content, withDefault(charset, defaultCharset));
   }
 }

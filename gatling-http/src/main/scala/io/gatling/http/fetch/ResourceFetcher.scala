@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ private[http] object ResourceFetcher extends StrictLogging {
   ): List[HttpRequest] =
     resources.flatMap {
       _.toRequest(session, httpCaches, httpProtocol, throttled, configuration) match {
-        case Success(httpRequest) => List(httpRequest)
+        case Success(httpRequest) => httpRequest :: Nil
         case Failure(m)           =>
           // shouldn't happen, only static values
           logger.error("Couldn't build request for embedded resource: " + m)
@@ -66,15 +66,13 @@ private[http] class ResourceFetcher(
     httpProtocol: HttpProtocol,
     httpTxExecutor: HttpTxExecutor
 ) extends StrictLogging {
-
   import ResourceFetcher._
 
   private def inferPageResources(request: Request, response: Response, session: Session, throttled: Boolean): List[HttpRequest] = {
-
     val htmlDocumentUri = request.getUri
 
     def inferredResourcesRequests(): List[HttpRequest] = {
-      val inferred = new HtmlParser().getEmbeddedResources(htmlDocumentUri, response.body.chars, UserAgent.getAgent(request))
+      val inferred = new HtmlParser().getEmbeddedResources(htmlDocumentUri, response.body.chars)
       val filtered = applyResourceFilters(inferred, httpProtocol.responsePart.htmlResourcesInferringFilters)
       resourcesToRequests(filtered, session, httpCaches, httpProtocol, throttled, coreComponents.configuration)
     }
@@ -82,8 +80,8 @@ private[http] class ResourceFetcher(
     response.status match {
       case HttpResponseStatus.OK =>
         response.lastModifiedOrEtag(httpProtocol) match {
-          case Some(newLastModifiedOrEtag) =>
-            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, htmlDocumentUri, newLastModifiedOrEtag, () => inferredResourcesRequests())
+          case Some(lastModifiedOrEtag) =>
+            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, htmlDocumentUri, lastModifiedOrEtag, () => inferredResourcesRequests())
           case _ =>
             // don't cache
             inferredResourcesRequests()
@@ -93,7 +91,7 @@ private[http] class ResourceFetcher(
         // no content, retrieve from cache if exist
         httpCaches.getCachedInferredResources(httpProtocol, htmlDocumentUri) match {
           case null =>
-            logger.warn(s"Got a 304 for $htmlDocumentUri but could find cache entry?!")
+            logger.info(s"Got a 304 for $htmlDocumentUri but could not find a cache entry, probably because capacity is exceeded?!")
             Nil
           case inferredPageResources => inferredPageResources.requests
         }
@@ -105,12 +103,11 @@ private[http] class ResourceFetcher(
   def cssFetched(
       uri: Uri,
       responseStatus: HttpResponseStatus,
-      lastModifiedOrEtag: Option[String],
+      maybeLastModifiedOrEtag: Option[String],
       content: String,
       session: Session,
       throttled: Boolean
   ): List[HttpRequest] = {
-
     def parseCssResources(): List[HttpRequest] = {
       val computer = CssParser.extractResources(_: Uri, content)
       val inferred = httpCaches.computeCssResourcesIfAbsent(uri, computer)
@@ -121,12 +118,17 @@ private[http] class ResourceFetcher(
     // this css might contain some resources
     responseStatus match {
       case HttpResponseStatus.OK =>
-        lastModifiedOrEtag match {
-          case Some(newLastModifiedOrEtag) =>
-            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, uri, newLastModifiedOrEtag, () => {
-              httpCaches.removeCssResources(uri)
-              parseCssResources()
-            })
+        maybeLastModifiedOrEtag match {
+          case Some(lastModifiedOrEtag) =>
+            httpCaches.computeInferredResourcesIfAbsent(
+              httpProtocol,
+              uri,
+              lastModifiedOrEtag,
+              () => {
+                httpCaches.removeCssResources(uri)
+                parseCssResources()
+              }
+            )
 
           case _ =>
             // don't cache
@@ -146,25 +148,20 @@ private[http] class ResourceFetcher(
   }
 
   private def buildExplicitResources(resources: List[HttpRequestDef], session: Session): List[HttpRequest] = resources.flatMap { resource =>
-    resource.requestName(session) match {
-      case Success(requestName) =>
-        resource.build(requestName, session) match {
-          case Success(httpRequest) =>
-            List(httpRequest)
+    resource.build(session) match {
+      case Success(httpRequest) =>
+        httpRequest :: Nil
 
-          case Failure(m) =>
-            coreComponents.statsEngine.reportUnbuildableRequest(session, requestName, m)
-            Nil
+      case Failure(error) =>
+        resource.requestName(session) match {
+          case Success(requestName) => coreComponents.statsEngine.reportUnbuildableRequest(session.scenario, session.groups, requestName, error)
+          case Failure(m)           => logger.error(s"Could build request name for explicitResource: $m")
         }
-
-      case Failure(m) =>
-        logger.error("Could build request name for explicitResource: " + m)
         Nil
     }
   }
 
   private def resourceAggregator(tx: HttpTx, inferredResources: List[HttpRequest]): Option[ResourceAggregator] = {
-
     val explicitResources =
       if (tx.request.requestConfig.explicitResources.nonEmpty) {
         buildExplicitResources(tx.request.requestConfig.explicitResources, tx.session)
@@ -175,7 +172,7 @@ private[http] class ResourceFetcher(
     inferredResources ::: explicitResources match {
       case Nil => None
       case resources =>
-        Some(new DefaultResourceAggregator(tx, resources, httpCaches, this, httpTxExecutor, coreComponents.clock, coreComponents.configuration))
+        Some(new DefaultResourceAggregator(tx, resources, httpCaches, this, httpTxExecutor, coreComponents.clock))
     }
   }
 

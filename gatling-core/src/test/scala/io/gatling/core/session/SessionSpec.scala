@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,88 +16,34 @@
 
 package io.gatling.core.session
 
-import java.util.{ Collection => JCollection, Iterator => JIterator, List => JList }
-import java.util.concurrent.{ Callable, Future => JFuture, TimeUnit }
-
 import io.gatling.BaseSpec
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.validation.{ Failure, Success }
+import io.gatling.core.EmptySession
 import io.gatling.core.action.Action
 
-import io.netty.channel.{ Channel, ChannelFuture, ChannelPromise, EventLoop, EventLoopGroup }
-import io.netty.util.concurrent.{ EventExecutor, Future => NFuture, ProgressivePromise, Promise, ScheduledFuture }
-
-object SessionSpec {
-  private val FakeEventLoop: EventLoop = new EventLoop {
-    override def inEventLoop(): Boolean = true
-    override def schedule(command: Runnable, delay: Long, unit: TimeUnit): ScheduledFuture[_] = {
-      command.run()
-      null
-    }
-    override def execute(command: Runnable): Unit = command.run()
-
-    override def parent(): EventLoopGroup = throw new UnsupportedOperationException
-    override def next(): EventLoop = throw new UnsupportedOperationException
-    override def register(channel: Channel): ChannelFuture = throw new UnsupportedOperationException
-    override def register(promise: ChannelPromise): ChannelFuture = throw new UnsupportedOperationException
-    override def register(channel: Channel, promise: ChannelPromise): ChannelFuture = throw new UnsupportedOperationException
-    override def inEventLoop(thread: Thread): Boolean = throw new UnsupportedOperationException
-    override def newPromise[V](): Promise[V] = throw new UnsupportedOperationException
-    override def newProgressivePromise[V](): ProgressivePromise[V] = throw new UnsupportedOperationException
-    override def newSucceededFuture[V](result: V): NFuture[V] = throw new UnsupportedOperationException
-    override def newFailedFuture[V](cause: Throwable): NFuture[V] = throw new UnsupportedOperationException
-    override def isShuttingDown: Boolean = throw new UnsupportedOperationException
-    override def shutdownGracefully(): NFuture[_] = throw new UnsupportedOperationException
-    override def shutdownGracefully(quietPeriod: Long, timeout: Long, unit: TimeUnit): NFuture[_] = throw new UnsupportedOperationException
-    override def terminationFuture(): NFuture[_] = throw new UnsupportedOperationException
-    override def shutdown(): Unit = throw new UnsupportedOperationException
-    override def shutdownNow(): JList[Runnable] = throw new UnsupportedOperationException
-    override def iterator(): JIterator[EventExecutor] = throw new UnsupportedOperationException
-    override def submit(task: Runnable): NFuture[_] = throw new UnsupportedOperationException
-    override def submit[T](task: Runnable, result: T): NFuture[T] = throw new UnsupportedOperationException
-    override def submit[T](task: Callable[T]): NFuture[T] = throw new UnsupportedOperationException
-    override def schedule[V](callable: Callable[V], delay: Long, unit: TimeUnit): ScheduledFuture[V] = throw new UnsupportedOperationException
-    override def scheduleAtFixedRate(command: Runnable, initialDelay: Long, period: Long, unit: TimeUnit): ScheduledFuture[_] =
-      throw new UnsupportedOperationException
-    override def scheduleWithFixedDelay(command: Runnable, initialDelay: Long, delay: Long, unit: TimeUnit): ScheduledFuture[_] =
-      throw new UnsupportedOperationException
-    override def isShutdown: Boolean = throw new UnsupportedOperationException
-    override def isTerminated: Boolean = throw new UnsupportedOperationException
-    override def awaitTermination(timeout: Long, unit: TimeUnit): Boolean = throw new UnsupportedOperationException
-    override def invokeAll[T](tasks: JCollection[_ <: Callable[T]]): JList[JFuture[T]] = throw new UnsupportedOperationException
-    override def invokeAll[T](tasks: JCollection[_ <: Callable[T]], timeout: Long, unit: TimeUnit): JList[JFuture[T]] =
-      throw new UnsupportedOperationException
-    override def invokeAny[T](tasks: JCollection[_ <: Callable[T]]): T = throw new UnsupportedOperationException
-    override def invokeAny[T](tasks: JCollection[_ <: Callable[T]], timeout: Long, unit: TimeUnit): T = throw new UnsupportedOperationException
-  }
-
-  val EmptySession: Session = Session("Scenario", 0, 0L, SessionSpec.FakeEventLoop)
-}
-
-class SessionSpec extends BaseSpec {
-
+class SessionSpec extends BaseSpec with EmptySession {
   private val nextAction = mock[Action]
 
-  private def newSession = Session("scenario", 0, System.currentTimeMillis(), SessionSpec.FakeEventLoop)
-
   "setAll" should "set all give key/values pairs in session" in {
-    val session = newSession.setAll("key" -> 1, "otherKey" -> 2)
+    val session = emptySession.setAll("key" -> 1, "otherKey" -> 2)
     session.attributes.contains("key") shouldBe true
     session.attributes.contains("otherKey") shouldBe true
     session.attributes("key") shouldBe 1
     session.attributes("otherKey") shouldBe 2
   }
 
-  "reset" should "remove all attributes from the session" in {
-    val session = newSession
-      .setAll("key" -> 1, "otherKey" -> 2)
+  "reset" should "remove all non private attributes from the session" in {
+    val privateAttribute = SessionPrivateAttributes.generatePrivateAttribute("foo")
+    val session = emptySession
+      .setAll("key" -> 1, "otherKey" -> 2, privateAttribute -> 5)
       .reset
 
-    session.attributes shouldBe empty
+    session.attributes shouldBe Map(privateAttribute -> 5)
   }
 
   it should "preserve loop counter" in {
-    val session = newSession
+    val session = emptySession
       .set("bar", 5)
       .enterLoop(counterName = "foo", condition = _ => Success(true), exitAction = null, exitASAP = false)
       .reset
@@ -107,7 +53,7 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "preserve loop timestamp" in {
-    val session = newSession
+    val session = emptySession
       .set("bar", 5)
       .enterTimeBasedLoop(counterName = "foo", condition = _ => Success(true), exitAction = null, exitASAP = false, nowMillis = 1000)
       .reset
@@ -118,72 +64,72 @@ class SessionSpec extends BaseSpec {
   }
 
   "remove" should "remove an attribute from the session if present" in {
-    val session = newSession.set("key", "value").remove("key")
+    val session = emptySession.set("key", "value").remove("key")
     session.attributes.contains("key") shouldBe false
   }
 
   it should "return the current session if the attribute is not in session" in {
-    val session = newSession.set("key", "value")
+    val session = emptySession.set("key", "value")
     val unmodifiedSession = session.remove("otherKey")
     session should be theSameInstanceAs unmodifiedSession
   }
 
   "removeAll" should "remove all specified attributes from the session if present" in {
-    val session = newSession.set("key", "value").set("otherKey", "otherValue").removeAll("key", "otherKey")
+    val session = emptySession.set("key", "value").set("otherKey", "otherValue").removeAll("key", "otherKey")
     session.attributes.contains("key") shouldBe false
     session.attributes.contains("otherKey") shouldBe false
   }
 
   it should "return the current session if the specified attributes are not in the session" in {
-    val session = newSession.set("key", "value").set("otherKey", "otherValue")
+    val session = emptySession.set("key", "value").set("otherKey", "otherValue")
     val unmodifiedSession = session.removeAll("unknownKey", "otherUnknownKey")
     session should be theSameInstanceAs unmodifiedSession
   }
 
   "contains" should "return true if the attribute is in the session" in {
-    val session = newSession.set("key", "value")
+    val session = emptySession.set("key", "value")
     session.contains("key") shouldBe true
   }
 
   it should "return false if the attribute is not in the session" in {
-    newSession.contains("foo") shouldBe false
+    emptySession.contains("foo") shouldBe false
   }
 
   "loopCounterValue" should "return a counter stored in the session as an Int" in {
-    val session = newSession.set("counter", 1)
+    val session = emptySession.set("counter", 1)
     session.loopCounterValue("counter") shouldBe 1
   }
 
   "loopTimestampValue" should "return a counter stored in the session as an Int" in {
     val timestamp = System.currentTimeMillis()
-    val session = newSession.set("timestamp.foo", timestamp)
+    val session = emptySession.set("timestamp.foo", timestamp)
     session.loopTimestampValue("foo") shouldBe timestamp
   }
 
   "enterGroup" should "add a 'root' group block is there is no group in the stack" in {
-    val session = newSession
+    val session = emptySession
     val sessionWithGroup = session.enterGroup("root group", System.currentTimeMillis())
     val lastBlock = sessionWithGroup.blockStack.head
     lastBlock shouldBe a[GroupBlock]
-    lastBlock.asInstanceOf[GroupBlock].hierarchy shouldBe List("root group")
+    lastBlock.asInstanceOf[GroupBlock].groups shouldBe List("root group")
   }
 
   it should "add a group block with its hierarchy is there are groups in the stack" in {
-    val session = newSession.enterGroup("root group", System.currentTimeMillis()).enterGroup("child group", System.currentTimeMillis())
+    val session = emptySession.enterGroup("root group", System.currentTimeMillis()).enterGroup("child group", System.currentTimeMillis())
     val sessionWithThreeGroups = session.enterGroup("last group", System.currentTimeMillis())
     val lastBlock = sessionWithThreeGroups.blockStack.head
     lastBlock shouldBe a[GroupBlock]
-    lastBlock.asInstanceOf[GroupBlock].hierarchy shouldBe List("root group", "child group", "last group")
+    lastBlock.asInstanceOf[GroupBlock].groups shouldBe List("root group", "child group", "last group")
   }
 
   "exitGroup" should "remove the GroupBlock from the stack if it's on top of the stack" in {
-    val session = newSession.enterGroup("root group", System.currentTimeMillis())
+    val session = emptySession.enterGroup("root group", System.currentTimeMillis())
     val sessionWithoutGroup = session.exitGroup(session.blockStack.tail)
     sessionWithoutGroup.blockStack shouldBe empty
   }
 
   "logGroupRequestTimings" should "update stats in all parent groups" in {
-    val session = newSession
+    val session = emptySession
       .enterGroup("root group", System.currentTimeMillis())
       .enterGroup("child group", System.currentTimeMillis())
       .enterTryMax("tryMax", nextAction)
@@ -196,109 +142,103 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "leave the session unmodified if there is no groups in the stack" in {
-    val session = newSession
+    val session = emptySession
     val unModifiedSession = session.logGroupRequestTimings(1, 2)
 
     session should be theSameInstanceAs unModifiedSession
   }
 
   "groupHierarchy" should "return the group hierarchy if there is one" in {
-    val session = newSession
-    session.groupHierarchy shouldBe empty
+    val session = emptySession
+    session.groups shouldBe empty
 
     val sessionWithGroup = session
       .enterGroup("root group", System.currentTimeMillis())
       .enterGroup("child group", System.currentTimeMillis())
-    sessionWithGroup.groupHierarchy shouldBe List("root group", "child group")
+    sessionWithGroup.groups shouldBe List("root group", "child group")
   }
 
   "enterTryMax" should "add a TryMaxBlock on top of the stack and init a counter" in {
-    val session = newSession.enterTryMax("tryMax", nextAction)
+    val session = emptySession.enterTryMax("tryMax", nextAction)
 
     session.blockStack.head shouldBe a[TryMaxBlock]
     session.contains("tryMax") shouldBe true
   }
 
   "exitTryMax" should "simply exit the closest TryMaxBlock and remove its associated counter if it has not failed" in {
-    val session = newSession.enterTryMax("tryMax", nextAction).exitTryMax
+    val enterSession = emptySession.enterTryMax("tryMax", nextAction)
+    val exitSession = enterSession.exitTryMax("tryMax", OK, enterSession.blockStack.tail)
 
-    session.blockStack shouldBe empty
-    session.contains("tryMax") shouldBe false
+    exitSession.blockStack shouldBe empty
+    exitSession.contains("tryMax") shouldBe false
   }
 
   it should "simply exit the TryMaxBlock and remove its associated counter if it has failed but with no other TryMaxBlock in the stack" in {
-    val session = newSession
+    val enterSession = emptySession
       .enterGroup("root group", System.currentTimeMillis())
       .enterTryMax("tryMax", nextAction)
       .markAsFailed
-      .exitTryMax
+    val exitSession = enterSession.exitTryMax("tryMax", OK, enterSession.blockStack.tail)
 
-    session.blockStack.head shouldBe a[GroupBlock]
-    session.contains("tryMax") shouldBe false
+    exitSession.blockStack.head shouldBe a[GroupBlock]
+    exitSession.contains("tryMax") shouldBe false
   }
 
   it should "exit the TryMaxBlock, remove its associated counter and set the closest TryMaxBlock in the stack's status to KO if it has failed" in {
-    val session = newSession
+    val enterSession = emptySession
       .enterTryMax("tryMax1", nextAction)
       .enterGroup("root group", System.currentTimeMillis())
       .enterTryMax("tryMax2", nextAction)
       .markAsFailed
-      .exitTryMax
+    val exitSession = enterSession.exitTryMax("tryMax2", KO, enterSession.blockStack.tail)
 
-    session.blockStack.head shouldBe a[GroupBlock]
-    session.blockStack(1) shouldBe a[TryMaxBlock]
-    session.blockStack(1).asInstanceOf[TryMaxBlock].status shouldBe KO
-    session.contains("tryMax2") shouldBe false
-  }
-
-  it should "leave the session unmodified if there is no TryMaxBlock on top of the stack" in {
-    val session = newSession
-    val unmodifiedSession = session.exitTryMax
-
-    session should be theSameInstanceAs unmodifiedSession
+    exitSession.blockStack.head shouldBe a[GroupBlock]
+    exitSession.blockStack(1) shouldBe a[TryMaxBlock]
+    exitSession.blockStack(1).asInstanceOf[TryMaxBlock].status shouldBe KO
+    exitSession.contains("tryMax2") shouldBe false
   }
 
   it should "propagate the failure to the baseStatus" in {
-    val session = newSession
-      .enterTryMax("tryMax1", nextAction)
+    val enterSession = emptySession
+      .enterTryMax("tryMax", nextAction)
       .markAsFailed
-      .exitTryMax
+    val exitSession = enterSession.exitTryMax("tryMax", KO, enterSession.blockStack.tail)
 
-    session.isFailed shouldBe true
+    exitSession.isFailed shouldBe true
   }
 
   "isFailed" should "return true if baseStatus is KO and there is no failed TryMaxBlock in the stack" in {
-    val session = newSession.copy(baseStatus = KO)
+    val session = emptySession.copy(baseStatus = KO)
 
     session.isFailed shouldBe true
   }
 
   it should "return true if baseStatus is OK and there is a failed TryMaxBlock in the stack" in {
-    val session = newSession.copy(blockStack = List(TryMaxBlock("tryMax", nextAction, KO)))
+    val session = emptySession.copy(blockStack = List(TryMaxBlock("tryMax", nextAction, KO)))
 
     session.isFailed shouldBe true
   }
 
   it should "return false if baseStatus is OK and there is no TryMaxBlock in the stack" in {
-    newSession.isFailed shouldBe false
+    emptySession.isFailed shouldBe false
   }
 
   it should "return false if baseStatus is OK and there is no failed TryMaxBlock in the stack" in {
-    val session = newSession.copy(blockStack = List(TryMaxBlock("tryMax", nextAction, OK)))
+    val session = emptySession.copy(blockStack = List(TryMaxBlock("tryMax", nextAction, OK)))
 
     session.isFailed shouldBe false
   }
 
   "status" should "be OK if the session is not failed" in {
-    newSession.status shouldBe OK
+    emptySession.status shouldBe OK
   }
 
   it should "be KO if the session is failed" in {
-    newSession.copy(baseStatus = KO).status shouldBe KO
+    emptySession.copy(baseStatus = KO).status shouldBe KO
   }
 
   "markAsSucceeded" should "only set the baseStatus to OK if it was originally KO and there is no TryMaxBlock in the stack" in {
-    val session = newSession.copy(baseStatus = KO)
+    val session = emptySession.copy(baseStatus = KO)
     val failedSession = session.markAsSucceeded
 
     failedSession should not be theSameInstanceAs(session)
@@ -306,14 +246,14 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "leave the session unmodified if baseStatus is already OK and there is no TryMaxBlock in the stack" in {
-    val session = newSession
+    val session = emptySession
     val failedSession = session.markAsSucceeded
 
     failedSession should be theSameInstanceAs session
   }
 
   it should "set the TryMaxBlock's status to OK if there is a TryMaxBlock in the stack, but leave the baseStatus unmodified" in {
-    val session = newSession
+    val session = emptySession
       .copy(baseStatus = KO)
       .enterGroup("root group", System.currentTimeMillis())
       .enterTryMax("tryMax", nextAction)
@@ -324,7 +264,7 @@ class SessionSpec extends BaseSpec {
   }
 
   "markAsFailed" should "only set the baseStatus to KO if it was not set and there is no TryMaxBlock in the stack" in {
-    val session = newSession
+    val session = emptySession
     val failedSession = session.markAsFailed
 
     failedSession should not be theSameInstanceAs(session)
@@ -332,14 +272,14 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "leave the session unmodified if baseStatus is already KO and the stack is empty" in {
-    val session = newSession.copy(baseStatus = KO)
+    val session = emptySession.copy(baseStatus = KO)
     val failedSession = session.markAsFailed
 
     failedSession should be theSameInstanceAs session
   }
 
   it should "set the TryMaxBlock's status to KO if there is a TryMaxBlock in the stack, but leave the baseStatus unmodified" in {
-    val session = newSession
+    val session = emptySession
       .enterGroup("root group", System.currentTimeMillis())
       .enterTryMax("tryMax", nextAction)
     val failedSession = session.markAsFailed
@@ -349,7 +289,7 @@ class SessionSpec extends BaseSpec {
   }
 
   "enterLoop" should "add an ExitASAPLoopBlock on top of the stack and init a counter when exitASAP = true" in {
-    val session = newSession
+    val session = emptySession
       .enterLoop("loop", true.expressionSuccess, nextAction, exitASAP = true)
 
     session.blockStack.head shouldBe a[ExitAsapLoopBlock]
@@ -358,7 +298,7 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "add an ExitOnCompleteLoopBlock on top of the stack and init a counter when exitASAP = false" in {
-    val session = newSession
+    val session = emptySession
       .enterLoop("loop", true.expressionSuccess, nextAction, exitASAP = false)
 
     session.blockStack.head shouldBe a[ExitOnCompleteLoopBlock]
@@ -367,22 +307,16 @@ class SessionSpec extends BaseSpec {
   }
 
   "exitLoop" should "remove the LoopBlock from the top of the stack and its associated counter" in {
-    val session = newSession
+    val enterSession = emptySession
       .enterLoop("loop", true.expressionSuccess, nextAction, exitASAP = false)
-    val sessionOutOfLoop = session.exitLoop
+    val exitSession = enterSession.exitLoop("loop", enterSession.blockStack.tail)
 
-    sessionOutOfLoop.blockStack shouldBe empty
-    sessionOutOfLoop.contains("loop") shouldBe false
-  }
-
-  it should "leave the stack unmodified if there's no LoopBlock on top of the stack" in {
-    val session = newSession
-    val unModifiedSession = session.exitLoop
-    session should be theSameInstanceAs unModifiedSession
+    exitSession.blockStack shouldBe empty
+    exitSession.contains("loop") shouldBe false
   }
 
   "enterTimeBasedLoop" should "add a counter, initialized to 0, and a timestamp for the counter creation in the session" in {
-    val session = newSession.enterTimeBasedLoop("counter", _ => Success(true), null, exitASAP = false, System.currentTimeMillis())
+    val session = emptySession.enterTimeBasedLoop("counter", _ => Success(true), null, exitASAP = false, System.currentTimeMillis())
 
     session.contains("counter") shouldBe true
     session.attributes("counter") shouldBe 0
@@ -390,20 +324,20 @@ class SessionSpec extends BaseSpec {
   }
 
   "incrementCounter" should "increment a counter in session" in {
-    val session = newSession.enterLoop("counter", _ => Success(true), null, exitASAP = false)
+    val session = emptySession.enterLoop("counter", _ => Success(true), null, exitASAP = false)
     val sessionWithUpdatedCounter = session.incrementCounter("counter")
 
     sessionWithUpdatedCounter.attributes("counter") shouldBe 1
   }
 
   it should "should leave the session unmodified if there was no counter created with the specified name" in {
-    val session = newSession
+    val session = emptySession
     val unModifiedSession = session.incrementCounter("counter")
     session should be theSameInstanceAs unModifiedSession
   }
 
   "removeCounter" should "remove a counter and its associated timestamp from the session" in {
-    val session = newSession.enterTimeBasedLoop("counter", _ => Success(true), null, exitASAP = false, System.currentTimeMillis())
+    val session = emptySession.enterTimeBasedLoop("counter", _ => Success(true), null, exitASAP = false, System.currentTimeMillis())
     val sessionWithRemovedCounter = session.removeCounter("counter")
 
     sessionWithRemovedCounter.contains("counter") shouldBe false
@@ -411,100 +345,122 @@ class SessionSpec extends BaseSpec {
   }
 
   it should "should leave the session unmodified if there was no counter created with the specified name" in {
-    val session = newSession
+    val session = emptySession
     val unModifiedSession = session.removeCounter("counter")
     session should be theSameInstanceAs unModifiedSession
   }
 
   "terminate" should "call the userEnd function" in {
     var i = 0
-    val session = newSession.copy(onExit = _ => i += 1)
+    val session = emptySession.copy(onExit = _ => i += 1)
     session.exit()
 
     i shouldBe 1
   }
 
   "MarkAsFailedUpdate function" should "mark as failed the session passed as parameter" in {
-    val failedSession = Session.MarkAsFailedUpdate(newSession)
+    val failedSession = Session.MarkAsFailedUpdate(emptySession)
     failedSession.isFailed shouldBe true
   }
 
   "Identity function" should "return the same session instance" in {
-    val session = newSession
+    val session = emptySession
     val unModifiedSession = Session.Identity(session)
     session should be theSameInstanceAs unModifiedSession
   }
 
   "as[T]" should "return the value when key is defined and value of the expected type" in {
-    val session = newSession.set("foo", "bar")
+    val session = emptySession.set("foo", "bar")
     session("foo").as[String] shouldBe "bar"
   }
 
   it should "support parsing a valid String into an Int" in {
-    val session = newSession.set("foo", "200")
+    val session = emptySession.set("foo", "200")
     session("foo").as[String] shouldBe "200"
     session("foo").as[Int] shouldBe 200
   }
 
+  it should "extract Scala types" in {
+    emptySession.set("foo", true)("foo").as[Boolean] shouldBe true
+    emptySession.set("foo", 1.toByte)("foo").as[Byte] shouldBe 1
+    emptySession.set("foo", 1.toShort)("foo").as[Short] shouldBe 1
+    emptySession.set("foo", 1)("foo").as[Int] shouldBe 1
+    emptySession.set("foo", 1L)("foo").as[Long] shouldBe 1L
+    emptySession.set("foo", 1.1.toFloat)("foo").as[Float] shouldBe 1.1.toFloat
+    emptySession.set("foo", 1.1)("foo").as[Double] shouldBe 1.1
+    emptySession.set("foo", 'a')("foo").as[Char] shouldBe 'a'
+  }
+
+  it should "extract Java wrapper types" in {
+    emptySession.set("foo", java.lang.Boolean.TRUE)("foo").as[Boolean] shouldBe true
+    emptySession.set("foo", java.lang.Byte.valueOf(1.toByte))("foo").as[Byte] shouldBe 1
+    emptySession.set("foo", java.lang.Short.valueOf(1.toShort))("foo").as[Short] shouldBe 1
+    emptySession.set("foo", java.lang.Integer.valueOf(1))("foo").as[Int] shouldBe 1
+    emptySession.set("foo", java.lang.Long.valueOf(1))("foo").as[Long] shouldBe 1L
+    emptySession.set("foo", java.lang.Float.valueOf(1.1.toFloat))("foo").as[Float] shouldBe 1.1.toFloat
+    emptySession.set("foo", java.lang.Double.valueOf(1.1))("foo").as[Double] shouldBe 1.1
+    emptySession.set("foo", java.lang.Character.valueOf('a'))("foo").as[Char] shouldBe 'a'
+  }
+
   it should "throw an exception when key isn't defined" in {
-    val session = newSession
+    val session = emptySession
     a[java.util.NoSuchElementException] shouldBe thrownBy(session("foo").as[String])
   }
 
-  it should "throw a NumberFormatException when the String value can't be parsed" in {
-    val session = newSession.set("foo", "bar")
-    a[NumberFormatException] shouldBe thrownBy(session("foo").as[Int])
+  it should "throw an IllegalArgumentException when the String value can't be parsed" in {
+    val session = emptySession.set("foo", "bar")
+    a[IllegalArgumentException] shouldBe thrownBy(session("foo").as[Int])
   }
 
   it should "throw a ClassCastException when the value can't be turned into the expected type" in {
-    val session = newSession.set("foo", true)
+    val session = emptySession.set("foo", true)
     a[ClassCastException] shouldBe thrownBy(session("foo").as[Int])
   }
 
   "asOption[T]" should "return a Some(value) when key is defined and value of the expected type" in {
-    val session = newSession.set("foo", "bar")
+    val session = emptySession.set("foo", "bar")
     session("foo").asOption[String] shouldBe Some("bar")
   }
 
   it should "support parsing a valid String into an Int" in {
-    val session = newSession.set("foo", "200")
+    val session = emptySession.set("foo", "200")
     session("foo").asOption[String] shouldBe Some("200")
     session("foo").asOption[Int] shouldBe Some(200)
   }
 
   it should "return None when key isn't defined" in {
-    val session = newSession
+    val session = emptySession
     session("foo").asOption[String] shouldBe None
   }
 
-  it should "throw a NumberFormatException when the String value can't be parsed" in {
-    val session = newSession.set("foo", "bar")
-    a[NumberFormatException] shouldBe thrownBy(session("foo").asOption[Int])
+  it should "throw a IllegalArgumentException when the String value can't be parsed" in {
+    val session = emptySession.set("foo", "bar")
+    a[IllegalArgumentException] shouldBe thrownBy(session("foo").asOption[Int])
   }
 
   it should "throw a ClassCastException when the value isn't of the expected type" in {
-    val session = newSession.set("foo", true)
+    val session = emptySession.set("foo", true)
     a[ClassCastException] shouldBe thrownBy(session("foo").asOption[Int])
   }
 
   "validate[T]" should "return a Validation(value) when key is defined and value of the expected type" in {
-    val session = newSession.set("foo", "bar")
+    val session = emptySession.set("foo", "bar")
     session("foo").validate[String] shouldBe Success("bar")
   }
 
   it should "support parsing a valid String into an Int" in {
-    val session = newSession.set("foo", "200")
+    val session = emptySession.set("foo", "200")
     session("foo").validate[String] shouldBe Success("200")
     session("foo").validate[Int] shouldBe Success(200)
   }
 
   it should "return a Failure when key isn't defined" in {
-    val session = newSession
+    val session = emptySession
     session("foo").validate[String] shouldBe a[Failure]
   }
 
   it should "return a Failure when the value isn't of the expected type" in {
-    val session = newSession.set("foo", "bar")
+    val session = emptySession.set("foo", "bar")
     session("foo").validate[Int] shouldBe a[Failure]
   }
 }

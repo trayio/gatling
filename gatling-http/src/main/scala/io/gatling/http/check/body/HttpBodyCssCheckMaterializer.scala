@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import io.gatling.http.response.Response
 import jodd.lagarto.dom.NodeSelector
 
 object HttpBodyCssCheckMaterializer {
-
   private val ErrorMapper: String => String = "Could not parse response into a Jodd NodeSelector: " + _
 
   def instance(selectors: CssSelectors): CheckMaterializer[CssCheckType, HttpCheck, Response, NodeSelector] = {

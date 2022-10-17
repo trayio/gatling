@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,16 +24,15 @@ import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 import io.gatling.http.action.ws.fsm.WsFsm
-import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
+import io.gatling.http.check.ws.WsFrameCheck
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpComponents
 
 class WsConnect(
     override val requestName: Expression[String],
-    wsName: String,
-    subprotocol: Option[String],
+    wsName: Expression[String],
     request: Expression[Request],
-    connectCheckSequences: List[WsFrameCheckSequence[WsFrameCheck]],
+    connectCheckSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]],
     onConnected: Option[Action],
     coreComponents: CoreComponents,
     httpComponents: HttpComponents,
@@ -41,39 +40,39 @@ class WsConnect(
 ) extends RequestAction
     with WsAction
     with NameGen {
-
   override val name: String = genName("wsConnect")
 
   override def clock: Clock = coreComponents.clock
 
   override def statsEngine: StatsEngine = coreComponents.statsEngine
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
-    fetchFsm(wsName, session) match {
-      case _: Failure =>
-        for {
-          connectRequest <- request(session)
-        } yield {
-          logger.info(s"Opening websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
+  override def sendRequest(session: Session): Validation[Unit] =
+    for {
+      fsmName <- wsName(session)
+      _ <- fetchFsm(fsmName, session) match {
+        case _: Failure =>
+          for {
+            connectRequest <- request(session)
+            resolvedCheckSequences <- WsFrameCheckSequenceBuilder.resolve(connectCheckSequences, session)
+          } yield {
+            logger.debug(s"Opening websocket '$fsmName': Scenario '${session.scenario}', UserId #${session.userId}")
 
-          val wsFsm = new WsFsm(
-            wsName,
-            connectRequest,
-            subprotocol,
-            requestName,
-            connectCheckSequences,
-            onConnected,
-            statsEngine,
-            httpComponents.httpEngine,
-            httpComponents.httpProtocol,
-            session.eventLoop,
-            clock
-          )
+            val fsm = new WsFsm(
+              fsmName,
+              connectRequest,
+              resolvedCheckSequences,
+              onConnected,
+              statsEngine,
+              httpComponents.httpEngine,
+              httpComponents.httpProtocol,
+              session.eventLoop,
+              clock
+            )
 
-          wsFsm.onPerformInitialConnect(session, next)
-        }
+            fsm.onPerformInitialConnect(session.set(fsmName, fsm), next)
+          }
 
-      case _ =>
-        Failure(s"Unable to create a new WebSocket with name $wsName: already exists")
-    }
+        case _ => Failure(s"Unable to create a new WebSocket with name $fsmName: already exists")
+      }
+    } yield ()
 }

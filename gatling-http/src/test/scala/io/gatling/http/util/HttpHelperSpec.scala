@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,9 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import io.gatling.BaseSpec
 
-import io.netty.handler.codec.http.HttpResponseStatus
+import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderNames, HttpHeaderValues, HttpResponseStatus }
 
 class HttpHelperSpec extends BaseSpec {
-
   "parseFormBody" should "support unique param" in {
     HttpHelper.parseFormBody("foo=bar") shouldBe List("foo" -> "bar")
   }
@@ -71,5 +70,47 @@ class HttpHelperSpec extends BaseSpec {
 
   it should "not crash when charset is unknown" in {
     HttpHelper.extractCharsetFromContentType("text/plain; charset=Foo") shouldBe None
+  }
+
+  it should "not crash when charset is empty" in {
+    HttpHelper.extractCharsetFromContentType("text/plain; charset=") shouldBe None
+  }
+
+  "isText" should "detect standard JSON mime type" in {
+    val headers = new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON)
+    HttpHelper.isText(headers) shouldBe true
+  }
+
+  it should "ignore extra directives" in {
+    val headers = new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_TYPE, s"${HttpHeaderValues.APPLICATION_JSON}; charset = utf-8")
+    HttpHelper.isText(headers) shouldBe true
+  }
+
+  it should "detect missing content-type headers" in {
+    val headers = new DefaultHttpHeaders()
+    HttpHelper.isText(headers) shouldBe false
+  }
+
+  it should "detect non text mime type" in {
+    val headers = new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_TYPE, "foo")
+    HttpHelper.isText(headers) shouldBe false
+  }
+
+  it should "detect JSON API mime type" in {
+    val headers = new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_TYPE, "application/vnd.userinfo.v1+json")
+    HttpHelper.isText(headers) shouldBe true
+  }
+
+  it should "detect SOAP mime type" in {
+    val headers = new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_TYPE, "application/soap+xml")
+    HttpHelper.isText(headers) shouldBe true
+  }
+
+  it should "detect multipart/related Content-Type with text type attribute" in {
+    val headers = new DefaultHttpHeaders().add(
+      HttpHeaderNames.CONTENT_TYPE,
+      """multipart/related; boundary="----=_Part_512_1387421115.1607689659518"; type="text/xml"; start="1482247947.1607689659518.apache-soap.NCEPRF26WLS01"; charset=utf-8"""
+    )
+    HttpHelper.isText(headers) shouldBe true
   }
 }

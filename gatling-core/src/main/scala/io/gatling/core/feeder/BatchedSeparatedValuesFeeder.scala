@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 package io.gatling.core.feeder
 
-import java.io.{ File, FileInputStream, InputStream }
+import java.io.File
+import java.nio.channels.{ FileChannel, ReadableByteChannel }
 import java.nio.charset.Charset
 
 import io.gatling.commons.util.Arrays
 
 object BatchedSeparatedValuesFeeder {
-
   def apply(
       file: File,
       separator: Char,
@@ -32,15 +32,18 @@ object BatchedSeparatedValuesFeeder {
       bufferSize: Int,
       charset: Charset
   ): Feeder[Any] = {
+    val feederFactory: ReadableByteChannel => Feeder[String] = SeparatedValuesParser.feederFactory(separator, quoteChar, charset)
 
-    val streamer: InputStream => Feeder[String] = SeparatedValuesParser.stream(separator, quoteChar, charset)
+    val channelFactory = {
+      val path = file.toPath
+      () => FileChannel.open(path)
+    }
 
-    val is = new FileInputStream(file)
     val rawFeeder = strategy match {
-      case Queue    => new QueueBatchedSeparatedValuesFeeder(is, streamer)
-      case Random   => new RandomBatchedSeparatedValuesFeeder(is, streamer, bufferSize)
-      case Shuffle  => new ShuffleBatchedSeparatedValuesFeeder(is, streamer, bufferSize)
-      case Circular => new CircularBatchedSeparatedValuesFeeder(is, streamer)
+      case FeederStrategy.Queue    => new QueueBatchedSeparatedValuesFeeder(channelFactory, feederFactory)
+      case FeederStrategy.Random   => new RandomBatchedSeparatedValuesFeeder(channelFactory, feederFactory, bufferSize)
+      case FeederStrategy.Shuffle  => new ShuffleBatchedSeparatedValuesFeeder(channelFactory, feederFactory, bufferSize)
+      case FeederStrategy.Circular => new CircularBatchedSeparatedValuesFeeder(channelFactory, feederFactory)
     }
 
     conversion match {
@@ -56,33 +59,41 @@ object BatchedSeparatedValuesFeeder {
   }
 }
 
-abstract class BatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStream => Feeder[String]) extends CloseableFeeder[String] {
+private sealed abstract class BatchedSeparatedValuesFeeder(
+    channelFactory: () => ReadableByteChannel,
+    feederFactory: ReadableByteChannel => Feeder[String]
+) extends CloseableFeeder[String] {
+  private var currentChannel: ReadableByteChannel = _
+  protected var feeder: Feeder[String] = _
+  reset0()
 
-  private var currentIs: InputStream = is
-  protected var feeder: Feeder[String] = streamer(currentIs)
-
-  protected def resetStream(): Unit = {
-    currentIs.close()
-    currentIs = is
-    feeder = streamer(currentIs)
+  private def reset0(): Unit = {
+    currentChannel = channelFactory()
+    feeder = feederFactory(currentChannel)
   }
 
-  override def close(): Unit = currentIs.close()
+  protected def resetStream(): Unit = {
+    currentChannel.close()
+    reset0()
+  }
+
+  override def close(): Unit = currentChannel.close()
 }
 
-class QueueBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStream => Feeder[String]) extends BatchedSeparatedValuesFeeder(is, streamer) {
-
+private final class QueueBatchedSeparatedValuesFeeder(channelFactory: () => ReadableByteChannel, streamer: ReadableByteChannel => Feeder[String])
+    extends BatchedSeparatedValuesFeeder(channelFactory, streamer) {
   override def hasNext: Boolean = feeder.hasNext
 
   override def next(): Record[String] = feeder.next()
 }
 
-class RandomBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStream => Feeder[String], bufferSize: Int)
-    extends BatchedSeparatedValuesFeeder(is, streamer) {
-
+private final class RandomBatchedSeparatedValuesFeeder(
+    channelFactory: () => ReadableByteChannel,
+    streamer: ReadableByteChannel => Feeder[String],
+    bufferSize: Int
+) extends BatchedSeparatedValuesFeeder(channelFactory, streamer) {
   private val buffer = new Array[Record[String]](bufferSize)
-  private var index = 0
-  refill()
+  private var index = Int.MaxValue // so refill is triggered on first access
 
   private def refill(): Unit = {
     var fill = 0
@@ -110,9 +121,11 @@ class RandomBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStre
     }
 }
 
-class ShuffleBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStream => Feeder[String], bufferSize: Int)
-    extends BatchedSeparatedValuesFeeder(is, streamer) {
-
+private final class ShuffleBatchedSeparatedValuesFeeder(
+    channelFactory: () => ReadableByteChannel,
+    streamer: ReadableByteChannel => Feeder[String],
+    bufferSize: Int
+) extends BatchedSeparatedValuesFeeder(channelFactory, streamer) {
   private val buffer = new Array[Record[String]](bufferSize)
   private var index = 0
   private var fill = 0
@@ -142,8 +155,8 @@ class ShuffleBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStr
     }
 }
 
-class CircularBatchedSeparatedValuesFeeder(is: => InputStream, streamer: InputStream => Feeder[String]) extends BatchedSeparatedValuesFeeder(is, streamer) {
-
+private final class CircularBatchedSeparatedValuesFeeder(channelFactory: () => ReadableByteChannel, streamer: ReadableByteChannel => Feeder[String])
+    extends BatchedSeparatedValuesFeeder(channelFactory, streamer) {
   override def hasNext: Boolean = true
 
   override def next(): Record[String] = {

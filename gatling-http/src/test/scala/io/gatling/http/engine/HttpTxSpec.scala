@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import com.softwaremill.quicklens._
 import org.mockito.Mockito._
 
 class HttpTxSpec extends BaseSpec {
-
   private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   trait Context {
@@ -43,12 +42,14 @@ class HttpTxSpec extends BaseSpec {
     val configBase = HttpRequestConfig(
       checks = Nil,
       responseTransformer = None,
-      maxRedirects = 20,
       throttled = false,
       silent = None,
       followRedirect = false,
-      httpProtocol = httpProtocol,
-      explicitResources = Nil
+      digests = Map.empty,
+      storeBodyParts = false,
+      defaultCharset = configuration.core.charset,
+      explicitResources = Nil,
+      httpProtocol = httpProtocol
     )
   }
 
@@ -60,14 +61,12 @@ class HttpTxSpec extends BaseSpec {
         clientRequest = clientRequest,
         requestConfig = requestConfig
       ),
-      responseBuilderFactory = null,
       next = mock[Action],
-      resourceTx = if (root) None else Some(ResourceTx(null, null)),
+      resourceTx = if (root) None else Some(ResourceTx(null, "resources", null)),
       redirectCount = 0
     )
 
   "HttpTx" should "be silent when using default protocol and containing a request forced to silent" in new Context {
-
     val ahcRequest = mock[Request]
     when(ahcRequest.getUri) thenReturn Uri.create("http://example.com/")
 
@@ -76,7 +75,6 @@ class HttpTxSpec extends BaseSpec {
   }
 
   it should "be non-silent when using default protocol and containing a regular request" in new Context {
-
     val ahcRequest = mock[Request]
     when(ahcRequest.getUri) thenReturn Uri.create("http://example.com/")
 
@@ -84,37 +82,31 @@ class HttpTxSpec extends BaseSpec {
   }
 
   it should "not be silent when using a protocol with a silentUri pattern match the request url" in new Context {
-
     val ahcRequest = mock[Request]
     when(ahcRequest.getUri) thenReturn Uri.create("http://example.com/test.js")
 
     val config = configBase
-      .modify(_.httpProtocol.requestPart)
-      .using(_.modify(_.silentUri).setTo(Some(""".*\.js""".r.pattern)).modify(_.silentResources).setTo(false))
+      .modify(_.httpProtocol.requestPart)(_.modify(_.silentUri).setTo(Some(""".*\.js""".r.pattern)).modify(_.silentResources).setTo(false))
 
     tx(ahcRequest, config, root = true).silent shouldBe true
   }
 
   it should "be silent when passed a protocol silencing resources and a resource (non root) request" in new Context {
-
     val ahcRequest = mock[Request]
     when(ahcRequest.getUri) thenReturn Uri.create("http://example.com/test.js")
 
     val config = configBase
-      .modify(_.httpProtocol.requestPart)
-      .using(_.modify(_.silentUri).setTo(None).modify(_.silentResources).setTo(true))
+      .modify(_.httpProtocol.requestPart)(_.modify(_.silentUri).setTo(None).modify(_.silentResources).setTo(true))
 
     tx(ahcRequest, config, root = false).silent shouldBe true
   }
 
   it should "not be silent when passed a protocol silencing resources and a root request" in new Context {
-
     val ahcRequest = mock[Request]
     when(ahcRequest.getUri) thenReturn Uri.create("http://example.com/test.js")
 
     val config = configBase
-      .modify(_.httpProtocol.requestPart)
-      .using(_.modify(_.silentUri).setTo(None).modify(_.silentResources).setTo(true))
+      .modify(_.httpProtocol.requestPart)(_.modify(_.silentUri).setTo(None).modify(_.silentResources).setTo(true))
 
     tx(ahcRequest, config, root = true).silent shouldBe false
   }

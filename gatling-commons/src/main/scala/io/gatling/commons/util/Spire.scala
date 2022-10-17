@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,5 @@ package io.gatling.commons.util
 import scala.language.experimental.macros
 
 object Spire {
-
   def cfor[A](init: A)(test: A => Boolean, next: A => A)(body: A => Unit): Unit = macro spire.macros.Syntax.cforMacro[A]
 }

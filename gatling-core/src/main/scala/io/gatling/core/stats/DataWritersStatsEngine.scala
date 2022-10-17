@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,15 +26,15 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.controller.ControllerCommand
 import io.gatling.core.scenario.SimulationParams
-import io.gatling.core.session.{ GroupBlock, Session }
+import io.gatling.core.session.GroupBlock
 import io.gatling.core.stats.writer._
+import io.gatling.core.structure.PopulationBuilder
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
 import akka.pattern.ask
 import akka.util.Timeout
 
 object DataWritersStatsEngine {
-
   def apply(
       simulationParams: SimulationParams,
       runMessage: RunMessage,
@@ -42,15 +42,20 @@ object DataWritersStatsEngine {
       clock: Clock,
       configuration: GatlingConfiguration
   ): DataWritersStatsEngine = {
+    val dataWriters = configuration.data.dataWriters
+      .map {
+        case DataWriterType.Console  => "io.gatling.core.stats.writer.ConsoleDataWriter"
+        case DataWriterType.File     => "io.gatling.core.stats.writer.LogFileDataWriter"
+        case DataWriterType.Graphite => "io.gatling.graphite.GraphiteDataWriter"
+      }
+      .map { className =>
+        val clazz = Class.forName(className).asInstanceOf[Class[Actor]]
+        system.actorOf(Props(clazz, clock, configuration), className)
+      }
 
-    val dataWriters = configuration.data.dataWriters.map { dw =>
-      val clazz = Class.forName(dw.className).asInstanceOf[Class[Actor]]
-      system.actorOf(Props(clazz, clock, configuration), clazz.getName)
-    }
+    val allPopulationBuilders = PopulationBuilder.flatten(simulationParams.rootPopulationBuilders)
 
-    val allPopulationBuilders = simulationParams.rootPopulationBuilders ++ simulationParams.childrenPopulationBuilders.values.flatten
-
-    val dataWriterInitMessage = Init(
+    val dataWriterInitMessage = DataWriterMessage.Init(
       simulationParams.assertions,
       runMessage,
       allPopulationBuilders.map(pb => ShortScenarioDescription(pb.scenarioBuilder.name, pb.injectionProfile.totalUserCount))
@@ -60,13 +65,11 @@ object DataWritersStatsEngine {
   }
 }
 
-class DataWritersStatsEngine(dataWriterInitMessage: Init, dataWriters: Seq[ActorRef], system: ActorSystem, clock: Clock) extends StatsEngine {
-
+class DataWritersStatsEngine(dataWriterInitMessage: DataWriterMessage.Init, dataWriters: Seq[ActorRef], system: ActorSystem, clock: Clock) extends StatsEngine {
   private val active = new AtomicBoolean(true)
 
   override def start(): Unit = {
-
-    implicit val dataWriterTimeOut: Timeout = Timeout(5 seconds)
+    implicit val dataWriterTimeOut: Timeout = Timeout(5.seconds)
     implicit val dispatcher: ExecutionContext = system.dispatcher
 
     val dataWriterInitResponses = dataWriters.map(_ ? dataWriterInitMessage)
@@ -87,19 +90,20 @@ class DataWritersStatsEngine(dataWriterInitMessage: Init, dataWriters: Seq[Actor
   override def stop(controller: ActorRef, exception: Option[Exception]): Unit =
     if (active.getAndSet(false)) {
       implicit val dispatcher: ExecutionContext = system.dispatcher
-      implicit val dataWriterTimeOut: Timeout = Timeout(5 seconds)
-      val responses = dataWriters.map(_ ? Stop)
+      implicit val dataWriterTimeOut: Timeout = Timeout(5.seconds)
+      val responses = dataWriters.map(_ ? DataWriterMessage.Stop)
       Future.sequence(responses).onComplete(_ => controller ! ControllerCommand.StatsEngineStopped)
     }
 
   private def dispatch(message: DataWriterMessage): Unit = if (active.get) dataWriters.foreach(_ ! message)
 
-  override def logUserStart(session: Session): Unit = dispatch(UserStartMessage(session))
+  override def logUserStart(scenario: String): Unit = dispatch(DataWriterMessage.LoadEvent.UserStart(scenario, clock.nowMillis))
 
-  override def logUserEnd(userMessage: UserEndMessage): Unit = dispatch(userMessage)
+  override def logUserEnd(scenario: String): Unit = dispatch(DataWriterMessage.LoadEvent.UserEnd(scenario, clock.nowMillis))
 
   override def logResponse(
-      session: Session,
+      scenario: String,
+      groups: List[String],
       requestName: String,
       startTimestamp: Long,
       endTimestamp: Long,
@@ -109,10 +113,9 @@ class DataWritersStatsEngine(dataWriterInitMessage: Init, dataWriters: Seq[Actor
   ): Unit =
     if (endTimestamp >= 0) {
       dispatch(
-        ResponseMessage(
-          session.scenario,
-          session.userId,
-          session.groupHierarchy,
+        DataWriterMessage.LoadEvent.Response(
+          scenario,
+          groups,
           requestName,
           startTimestamp,
           endTimestamp,
@@ -124,22 +127,21 @@ class DataWritersStatsEngine(dataWriterInitMessage: Init, dataWriters: Seq[Actor
     }
 
   override def logGroupEnd(
-      session: Session,
-      group: GroupBlock,
+      scenario: String,
+      groupBlock: GroupBlock,
       exitTimestamp: Long
   ): Unit =
     dispatch(
-      GroupMessage(
-        session.scenario,
-        session.userId,
-        group.hierarchy,
-        group.startTimestamp,
+      DataWriterMessage.LoadEvent.Group(
+        scenario,
+        groupBlock.groups,
+        groupBlock.startTimestamp,
         exitTimestamp,
-        group.cumulatedResponseTime,
-        group.status
+        groupBlock.cumulatedResponseTime,
+        groupBlock.status
       )
     )
 
-  override def logCrash(session: Session, requestName: String, error: String): Unit =
-    dispatch(ErrorMessage(s"$requestName: $error ", clock.nowMillis))
+  override def logCrash(scenario: String, groups: List[String], requestName: String, error: String): Unit =
+    dispatch(DataWriterMessage.LoadEvent.Error(s"$requestName: $error ", clock.nowMillis))
 }

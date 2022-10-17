@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,23 +43,16 @@ public final class Param implements Comparable<Param> {
   }
 
   public boolean equals(Object obj) {
-    if (this == obj)
-      return true;
-    if (obj == null)
-      return false;
-    if (!(obj instanceof Param))
-      return false;
+    if (this == obj) return true;
+    if (obj == null) return false;
+    if (!(obj instanceof Param)) return false;
     Param other = (Param) obj;
     if (name == null) {
-      if (other.name != null)
-        return false;
-    } else if (!name.equals(other.name))
-      return false;
+      if (other.name != null) return false;
+    } else if (!name.equals(other.name)) return false;
     if (value == null) {
-      if (other.value != null)
-        return false;
-    } else if (!value.equals(other.value))
-      return false;
+      if (other.value != null) return false;
+    } else if (!value.equals(other.value)) return false;
     return true;
   }
 
@@ -71,9 +64,6 @@ public final class Param implements Comparable<Param> {
 
   @Override
   public String toString() {
-    return "Param{" +
-      "name='" + name + '\'' +
-      ", value='" + value + '\'' +
-      '}';
+    return "Param{" + "name='" + name + '\'' + ", value='" + value + '\'' + '}';
   }
 }

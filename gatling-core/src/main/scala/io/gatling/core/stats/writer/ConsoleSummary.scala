@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,25 @@
 
 package io.gatling.core.stats.writer
 
-import java.lang.{ StringBuilder => JStringBuilder }
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.{ lang => jl }
+import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAccessor
 
 import scala.collection.mutable
 import scala.math.{ ceil, floor }
 
-import io.gatling.commons.stats.ErrorStats
+import io.gatling.commons.shared.unstable.model.stats.ErrorStats
 import io.gatling.commons.util.Collections._
 import io.gatling.commons.util.StringHelper._
 import io.gatling.core.config.GatlingConfiguration
 
-object ConsoleSummary {
-
+private[gatling] object ConsoleSummary {
   private val Iso8601Format = "yyyy-MM-dd HH:mm:ss"
-  private val Iso8601DateTimeFormat = new SimpleDateFormat(Iso8601Format)
+  private val Iso8601DateTimeFormat = DateTimeFormatter.ofPattern(Iso8601Format)
   val OutputLength: Int = 80
   val NewBlock: String = "=" * OutputLength
 
-  def writeSubTitle(sb: JStringBuilder, title: String): JStringBuilder =
+  def writeSubTitle(sb: jl.StringBuilder, title: String): jl.StringBuilder =
     sb.append(("---- " + title + " ").rightPad(OutputLength, "-"))
 
   def apply(
@@ -45,11 +44,9 @@ object ConsoleSummary {
       requestsCounters: mutable.Map[String, RequestCounters],
       errorsCounters: mutable.Map[String, Int],
       configuration: GatlingConfiguration,
-      time: Date
+      time: TemporalAccessor
   ): ConsoleSummary = {
-
-    def writeUsersCounters(sb: JStringBuilder, scenarioName: String, userCounters: UserCounters): JStringBuilder = {
-
+    def writeUsersCounters(sb: jl.StringBuilder, scenarioName: String, userCounters: UserCounters): jl.StringBuilder = {
       import userCounters._
       totalUserCount match {
         case Some(tot) if tot >= doneCount + activeCount =>
@@ -87,8 +84,7 @@ object ConsoleSummary {
       }
     }
 
-    def writeRequestsCounter(sb: JStringBuilder, actionName: String, requestCounters: RequestCounters): JStringBuilder = {
-
+    def writeRequestsCounter(sb: jl.StringBuilder, actionName: String, requestCounters: RequestCounters): jl.StringBuilder = {
       import requestCounters._
       val maxActionNameLength = OutputLength - 24
       sb.append("> ")
@@ -100,7 +96,7 @@ object ConsoleSummary {
         .append(')')
     }
 
-    def writeDetailedRequestsCounter(sb: JStringBuilder): JStringBuilder = {
+    def writeDetailedRequestsCounter(sb: jl.StringBuilder): jl.StringBuilder = {
       if (!configuration.data.console.light) {
         requestsCounters.foreach { case (actionName, requestCounters) => writeRequestsCounter(sb, actionName, requestCounters).append(Eol) }
         if (requestsCounters.nonEmpty) {
@@ -110,21 +106,20 @@ object ConsoleSummary {
       sb
     }
 
-    def writeErrors(sb: JStringBuilder): JStringBuilder = {
+    def writeErrors(sb: jl.StringBuilder): jl.StringBuilder = {
       if (errorsCounters.nonEmpty) {
         val errorsTotal = errorsCounters.values.sum
 
         writeSubTitle(sb, "Errors").append(Eol)
 
-        errorsCounters.toSeq.sortBy(-_._2).foreach {
-          case (message, count) =>
-            ConsoleErrorsWriter.writeError(sb, new ErrorStats(message, count, errorsTotal)).append(Eol)
+        errorsCounters.toSeq.sortBy(-_._2).foreach { case (message, count) =>
+          ConsoleErrorsWriter.writeError(sb, new ErrorStats(message, count, errorsTotal)).append(Eol)
         }
       }
       sb
     }
 
-    val sb = new JStringBuilder()
+    val sb = new jl.StringBuilder()
       .append(Eol)
       .append(NewBlock)
       .append(Eol)
@@ -138,9 +133,8 @@ object ConsoleSummary {
     writeDetailedRequestsCounter(sb).append(Eol)
     writeErrors(sb).append(Eol)
 
-    usersCounters.foreach {
-      case (scenarioName, usersStats) =>
-        writeUsersCounters(sb, scenarioName, usersStats).append(Eol)
+    usersCounters.foreach { case (scenarioName, usersStats) =>
+      writeUsersCounters(sb, scenarioName, usersStats).append(Eol)
     }
 
     sb.append(NewBlock).append(Eol)
@@ -157,4 +151,4 @@ object ConsoleSummary {
   }
 }
 
-final class ConsoleSummary(val text: String, val complete: Boolean)
+private[gatling] final class ConsoleSummary(val text: String, val complete: Boolean)

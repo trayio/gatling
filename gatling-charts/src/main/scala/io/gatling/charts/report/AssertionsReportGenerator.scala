@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,11 @@ import io.gatling.core.config.GatlingConfiguration
 private[charts] class AssertionsReportGenerator(reportsGenerationInputs: ReportsGenerationInputs, chartsFiles: ChartsFiles, componentLibrary: ComponentLibrary)(
     implicit configuration: GatlingConfiguration
 ) {
-
   import reportsGenerationInputs._
 
   def generate(): Unit = {
-    new TemplateWriter(chartsFiles.assertionsJUnitFile).writeToFile(new AssertionsJUnitTemplate(logFileReader.runMessage, assertionResults).getOutput)
+    new TemplateWriter(chartsFiles.assertionsJUnitFile).writeToFile(new AssertionsJUnitTemplate(logFileData.runInfo, assertionResults).getOutput)
     new TemplateWriter(chartsFiles.assertionsJsonFile)
-      .writeToFile(new AssertionsJsonTemplate(logFileReader.runMessage, logFileReader.scenarioNames, assertionResults).getOutput)
+      .writeToFile(new AssertionsJsonTemplate(logFileData.runInfo, logFileData.scenarioNames, assertionResults).getOutput)
   }
 }

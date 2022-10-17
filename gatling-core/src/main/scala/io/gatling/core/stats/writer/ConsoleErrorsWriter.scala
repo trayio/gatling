@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 package io.gatling.core.stats.writer
 
-import java.lang.{ StringBuilder => JStringBuilder }
+import java.{ lang => jl }
 
-import io.gatling.commons.stats.ErrorStats
+import io.gatling.commons.shared.unstable.model.stats.ErrorStats
 import io.gatling.commons.util.StringHelper._
 
 /**
  * Object for writing errors statistics to the console.
  */
-object ConsoleErrorsWriter {
+private[gatling] object ConsoleErrorsWriter {
   private val ErrorCountLen = 14
   private val ErrorMsgLen = ConsoleSummary.OutputLength - ErrorCountLen
   private val TextLen = ErrorMsgLen - 4
@@ -33,7 +33,7 @@ object ConsoleErrorsWriter {
 
   val OneHundredPercent: String = formatPercent(100).dropRight(1)
 
-  def writeError(sb: JStringBuilder, errors: ErrorStats): JStringBuilder = {
+  def writeError(sb: jl.StringBuilder, errors: ErrorStats): jl.StringBuilder = {
     val percent = if (errors.count == errors.totalCount) OneHundredPercent else formatPercent(errors.percentage)
     val message = errors.message
     val firstLineLen = TextLen.min(message.length)

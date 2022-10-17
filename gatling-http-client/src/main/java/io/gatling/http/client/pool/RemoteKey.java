@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,28 +16,25 @@
 
 package io.gatling.http.client.pool;
 
-import io.gatling.http.client.uri.Uri;
 import io.gatling.http.client.proxy.HttpProxyServer;
 import io.gatling.http.client.proxy.ProxyServer;
+import io.gatling.http.client.uri.Uri;
+import java.util.Objects;
 
 public class RemoteKey {
 
   public static RemoteKey newKey(Uri uri, String virtualHost, ProxyServer proxyServer) {
     String targetHostBaseUrl = uri.getBaseUrl();
     if (proxyServer == null) {
-      return new RemoteKey(
-        targetHostBaseUrl,
-        virtualHost,
-        null,
-        0);
+      return new RemoteKey(targetHostBaseUrl, virtualHost, null, 0);
     } else {
       return new RemoteKey(
-        targetHostBaseUrl,
-        virtualHost,
-        proxyServer.getHost(),
-        uri.isSecured() && proxyServer instanceof HttpProxyServer ?
-          ((HttpProxyServer) proxyServer).getSecuredPort() :
-          proxyServer.getPort());
+          targetHostBaseUrl,
+          virtualHost,
+          proxyServer.getHost(),
+          uri.isSecured() && proxyServer instanceof HttpProxyServer
+              ? ((HttpProxyServer) proxyServer).getSecuredPort()
+              : proxyServer.getPort());
     }
   }
 
@@ -62,8 +59,8 @@ public class RemoteKey {
 
     if (proxyPort != that.proxyPort) return false;
     if (!targetHostBaseUrl.equals(that.targetHostBaseUrl)) return false;
-    if (virtualHost != null ? !virtualHost.equals(that.virtualHost) : that.virtualHost != null) return false;
-    return proxyHost != null ? proxyHost.equals(that.proxyHost) : that.proxyHost == null;
+    if (!Objects.equals(virtualHost, that.virtualHost)) return false;
+    return Objects.equals(proxyHost, that.proxyHost);
   }
 
   @Override
@@ -77,11 +74,18 @@ public class RemoteKey {
 
   @Override
   public String toString() {
-    return "RemoteKey{" +
-      "targetHostBaseUrl='" + targetHostBaseUrl + '\'' +
-      ", virtualHost='" + virtualHost + '\'' +
-      ", proxyHost='" + proxyHost + '\'' +
-      ", proxyPort=" + proxyPort +
-      '}';
+    return "RemoteKey{"
+        + "targetHostBaseUrl='"
+        + targetHostBaseUrl
+        + '\''
+        + ", virtualHost='"
+        + virtualHost
+        + '\''
+        + ", proxyHost='"
+        + proxyHost
+        + '\''
+        + ", proxyPort="
+        + proxyPort
+        + '}';
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,18 @@ import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import java.nio.charset.Charset;
+import java.util.Base64;
 
-public final class ByteArrayRequestBody extends RequestBody<byte[]> {
+public final class ByteArrayRequestBody extends RequestBody.Base<byte[]> {
 
-  public ByteArrayRequestBody(byte[] content, String contentType) {
-    super(content, contentType);
+  private final String fileName;
+  private final Charset charset;
+
+  public ByteArrayRequestBody(byte[] content, String fileName, Charset charset) {
+    super(content);
+    this.fileName = fileName;
+    this.charset = charset;
   }
 
   @Override
@@ -34,8 +41,8 @@ public final class ByteArrayRequestBody extends RequestBody<byte[]> {
   }
 
   @Override
-  public RequestBodyBuilder<byte[]> newBuilder() {
-    return new ByteArrayRequestBodyBuilder(content);
+  public RequestBodyBuilder newBuilder() {
+    return new ByteArrayRequestBodyBuilder(content, fileName);
   }
 
   @Override
@@ -43,11 +50,19 @@ public final class ByteArrayRequestBody extends RequestBody<byte[]> {
     return content;
   }
 
+  public String getFileName() {
+    return fileName;
+  }
+
+  public Charset getCharset() {
+    return charset;
+  }
+
   @Override
   public String toString() {
-    return "ByteArrayRequestBody{" +
-      "content=<" + content.length + " bytes>" +
-      ", contentType=" + contentType +
-      '}';
+    return "ByteArrayRequestBody{"
+        + "content (Base64)="
+        + Base64.getEncoder().encodeToString(content)
+        + '}';
   }
 }

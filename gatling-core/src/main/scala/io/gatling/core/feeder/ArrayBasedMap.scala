@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,15 @@
 package io.gatling.core.feeder
 
 import scala.collection.AbstractIterator
-import scala.collection.immutable.{ AbstractMap, Map }
+import scala.collection.immutable.{ AbstractMap, HashMap, Map }
 
-private[feeder] object ArrayBasedMap {
+private object ArrayBasedMap {
   def apply[K, V](keys: Array[K], values: Array[V]): ArrayBasedMap[K, V] =
     new ArrayBasedMap(keys, values, math.min(keys.length, values.length))
 }
 
-private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], override val size: Int)
-    extends AbstractMap[K, V]
-    with Map[K, V]
-    with Serializable {
-
-  override def +[V1 >: V](kv: (K, V1)): Map[K, V1] = updated(kv._1, kv._2)
-
-  override def updated[V1 >: V](key: K, value: V1): Map[K, V1] = Map.empty[K, V1] ++ this + (key -> value)
+private final class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], override val size: Int) extends AbstractMap[K, V] with Map[K, V] with Serializable {
+  override def updated[V1 >: V](key: K, value: V1): Map[K, V1] = HashMap.empty[K, V1] ++ this + (key -> value)
 
   override def get(key: K): Option[V] = {
     var i = 0
@@ -46,7 +40,6 @@ private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], ove
   }
 
   override def iterator: Iterator[(K, V)] = new AbstractIterator[(K, V)] {
-
     private var i = 0
 
     override def hasNext: Boolean =
@@ -59,5 +52,5 @@ private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], ove
     }
   }
 
-  override def -(key: K): Map[K, V] = Map.empty[K, V] ++ this - key
+  override def removed(key: K): Map[K, V] = HashMap.empty[K, V] ++ this - key
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,22 @@
 
 package io.gatling.compiler.config.cli
 
-import scopt.{ OptionDef, OptionParser, Read }
-
 import io.gatling.compiler.config.cli.CommandLineConstants._
 
+import scopt.{ OptionDef, OptionParser, Read }
+
 private[config] object CommandLineOverrides {
-  val Empty = CommandLineOverrides("", "", "")
+  val Empty: CommandLineOverrides = CommandLineOverrides("", "", "", "")
 }
 
 private[config] final case class CommandLineOverrides(
     simulationsDirectory: String,
     binariesFolder: String,
-    extraScalacOptions: String
+    extraScalacOptions: String,
+    extraJavacOptions: String
 )
 
 private[config] class ArgsParser(args: Array[String]) {
-
   private class CompilerOptionParser extends OptionParser[CommandLineOverrides]("compiler") {
     override def errorOnUnknownArgument: Boolean = false
 
@@ -55,6 +55,11 @@ private[config] class ArgsParser(args: Array[String]) {
     opt[String](ExtraScalacOptions)
       .action { (extraScalacOpts, c) =>
         c.copy(extraScalacOptions = extraScalacOpts)
+      }
+
+    opt[String](ExtraJavacOptions)
+      .action { (extraJavacOpts, c) =>
+        c.copy(extraJavacOptions = extraJavacOpts)
       }
   }
 

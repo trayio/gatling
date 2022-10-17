@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@
 
 package io.gatling.core.check.substring
 
-import io.gatling.core.check.{ DefaultMultipleFindCheckBuilder, Extractor }
+import io.gatling.core.check.{ CheckBuilder, Extractor }
 import io.gatling.core.session.Expression
 
-trait SubstringCheckType
+sealed trait SubstringCheckType
 
-class SubstringCheckBuilder(substring: Expression[String]) extends DefaultMultipleFindCheckBuilder[SubstringCheckType, String, Int](displayActualValue = true) {
-  override def findExtractor(occurrence: Int): Expression[Extractor[String, Int]] = substring.map(SubstringExtractors.find(_, occurrence))
-  override def findAllExtractor: Expression[Extractor[String, Seq[Int]]] = substring.map(SubstringExtractors.findAll)
-  override def countExtractor: Expression[Extractor[String, Int]] = substring.map(SubstringExtractors.count)
+final class SubstringCheckBuilder(pattern: Expression[String])
+    extends CheckBuilder.MultipleFind.Default[SubstringCheckType, String, Int](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[String, Int]] = pattern.map(SubstringExtractors.find(_, occurrence))
+  override protected def findAllExtractor: Expression[Extractor[String, Seq[Int]]] = pattern.map(SubstringExtractors.findAll)
+  override protected def countExtractor: Expression[Extractor[String, Int]] = pattern.map(SubstringExtractors.count)
 }

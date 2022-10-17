@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import javax.swing.filechooser.FileFilter
 import scala.swing._
 import scala.swing.FileChooser.SelectionMode
 
-import io.gatling.recorder.ui.swing.util.UIHelper._
 import io.gatling.recorder.ui.swing.keyReleased
+import io.gatling.recorder.ui.swing.util.UIHelper._
 
 private[component] class AcceptAllFileFilter extends FileFilter {
   override def accept(f: File) = true
@@ -43,9 +43,12 @@ private[swing] class DisplayedSelectionFileChooser(
     selectionMode: SelectionMode.Value = SelectionMode.FilesAndDirectories,
     fileFilter: FileFilter = new AcceptAllFileFilter
 ) extends BoxPanel(Orientation.Horizontal) {
-
   val selectionDisplay = new TextField(textFieldLength)
-  private val fileChooser = new FileChooser { fileSelectionMode = selectionMode; fileFilter = fileFilter }
+  private val fileChooser =
+    new FileChooser {
+      fileSelectionMode = selectionMode
+      fileFilter = fileFilter
+    }
   private val openChooserButton = Button(buttonText)(fileChooserSelection().foreach(setAndPublish))
 
   def selection = selectionDisplay.text

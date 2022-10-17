@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,21 @@
 
 package io.gatling.recorder.http.ssl
 
-import java.io.{ File, FileInputStream }
-import java.nio.file.Path
+import java.io.{ BufferedInputStream, File, FileInputStream }
+import java.nio.file.{ Files, Path }
 import java.security.{ KeyStore, Security }
 import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.{ KeyManagerFactory, SSLEngine }
 
-import scala.util.Failure
+import scala.util.{ Failure, Using }
 
-import io.gatling.commons.util.Io._
-import io.gatling.commons.util.PathHelper._
 import io.gatling.recorder.config.RecorderConfiguration
 
 import io.netty.buffer.ByteBufAllocator
-import io.netty.handler.ssl.util.{ InsecureTrustManagerFactory, SelfSignedCertificate }
 import io.netty.handler.ssl.{ SslContext, SslContextBuilder }
+import io.netty.handler.ssl.util.{ InsecureTrustManagerFactory, SelfSignedCertificate }
 
 private[http] sealed trait SslServerContext {
-
   protected def context(alias: String): SslContext
 
   def createSSLEngine(alias: String): SSLEngine = {
@@ -44,11 +41,9 @@ private[http] sealed trait SslServerContext {
 }
 
 private[recorder] object SslServerContext {
-
   private val Algorithm = Option(Security.getProperty("ssl.KeyManagerFactory.algorithm")).getOrElse("SunX509")
 
   def apply(config: RecorderConfiguration): SslServerContext = {
-
     import config.proxy.https._
 
     mode match {
@@ -66,7 +61,6 @@ private[recorder] object SslServerContext {
   }
 
   object SelfSignedCertificate extends SslServerContext {
-
     private lazy val context: SslContext = {
       val ssc = new SelfSignedCertificate
       SslContextBuilder
@@ -80,11 +74,10 @@ private[recorder] object SslServerContext {
   }
 
   final class ProvidedKeystore(ksFile: File, val keyStoreType: KeyStoreType, val password: Array[Char]) extends SslServerContext {
-
     private lazy val context = {
       val keyStore = {
         val ks = KeyStore.getInstance(keyStoreType.toString)
-        withCloseable(new FileInputStream(ksFile)) { ks.load(_, password) }
+        Using.resource(new BufferedInputStream(new FileInputStream(ksFile)))(ks.load(_, password))
         ks
       }
 
@@ -100,7 +93,6 @@ private[recorder] object SslServerContext {
     }
 
     def context(alias: String): SslContext = context
-
   }
 
   object OnTheFly {
@@ -109,14 +101,13 @@ private[recorder] object SslServerContext {
   }
 
   final class OnTheFly(pemCrtFile: Path, pemKeyFile: Path) extends SslServerContext {
-
-    require(pemCrtFile.isFile, s"$pemCrtFile is not a file")
-    require(pemKeyFile.isFile, s"$pemKeyFile is not a file")
+    require(Files.isRegularFile(pemCrtFile), s"$pemCrtFile is not a file")
+    require(Files.isRegularFile(pemKeyFile), s"$pemKeyFile is not a file")
 
     private val password: Array[Char] = "gatling".toCharArray
     private val storeType = KeyStoreType.JKS.toString
     private val aliasContexts = new ConcurrentHashMap[String, SslContext]
-    private lazy val ca = SslUtil.getCA(pemCrtFile.inputStream, pemKeyFile.inputStream)
+    private lazy val ca = SslUtil.getCA(Files.newInputStream(pemCrtFile), Files.newInputStream(pemKeyFile))
     private lazy val keyStore = {
       val ks = KeyStore.getInstance(storeType)
       ks.load(null, null)

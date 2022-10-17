@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import io.netty.buffer.ByteBuf
 
 object SseStreamDecoder {
   private val BOM = '\uFEFF'
-  private val LF = 0x0A
-  private val CR = 0x0D
+  private val LF = 0x0a
+  private val CR = 0x0d
 
   private val EventHeader = "event:".toCharArray
   private val DataHeader = "data:".toCharArray
@@ -34,7 +34,6 @@ object SseStreamDecoder {
 }
 
 class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
-
   import SseStreamDecoder._
 
   private[this] var pendingName: Option[String] = None
@@ -55,19 +54,18 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
   }
 
   private def parseLine(lineStart: Int, lineEnd: Int): Unit = {
-
     val lineLength = lineEnd - lineStart
 
     def onFieldHeaderMatch(fieldHeader: Array[Char]): Option[String] = {
-
       val fieldHeaderLength = fieldHeader.length
 
       if (lineLength < fieldHeaderLength) {
         None
-
-      } else if ((0 until fieldHeaderLength).forall { i =>
-                   charArray(lineStart + i) == fieldHeader(i)
-                 }) {
+      } else if (
+        (0 until fieldHeaderLength).forall { i =>
+          charArray(lineStart + i) == fieldHeader(i)
+        }
+      ) {
         val nextPos = lineStart + fieldHeaderLength
         val valueStart =
           if (charArray(nextPos) == ' ') {
@@ -78,7 +76,6 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
           }
 
         Some(new String(charArray, valueStart, lineEnd - valueStart))
-
       } else {
         None
       }
@@ -100,10 +97,8 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
         pendingId = None
         pendingRetry = None
       }
-
     } else if (charArray(lineStart) == ':') {
       // comment, skipping
-
     } else {
       // parse real line
       onFieldHeaderMatch(EventHeader) match {
@@ -184,7 +179,7 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
     events
   }
 
-  def decodeStream(buf: ByteBuf): Seq[ServerSentEvent] = {
+  def decodeStream(buf: ByteBuf): Seq[ServerSentEvent] =
     if (buf.isReadable) {
       ensureCapacity(buf.readableBytes)
       if (buf.nioBufferCount == 1) {
@@ -199,5 +194,4 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
     } else {
       Nil
     }
-  }
 }

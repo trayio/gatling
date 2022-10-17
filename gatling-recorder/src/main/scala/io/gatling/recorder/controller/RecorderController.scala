@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,54 +16,54 @@
 
 package io.gatling.recorder.controller
 
-import java.nio.file.Paths
+import java.nio.file.{ Files, Paths }
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationLong
+import scala.jdk.CollectionConverters._
 
 import io.gatling.commons.util.Clock
-import io.gatling.commons.util.PathHelper._
 import io.gatling.commons.validation._
 import io.gatling.core.filter.Filters
 import io.gatling.http.client.uri.Uri
-import io.gatling.recorder.config.RecorderMode._
 import io.gatling.recorder.config.RecorderConfiguration
+import io.gatling.recorder.config.RecorderMode._
 import io.gatling.recorder.http.Mitm
 import io.gatling.recorder.model._
-import io.gatling.recorder.scenario._
+import io.gatling.recorder.render._
 import io.gatling.recorder.ui._
 
 import com.typesafe.scalalogging.StrictLogging
 
 private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
+  private val frontEnd = RecorderFrontEnd.newFrontend(this, RecorderConfiguration.recorderConfiguration)
 
-  private val frontEnd = RecorderFrontEnd.newFrontend(this)
-
-  @volatile private var mitm: Mitm = _
-
+  private var mitm: Mitm = _
+  private var converter: HttpTrafficConverter = _
   private val requests = new ConcurrentLinkedQueue[TimedScenarioElement[RequestElement]]()
   private val tags = new ConcurrentLinkedQueue[TimedScenarioElement[TagElement]]()
 
   frontEnd.init()
 
   def startRecording(): Unit = {
+    val config = RecorderConfiguration.recorderConfiguration
+    converter = new HttpTrafficConverter(config)
     val selectedMode = frontEnd.selectedRecorderMode
     val harFilePath = frontEnd.harFilePath
-    if (selectedMode == Har && !Paths.get(harFilePath).exists) {
+    val harFile = Paths.get(harFilePath)
+    if (selectedMode == Har && !Files.exists(harFile)) {
       frontEnd.handleMissingHarFile(harFilePath)
     } else {
-      val simulationFile = ScenarioExporter.simulationFilePath
-      val proceed = if (simulationFile.exists) frontEnd.askSimulationOverwrite else true
+      val proceed = if (converter.simulationFileExists) frontEnd.askSimulationOverwrite else true
       if (proceed) {
         selectedMode match {
           case Har =>
-            ScenarioExporter.exportScenario(harFilePath) match {
+            converter.renderHarFile(harFile) match {
               case Failure(errMsg) => frontEnd.handleHarExportFailure(errMsg)
               case _               => frontEnd.handleHarExportSuccess()
             }
           case Proxy =>
-            mitm = Mitm(this, clock, RecorderConfiguration.configuration)
+            mitm = Mitm(this, clock, config)
             frontEnd.recordingStarted()
         }
       }
@@ -74,12 +74,12 @@ private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
     frontEnd.recordingStopped()
     try {
       if (requests.isEmpty)
-        logger.info("Nothing was recorded, skipping scenario generation")
+        logger.info("Nothing was recorded, skipping Simulation generation")
       else {
-        val scenario = ScenarioDefinition(requests.asScala.toVector, tags.asScala.toVector)
-        ScenarioExporter.saveScenario(scenario)
+        val config = RecorderConfiguration.recorderConfiguration
+        val traffic = HttpTraffic(requests.asScala.toList, tags.asScala.toList, config)
+        converter.renderHttpTraffic(traffic)
       }
-
     } finally {
       mitm.shutdown()
       clearRecorderState()
@@ -87,20 +87,24 @@ private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
     }
   }
 
-  def receiveResponse(request: HttpRequest, response: HttpResponse): Unit =
-    if (RecorderConfiguration.configuration.filters.filters.forall(_.accept(request.uri))
-        && Filters.BrowserNoiseFilters.accept(request.uri)) {
-      requests.add(TimedScenarioElement(request.timestamp, response.timestamp, RequestElement(request, response)))
+  def receiveResponse(request: HttpRequest, response: HttpResponse): Unit = {
+    val config = RecorderConfiguration.recorderConfiguration
+    if (
+      config.filters.filters.forall(_.accept(request.uri))
+      && Filters.BrowserNoiseFilters.accept(request.uri)
+    ) {
+      requests.add(TimedScenarioElement(request.timestamp, response.timestamp, RequestElement(request, response, config)))
 
       // Notify frontend
       val previousSendTime = requests.asScala.lastOption.map(_.sendTime)
       previousSendTime.foreach { t =>
         val delta = (response.timestamp - t).milliseconds
-        if (delta > RecorderConfiguration.configuration.core.thresholdForPauseCreation)
+        if (delta > config.core.thresholdForPauseCreation)
           frontEnd.receiveEvent(PauseFrontEndEvent(delta))
       }
-      frontEnd.receiveEvent(RequestFrontEndEvent(request, response))
+      frontEnd.receiveEvent(RequestFrontEndEvent(request, response, config))
     }
+  }
 
   def addTag(text: String): Unit = {
     val now = clock.nowMillis
@@ -108,9 +112,8 @@ private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
     frontEnd.receiveEvent(TagFrontEndEvent(text))
   }
 
-  def secureConnection(securedHostURI: Uri): Unit = {
+  def secureConnection(securedHostURI: Uri): Unit =
     frontEnd.receiveEvent(SslFrontEndEvent(securedHostURI.toUrl))
-  }
 
   def clearRecorderState(): Unit = {
     requests.clear()

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,12 @@ import java.nio.file.Path
 
 import scala.util.Properties
 
-import io.gatling.commons.util.PathHelper._
+import io.gatling.app.{ JavaSimulation, SimulationClass }
+import io.gatling.commons.shared.unstable.util.PathHelper
+import io.gatling.commons.shared.unstable.util.PathHelper._
 import io.gatling.core.scenario.Simulation
 
-private[app] object SimulationClassLoader {
-
+private[gatling] object SimulationClassLoader {
   def apply(binariesDirectory: Path): SimulationClassLoader =
     new SimulationClassLoader(selectClassLoaderImplementation(binariesDirectory), binariesDirectory)
 
@@ -40,23 +41,30 @@ private[app] object SimulationClassLoader {
   }
 }
 
-private[app] class SimulationClassLoader(classLoader: ClassLoader, binaryDir: Path) {
-
-  def simulationClasses: List[Class[Simulation]] =
-    binaryDir
-      .deepFiles(_.path.hasExtension("class"))
+private[gatling] class SimulationClassLoader(classLoader: ClassLoader, binaryDir: Path) {
+  def simulationClasses: List[SimulationClass] =
+    PathHelper
+      .deepFiles(binaryDir, _.path.hasExtension("class"))
       .map(file => classLoader.loadClass(pathToClassName(file.path, binaryDir)))
-      .collect { case clazz if isSimulationClass(clazz) => clazz.asInstanceOf[Class[Simulation]] }
+      .collect {
+        case clazz if isScalaSimulationClass(clazz) => SimulationClass.Scala(clazz.asInstanceOf[Class[Simulation]])
+        case clazz if isJavaSimulationClass(clazz)  => SimulationClass.Java(clazz.asInstanceOf[Class[JavaSimulation]])
+      }
       .toList
 
-  private def isSimulationClass(clazz: Class[_]): Boolean = {
-    val isSimulation = classOf[Simulation].isAssignableFrom(clazz)
-    val isConcreteClass = !(clazz.isInterface || Modifier.isAbstract(clazz.getModifiers))
-    isSimulation && isConcreteClass
-  }
+  private def isConcreteClass(clazz: Class[_]): Boolean =
+    !(clazz.isInterface || Modifier.isAbstract(clazz.getModifiers))
+
+  private def isScalaSimulationClass(clazz: Class[_]): Boolean =
+    classOf[Simulation].isAssignableFrom(clazz) && isConcreteClass(clazz)
+
+  private def isJavaSimulationClass(clazz: Class[_]): Boolean =
+    classOf[JavaSimulation].isAssignableFrom(clazz) && isConcreteClass(clazz)
 
   private def pathToClassName(path: Path, root: Path): String =
-    (path.getParent / path.stripExtension).toString
+    path.getParent
+      .resolve(path.stripExtension)
+      .toString
       .stripPrefix(root.toString + File.separator)
       .replace(File.separator, ".")
 }

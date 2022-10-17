@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import io.gatling.http.util.HttpHelper
 import com.typesafe.scalalogging.StrictLogging
 
 private[fetch] object CssParser extends StrictLogging {
-
   private val InlineStyleImageUrls = """url\((.*)\)""".r
   private val StyleImportsUrls = """@import url\((.*)\)""".r
 
@@ -68,7 +67,6 @@ private[fetch] object CssParser extends StrictLogging {
                 case _ =>
                   broken = true
                   cur
-
               }
             case '"' =>
               protectChar match {
@@ -118,13 +116,12 @@ private[fetch] object CssParser extends StrictLogging {
         else
           Some(string.substring(trimmedStart, trimmedEnd))
       } else {
-        logger.info(s"css url $string broken")
+        logger.debug(s"css url $string broken")
         None
       }
     }
 
   def extractResources(cssURI: Uri, cssContent: String): List[ConcurrentResource] = {
-
     val resources = collection.mutable.ArrayBuffer.empty[ConcurrentResource]
 
     var withinComment = false
@@ -133,9 +130,8 @@ private[fetch] object CssParser extends StrictLogging {
     var urlStart = 0
 
     def charsMatch(i: Int, chars: Array[Char]): Boolean = {
-
       @tailrec
-      def charsMatchRec(j: Int): Boolean = {
+      def charsMatchRec(j: Int): Boolean =
         if (j == chars.length)
           true
         else if (cssContent.charAt(i + j) != chars(j))
@@ -143,23 +139,23 @@ private[fetch] object CssParser extends StrictLogging {
         else
           charsMatchRec(j + 1)
 
-      }
-
       i < cssContent.length - chars.length && charsMatchRec(1)
     }
 
     var i = 0
     while (i < cssContent.length) {
-
       (cssContent.charAt(i): @switch) match {
         case '/' =>
-          if (i < cssContent.length - 1 &&
-              cssContent.charAt(i + 1) == '*') {
+          if (
+            i < cssContent.length - 1 &&
+            cssContent.charAt(i + 1) == '*'
+          ) {
             withinComment = true
             i += 1
-
-          } else if (i > 0 &&
-                     cssContent.charAt(i - 1) == '*') {
+          } else if (
+            i > 0 &&
+            cssContent.charAt(i - 1) == '*'
+          ) {
             withinComment = false
           }
 

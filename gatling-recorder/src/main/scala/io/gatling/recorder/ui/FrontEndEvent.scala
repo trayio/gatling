@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,8 @@ private[recorder] final case class PauseFrontEndEvent(duration: FiniteDuration) 
   override def toString = s"PAUSE $toPrint"
 }
 
-private[recorder] final case class RequestFrontEndEvent(request: HttpRequest, response: HttpResponse)(implicit configuration: RecorderConfiguration)
+private[recorder] final case class RequestFrontEndEvent(request: HttpRequest, response: HttpResponse, configuration: RecorderConfiguration)
     extends FrontEndEvent {
-
   val requestBody = new String(request.body, configuration.core.encoding)
 
   val responseBody = new String(response.body, configuration.core.encoding)

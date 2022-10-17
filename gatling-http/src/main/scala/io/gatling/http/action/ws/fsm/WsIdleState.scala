@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,25 +16,25 @@
 
 package io.gatling.http.action.ws.fsm
 
+import scala.concurrent.duration.DurationLong
+
 import io.gatling.commons.stats.OK
-import io.gatling.commons.util.Throwables._
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
-import io.gatling.http.check.ws.{ WsBinaryFrameCheck, WsFrameCheckSequence, WsTextFrameCheck }
+import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
 import io.gatling.http.client.WebSocket
 
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.buffer.Unpooled
-import io.netty.handler.codec.http.websocketx.{ BinaryWebSocketFrame, CloseWebSocketFrame, TextWebSocketFrame }
+import io.netty.handler.codec.http.websocketx.{ BinaryWebSocketFrame, CloseWebSocketFrame, TextWebSocketFrame, WebSocketCloseStatus }
 
-final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) extends WsState(fsm) with StrictLogging {
-
+final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket, protected val remainingReconnects: Int) extends WsState(fsm) with StrictLogging {
   import fsm._
 
   override def onSendTextFrame(
       actionName: String,
       message: String,
-      checkSequences: List[WsFrameCheckSequence[WsTextFrameCheck]],
+      checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
       session: Session,
       next: Action
   ): NextWsState = {
@@ -42,15 +42,15 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
     // actually send message!
     val now = clock.nowMillis
     webSocket.sendFrame(new TextWebSocketFrame(message))
-    statsEngine.logResponse(session, actionName, now, now, OK, None, None)
+    statsEngine.logResponse(session.scenario, session.groups, actionName, now, now, OK, None, None)
 
     checkSequences match {
       case WsFrameCheckSequence(timeout, currentCheck :: remainingChecks) :: remainingCheckSequences =>
         logger.debug("Trigger check after sending text frame")
         scheduleTimeout(timeout)
-        //[fl]
+        // [e]
         //
-        //[fl]
+        // [e]
         NextWsState(
           WsPerformingCheckState(
             fsm,
@@ -60,6 +60,7 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
             checkSequenceStart = now,
             remainingCheckSequences,
             session = session,
+            remainingReconnects = remainingReconnects,
             next = Left(next)
           )
         )
@@ -73,7 +74,7 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
   override def onSendBinaryFrame(
       actionName: String,
       message: Array[Byte],
-      checkSequences: List[WsFrameCheckSequence[WsBinaryFrameCheck]],
+      checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
       session: Session,
       next: Action
   ): NextWsState = {
@@ -81,15 +82,15 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
     // actually send message!
     val now = clock.nowMillis
     webSocket.sendFrame(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(message)))
-    statsEngine.logResponse(session, actionName, now, now, OK, None, None)
+    statsEngine.logResponse(session.scenario, session.groups, actionName, now, now, OK, None, None)
 
     checkSequences match {
       case WsFrameCheckSequence(timeout, currentCheck :: remainingChecks) :: remainingCheckSequences =>
         logger.debug("Trigger check after sending binary frame")
         scheduleTimeout(timeout)
-        //[fl]
+        // [e]
         //
-        //[fl]
+        // [e]
         NextWsState(
           WsPerformingCheckState(
             fsm,
@@ -99,6 +100,7 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
             checkSequenceStart = now,
             remainingCheckSequences,
             session = session,
+            remainingReconnects = remainingReconnects,
             next = Left(next)
           )
         )
@@ -109,8 +111,10 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
   }
 
   override def onTextFrameReceived(message: String, timestamp: Long): NextWsState = {
-    // server push message, just log
-    logUnmatchedServerMessage(session)
+    // try to auto reply or log the message
+    if (!autoReplyTextFrames(message, webSocket)) {
+      logUnmatchedServerMessage(session)
+    }
     NextWsState(this)
   }
 
@@ -122,22 +126,17 @@ final class WsIdleState(fsm: WsFsm, session: Session, webSocket: WebSocket) exte
 
   override def onWebSocketClosed(code: Int, reason: String, timestamp: Long): NextWsState = {
     // server issued close
-    logger.info(s"WebSocket was forcefully closed ($code:$reason) by the server while in Idle state")
-    NextWsState(new WsCrashedState(fsm, None))
+    logger.debug(s"WebSocket was forcefully closed ($code:$reason) by the server while in Idle state")
+    NextWsState(new WsCrashedState(fsm, None, remainingReconnects))
   }
 
-  override def onWebSocketCrashed(t: Throwable, timestamp: Long): NextWsState = {
-    // crash
-    logger.info("WebSocket crashed by the server while in Idle state", t)
-    NextWsState(new WsCrashedState(fsm, Some(t.rootMessage)))
-  }
-
-  override def onClientCloseRequest(actionName: String, session: Session, next: Action): NextWsState = {
-    logger.info("Client requested WebSocket close")
-    webSocket.sendFrame(new CloseWebSocketFrame())
-    //[fl]
+  override def onClientCloseRequest(actionName: String, closeStatus: WebSocketCloseStatus, session: Session, next: Action): NextWsState = {
+    logger.debug("Client requested WebSocket close")
+    scheduleTimeout(connectRequest.getRequestTimeout.millis)
+    webSocket.sendFrame(new CloseWebSocketFrame(closeStatus))
+    // [e]
     //
-    //[fl]
-    NextWsState(new WsClosingState(fsm, actionName, session, next, clock.nowMillis)) // TODO should we have a close timeout?
+    // [e]
+    NextWsState(new WsClosingState(fsm, actionName, session, next, clock.nowMillis))
   }
 }

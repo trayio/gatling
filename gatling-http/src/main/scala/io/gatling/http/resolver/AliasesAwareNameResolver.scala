@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,32 @@
 
 package io.gatling.http.resolver
 
+import java.{ util => ju }
 import java.net.InetAddress
-import java.util.{ Collections => JCollections, List => JList }
 
 import io.gatling.http.client.HttpListener
 import io.gatling.http.client.resolver.InetAddressNameResolver
+import io.gatling.http.util.InetAddresses
 
+import io.netty.util.NetUtil
 import io.netty.util.concurrent.{ Future, Promise }
 
-private[http] class AliasesAwareNameResolver(aliases: Map[String, InetAddress], wrapped: InetAddressNameResolver) extends InetAddressNameResolver {
+private[http] object AliasesAwareNameResolver {
+  def apply(aliases: Map[String, ju.List[InetAddress]], wrapped: InetAddressNameResolver): InetAddressNameResolver =
+    if (aliases.isEmpty) {
+      wrapped
+    } else {
+      val shuffledAliases =
+        aliases.view.mapValues(InetAddresses.shuffleInetAddresses(_, NetUtil.isIpV4StackPreferred, NetUtil.isIpV6AddressesPreferred)).to(Map)
+      new AliasesAwareNameResolver(shuffledAliases, wrapped)
+    }
+}
 
-  override def resolveAll(inetHost: String, promise: Promise[JList[InetAddress]], listener: HttpListener): Future[JList[InetAddress]] =
+private class AliasesAwareNameResolver(aliases: Map[String, ju.List[InetAddress]], wrapped: InetAddressNameResolver) extends InetAddressNameResolver {
+  override def resolveAll(inetHost: String, promise: Promise[ju.List[InetAddress]], listener: HttpListener): Future[ju.List[InetAddress]] =
     aliases.get(inetHost) match {
-      case Some(address) => promise.setSuccess(JCollections.singletonList(address))
-      case _             => wrapped.resolveAll(inetHost, promise, listener)
+      case Some(addresses) => promise.setSuccess(addresses)
+      case _               => wrapped.resolveAll(inetHost, promise, listener)
     }
 
   override def close(): Unit = wrapped.close()

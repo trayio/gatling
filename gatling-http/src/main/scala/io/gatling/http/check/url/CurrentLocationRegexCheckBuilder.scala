@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.http.check.url
 
-import io.gatling.core.check.{ Extractor, _ }
+import io.gatling.core.check._
 import io.gatling.core.check.regex._
 import io.gatling.core.session._
 import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
@@ -29,11 +29,11 @@ trait CurrentLocationRegexCheckType
 trait CurrentLocationRegexOfType {
   self: CurrentLocationRegexCheckBuilder[String] =>
 
-  def ofType[X: GroupExtractor]: CurrentLocationRegexCheckBuilder[X] = new CurrentLocationRegexCheckBuilder[X](pattern, patterns)
+  def ofType[X: GroupExtractor]: CheckBuilder.MultipleFind[CurrentLocationRegexCheckType, String, X] =
+    new CurrentLocationRegexCheckBuilder[X](pattern, patterns)
 }
 
 object CurrentLocationRegexCheckBuilder {
-
   def currentLocationRegex(pattern: Expression[String], patterns: Patterns): CurrentLocationRegexCheckBuilder[String] with CurrentLocationRegexOfType =
     new CurrentLocationRegexCheckBuilder[String](pattern, patterns) with CurrentLocationRegexOfType
 }
@@ -41,16 +41,14 @@ object CurrentLocationRegexCheckBuilder {
 class CurrentLocationRegexCheckBuilder[X: GroupExtractor](
     private[url] val pattern: Expression[String],
     private[url] val patterns: Patterns
-) extends DefaultMultipleFindCheckBuilder[CurrentLocationRegexCheckType, String, X](displayActualValue = true) {
-
-  override def findExtractor(occurrence: Int): Expression[Extractor[String, X]] =
+) extends CheckBuilder.MultipleFind.Default[CurrentLocationRegexCheckType, String, X](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[String, X]] =
     pattern.map(RegexExtractors.find[X]("currentLocationRegex", _, occurrence, patterns))
-  override def findAllExtractor: Expression[Extractor[String, Seq[X]]] = pattern.map(RegexExtractors.findAll[X]("currentLocationRegex", _, patterns))
-  override def countExtractor: Expression[Extractor[String, Int]] = pattern.map(RegexExtractors.count("currentLocationRegex", _, patterns))
+  override protected def findAllExtractor: Expression[Extractor[String, Seq[X]]] = pattern.map(RegexExtractors.findAll[X]("currentLocationRegex", _, patterns))
+  override protected def countExtractor: Expression[Extractor[String, Int]] = pattern.map(RegexExtractors.count("currentLocationRegex", _, patterns))
 }
 
 object CurrentLocationRegexCheckMaterializer {
-
   val Instance: CheckMaterializer[CurrentLocationRegexCheckType, HttpCheck, Response, String] =
     new HttpCheckMaterializer[CurrentLocationRegexCheckType, String](Url, UrlStringPreparer)
 }

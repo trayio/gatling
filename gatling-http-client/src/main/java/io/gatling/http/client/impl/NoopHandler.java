@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,26 @@
 
 package io.gatling.http.client.impl;
 
-import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
-@ChannelHandler.Sharable
-public class NoopHandler implements ChannelHandler {
+public class NoopHandler extends ChannelHandlerAdapter {
 
   public static final NoopHandler INSTANCE = new NoopHandler();
 
-  private NoopHandler() {
-  }
-  
-  
+  private NoopHandler() {}
+
   @Override
-  public void handlerAdded(ChannelHandlerContext ctx) {
+  public boolean isSharable() {
+    return true;
   }
 
   @Override
-  public void handlerRemoved(ChannelHandlerContext ctx) {
-  }
+  public void handlerAdded(ChannelHandlerContext ctx) {}
 
   @Override
-  public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-  }
+  public void handlerRemoved(ChannelHandlerContext ctx) {}
+
+  @Override
+  public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {}
 }

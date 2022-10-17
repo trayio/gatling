@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,23 @@
 
 package io.gatling.http.util
 
-import java.io.Closeable
+import java.{ util => ju }
 import java.security.SecureRandom
+import javax.net.ssl._
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration.Duration
+import scala.jdk.CollectionConverters._
 
-import io.gatling.core.config.HttpConfiguration
+import io.gatling.core.config.SslConfiguration
 
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.ssl._
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.util.ReferenceCountUtil
-import javax.net.ssl._
 
 private[http] object SslContextsFactory {
+  System.setProperty("io.netty.handler.ssl.openssl.sessionCacheClient", "true")
+
   private val DefaultSslSecureRandom = new SecureRandom
   private val Apn = new ApplicationProtocolConfig(
     ApplicationProtocolConfig.Protocol.ALPN,
@@ -43,15 +45,11 @@ private[http] object SslContextsFactory {
   )
 }
 
-private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends StrictLogging {
-
+private[gatling] class SslContextsFactory(sslConfig: SslConfiguration) extends StrictLogging {
   import SslContextsFactory._
 
-  private val sslSessionTimeoutSeconds = httpConfig.advanced.sslSessionTimeout.toSeconds
-  private val enabledProtocols: Array[String] = httpConfig.advanced.sslEnabledProtocols.toArray
-  private val enabledCipherSuites = httpConfig.advanced.sslEnabledCipherSuites.asJava
   private val useOpenSsl =
-    if (httpConfig.advanced.useOpenSsl) {
+    if (sslConfig.useOpenSsl) {
       val available = OpenSsl.isAvailable
       if (!available) {
         logger.error("OpenSSL is enabled in the Gatling configuration but it's not available on your architecture.")
@@ -60,13 +58,32 @@ private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends
     } else {
       false
     }
-  private val useOpenSslFinalizers = httpConfig.advanced.useOpenSslFinalizers
+  private val sslSessionTimeoutSeconds = sslConfig.sessionTimeout.toSeconds
+  private lazy val DefaultJavaSslParameters = {
+    val context = SSLContext.getInstance("TLS")
+    context.init(null, null, null);
+    context.getDefaultSSLParameters
+  }
+  private val enabledProtocols: Array[String] =
+    if (useOpenSsl) {
+      sslConfig.enabledProtocols.toArray
+    } else {
+      val supportedProtocols = DefaultJavaSslParameters.getProtocols.toSet
+      sslConfig.enabledProtocols.toArray.filter(supportedProtocols.contains)
+    }
+  private val enabledCipherSuites: ju.List[String] =
+    if (useOpenSsl) {
+      sslConfig.enabledCipherSuites.asJava
+    } else {
+      val supportedCipherSuites = DefaultJavaSslParameters.getCipherSuites
+      sslConfig.enabledCipherSuites.filter(supportedCipherSuites.contains).asJava
+    }
+  private val useOpenSslFinalizers = sslConfig.useOpenSslFinalizers
 
   def newSslContexts(http2Enabled: Boolean, perUserKeyManagerFactory: Option[KeyManagerFactory]): SslContexts = {
-
-    val kmf = perUserKeyManagerFactory.orElse(httpConfig.ssl.keyManagerFactory)
-    val tmf = httpConfig.ssl.trustManagerFactory.orElse {
-      if (httpConfig.advanced.useInsecureTrustManager) {
+    val kmf = perUserKeyManagerFactory.orElse(sslConfig.keyManagerFactory)
+    val tmf = sslConfig.trustManagerFactory.orElse {
+      if (sslConfig.useInsecureTrustManager) {
         Some(InsecureTrustManagerFactory.INSTANCE)
       } else {
         None
@@ -77,11 +94,11 @@ private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends
       val provider = if (useOpenSslFinalizers) SslProvider.OPENSSL else SslProvider.OPENSSL_REFCNT
       val sslContextBuilder = SslContextBuilder.forClient.sslProvider(provider)
 
-      if (httpConfig.advanced.sslSessionCacheSize > 0) {
-        sslContextBuilder.sessionCacheSize(httpConfig.advanced.sslSessionCacheSize)
+      if (sslConfig.sessionCacheSize > 0) {
+        sslContextBuilder.sessionCacheSize(sslConfig.sessionCacheSize)
       }
 
-      if (httpConfig.advanced.sslSessionTimeout > Duration.Zero) {
+      if (sslConfig.sessionTimeout > Duration.Zero) {
         sslContextBuilder.sessionTimeout(sslSessionTimeoutSeconds)
       }
 
@@ -89,7 +106,7 @@ private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends
         sslContextBuilder.protocols(enabledProtocols: _*)
       }
 
-      if (httpConfig.advanced.sslEnabledCipherSuites.nonEmpty) {
+      if (sslConfig.enabledCipherSuites.nonEmpty) {
         sslContextBuilder.ciphers(enabledCipherSuites)
       } else {
         sslContextBuilder.ciphers(null, IdentityCipherSuiteFilter.INSTANCE_DEFAULTING_TO_SUPPORTED_CIPHERS)
@@ -106,7 +123,6 @@ private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends
           None
         }
       new SslContexts(sslContext, alpnSslContext)
-
     } else {
       val jdkSslContext = SSLContext.getInstance("TLS")
       jdkSslContext.init(kmf.map(_.getKeyManagers).orNull, tmf.map(_.getTrustManagers).orNull, DefaultSslSecureRandom)
@@ -135,7 +151,7 @@ private[gatling] class SslContextsFactory(httpConfig: HttpConfiguration) extends
     )
 }
 
-private[http] final class SslContexts(val sslContext: SslContext, val alpnSslContext: Option[SslContext]) extends Closeable {
+private[http] final class SslContexts(val sslContext: SslContext, val alpnSslContext: Option[SslContext]) extends AutoCloseable {
   override def close(): Unit = {
     ReferenceCountUtil.release(sslContext)
     alpnSslContext.foreach(ReferenceCountUtil.release)

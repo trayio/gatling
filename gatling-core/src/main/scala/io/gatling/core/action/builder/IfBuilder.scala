@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,16 @@ import io.gatling.core.session.Expression
 import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
 
 /**
- * @constructor create a new IfBuilder
- * @param condition condition of the if
- * @param thenNext chain that will be executed if condition evaluates to true
- * @param elseNext chain that will be executed if condition evaluates to false
+ * @constructor
+ *   create a new IfBuilder
+ * @param condition
+ *   condition of the if
+ * @param thenNext
+ *   chain that will be executed if condition evaluates to true
+ * @param elseNext
+ *   chain that will be executed if condition evaluates to false
  */
-class IfBuilder(condition: Expression[Boolean], thenNext: ChainBuilder, elseNext: Option[ChainBuilder]) extends ActionBuilder {
-
+private[core] final class IfBuilder(condition: Expression[Boolean], thenNext: ChainBuilder, elseNext: Option[ChainBuilder]) extends ActionBuilder {
   def build(ctx: ScenarioContext, next: Action): Action = {
     val safeCondition = condition.safe
     val thenNextAction = thenNext.build(ctx, next)

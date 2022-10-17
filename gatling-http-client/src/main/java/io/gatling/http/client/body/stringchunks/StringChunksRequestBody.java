@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,20 +21,22 @@ import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
 import io.gatling.netty.util.StringWithCachedBytes;
 import io.netty.buffer.ByteBufAllocator;
-
+import java.nio.charset.Charset;
 import java.util.List;
 
-public final class StringChunksRequestBody extends RequestBody<List<StringWithCachedBytes>> {
+public final class StringChunksRequestBody extends RequestBody.Base<List<StringWithCachedBytes>> {
 
+  private final Charset charset;
   private final long contentLength;
 
-  public StringChunksRequestBody(List<StringWithCachedBytes> content, String contentType) {
-    super(content, contentType);
+  public StringChunksRequestBody(List<StringWithCachedBytes> content, Charset charset) {
+    super(content);
     long contentLength = 0;
     for (StringWithCachedBytes stringWithCachedBytes : content) {
       contentLength += stringWithCachedBytes.bytes.length;
     }
     this.contentLength = contentLength;
+    this.charset = charset;
   }
 
   @Override
@@ -43,7 +45,7 @@ public final class StringChunksRequestBody extends RequestBody<List<StringWithCa
   }
 
   @Override
-  public RequestBodyBuilder<List<StringWithCachedBytes>> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new StringChunksRequestBodyBuilder(content);
   }
 
@@ -51,7 +53,7 @@ public final class StringChunksRequestBody extends RequestBody<List<StringWithCa
   public byte[] getBytes() {
     byte[] bytes = new byte[(int) contentLength];
     int offset = 0;
-    for (StringWithCachedBytes chunk: content) {
+    for (StringWithCachedBytes chunk : content) {
       System.arraycopy(chunk.bytes, 0, bytes, offset, chunk.bytes.length);
       offset += chunk.bytes.length;
     }
@@ -60,9 +62,11 @@ public final class StringChunksRequestBody extends RequestBody<List<StringWithCa
 
   @Override
   public String toString() {
-    return "ElRequestBody{" +
-      "content=" + content +
-      ", contentType='" + contentType + '\'' +
-      '}';
+    return "StringChunksRequestBody{"
+        + "charset="
+        + charset
+        + ", content="
+        + StringWithCachedBytes.toString(content)
+        + '}';
   }
 }

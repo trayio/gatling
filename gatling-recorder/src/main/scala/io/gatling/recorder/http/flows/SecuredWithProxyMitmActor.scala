@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import io.gatling.commons.util.Clock
 import io.gatling.recorder.http.{ ClientHandler, Mitm, OutgoingProxy, TrafficLogger }
 import io.gatling.recorder.http.Mitm._
 import io.gatling.recorder.http.Netty._
-import io.gatling.recorder.http.flows.MitmActorFSM.{ WaitingForProxyConnectResponse, _ }
+import io.gatling.recorder.http.flows.MitmActorFSM._
 import io.gatling.recorder.http.flows.MitmMessage._
 import io.gatling.recorder.http.ssl.{ SslClientContext, SslServerContext }
 import io.gatling.recorder.util.HttpUtils
@@ -31,25 +31,23 @@ import io.netty.handler.codec.http._
 import io.netty.handler.ssl.SslHandler
 
 /**
- * Standard flow:
- * <ul>
- * <li>received CONNECT request with absolute url but without scheme</li>
- * <li>connect to outgoing proxy</li>
- * <li>if connect is successful, send CONNECT request to proxy</li>
- * <li>if response is 200/OK, install SslHandler on clientChannel and serverChannel</li>
- * <li>propagate response to serverChannel<li>
- * <li>receive request with relative url</li>
- * <li>propagate request to clientChannel</li>
- * <li>receive response</li>
- * <li>propagate response to serverChannel</li>
- * </ul>
+ * Standard flow: <ul> <li>received CONNECT request with absolute url but without scheme</li> <li>connect to outgoing proxy</li> <li>if connect is successful,
+ * send CONNECT request to proxy</li> <li>if response is 200/OK, install SslHandler on clientChannel and serverChannel</li> <li>propagate response to
+ * serverChannel<li> <li>receive request with relative url</li> <li>propagate request to clientChannel</li> <li>receive response</li> <li>propagate response to
+ * serverChannel</li> </ul>
  *
- * @param serverChannel    the server channel connected to the user agent
- * @param clientBootstrap  the bootstrap to establish client channels with the remote
- * @param sslServerContext factory for SSLContexts
- * @param proxy the outgoing proxy
- * @param trafficLogger log the traffic
- * @param httpClientCodecFactory create new HttpClientCodecs
+ * @param serverChannel
+ *   the server channel connected to the user agent
+ * @param clientBootstrap
+ *   the bootstrap to establish client channels with the remote
+ * @param sslServerContext
+ *   factory for SSLContexts
+ * @param proxy
+ *   the outgoing proxy
+ * @param trafficLogger
+ *   log the traffic
+ * @param httpClientCodecFactory
+ *   create new HttpClientCodecs
  */
 class SecuredWithProxyMitmActor(
     serverChannel: Channel,
@@ -60,7 +58,6 @@ class SecuredWithProxyMitmActor(
     httpClientCodecFactory: () => HttpClientCodec,
     clock: Clock
 ) extends SecuredMitmActor(serverChannel, clientBootstrap, sslServerContext) {
-
   private val proxyRemote = Remote(proxy.host, proxy.port)
   private val proxyBasicAuthHeader = proxy.credentials.map(HttpUtils.basicAuth)
 
@@ -118,14 +115,12 @@ class SecuredWithProxyMitmActor(
           val serverSslHandler = new SslHandler(sslServerContext.createSSLEngine(remote.host), true)
           serverChannel.pipeline.addFirst(SslHandlerName, serverSslHandler)
           serverChannel.writeAndFlush(response)
-
         } else {
           // dealing with client channel reconnect
           clientChannel.writeAndFlush(pendingRequest.filterSupportedEncodings)
         }
 
         goto(Connected) using ConnectedData(remote, clientChannel)
-
       } else {
         serverChannel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
         clientChannel.close()

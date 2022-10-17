@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,32 +22,31 @@ import io.gatling.http.client.body.WritableContent;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public final class StringRequestBody extends RequestBody<String> {
+public final class StringRequestBody extends RequestBody.Base<String> {
 
   private final Charset charset;
 
-  public StringRequestBody(String content, String contentType, Charset charset) {
-    super(content, contentType);
+  public StringRequestBody(String content, Charset charset) {
+    super(content);
     this.charset = charset;
   }
 
   @Override
   public WritableContent build(ByteBufAllocator alloc) {
     ByteBuf bb =
-            charset.equals(StandardCharsets.UTF_8) ?
-                    ByteBufUtil.writeUtf8(alloc, content) :
-                    ByteBufUtil.encodeString(alloc, CharBuffer.wrap(content), charset);
+        charset.equals(StandardCharsets.UTF_8)
+            ? ByteBufUtil.writeUtf8(alloc, content)
+            : ByteBufUtil.encodeString(alloc, CharBuffer.wrap(content), charset);
 
     return new WritableContent(bb, bb.readableBytes());
   }
 
   @Override
-  public RequestBodyBuilder<String> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new StringRequestBodyBuilder(content);
   }
 
@@ -58,10 +57,6 @@ public final class StringRequestBody extends RequestBody<String> {
 
   @Override
   public String toString() {
-    return "StringRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
-      ", charset=" + charset +
-      '}';
+    return "StringRequestBody{" + "charset=" + charset + ", content=" + content + '}';
   }
 }

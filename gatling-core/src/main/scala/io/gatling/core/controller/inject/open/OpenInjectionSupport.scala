@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,49 +20,58 @@ import scala.concurrent.duration._
 
 import io.gatling.core.controller.inject.InjectionProfileFactory
 
-final case class RampBuilder(users: Int) {
-  def during(d: FiniteDuration): OpenInjectionStep = RampOpenInjection(users, d)
-}
-final case class HeavisideBuilder(users: Int) {
-  def during(d: FiniteDuration): OpenInjectionStep = HeavisideOpenInjection(users, d)
-}
-final case class ConstantRateBuilder(rate: Double) {
-  def during(d: FiniteDuration): ConstantRateOpenInjection = ConstantRateOpenInjection(rate, d)
-}
-final case class PartialRampRateBuilder(rate1: Double) {
-  def to(rate2: Double): RampRateBuilder = RampRateBuilder(rate1, rate2)
-}
-final case class RampRateBuilder(rate1: Double, rate2: Double) {
-  def during(d: FiniteDuration): RampRateOpenInjection = RampRateOpenInjection(rate1, rate2, d)
-}
+object OpenInjectionBuilder {
+  final case class Ramp(users: Int) {
+    def during(d: FiniteDuration): OpenInjectionStep = RampOpenInjection(users, d)
+  }
 
-final case class IncreasingUsersPerSecProfileBuilderWithTime(usersPerSec: Double, nbOfSteps: Int) {
-  def eachLevelLasting(d: FiniteDuration): IncreasingUsersPerSecCompositeStep = IncreasingUsersPerSecCompositeStep(usersPerSec, nbOfSteps, d, 0, Duration.Zero)
-}
+  final case class StressPeak(users: Int) {
+    def during(d: FiniteDuration): OpenInjectionStep = HeavisideOpenInjection(users, d)
+  }
+  final case class ConstantRate(rate: Double) {
+    def during(d: FiniteDuration): ConstantRateOpenInjection = ConstantRateOpenInjection(rate, d)
+  }
 
-final case class IncreasingUsersPerSecProfileBuilder(usersPerSec: Double) {
-  def times(nbOfSteps: Int): IncreasingUsersPerSecProfileBuilderWithTime = IncreasingUsersPerSecProfileBuilderWithTime(usersPerSec, nbOfSteps)
+  object RampRate {
+    final case class To(rate1: Double) {
+      def to(rate2: Double): During = During(rate1, rate2)
+    }
+    final case class During(rate1: Double, rate2: Double) {
+      def during(d: FiniteDuration): RampRateOpenInjection = RampRateOpenInjection(rate1, rate2, d)
+    }
+  }
+
+  object Stairs {
+    final case class Times(rateIncrement: Double) {
+      def times(levels: Int): EachLevelLasting = EachLevelLasting(rateIncrement, levels)
+    }
+
+    final case class EachLevelLasting(rateIncrement: Double, levels: Int) {
+      def eachLevelLasting(d: FiniteDuration): StairsUsersPerSecCompositeStep =
+        StairsUsersPerSecCompositeStep(rateIncrement, levels, d, 0, Duration.Zero)
+    }
+  }
 }
 
 object OpenInjectionSupport {
-
   val OpenInjectionProfileFactory: InjectionProfileFactory[OpenInjectionStep] =
-    (steps: Iterable[OpenInjectionStep]) => new OpenInjectionProfile(steps)
+    (steps: Iterable[OpenInjectionStep]) => new OpenInjectionProfile(steps.toList)
 }
 
 trait OpenInjectionSupport {
-
   implicit def openInjectionProfileFactory: InjectionProfileFactory[OpenInjectionStep] =
     OpenInjectionSupport.OpenInjectionProfileFactory
 
-  def rampUsers(users: Int): RampBuilder = RampBuilder(users)
-  def heavisideUsers(users: Int): HeavisideBuilder = HeavisideBuilder(users)
+  def rampUsers(users: Int): OpenInjectionBuilder.Ramp = OpenInjectionBuilder.Ramp(users)
+  @deprecated("User stressPeakUsers instead", "3.7.0")
+  def heavisideUsers(users: Int): OpenInjectionBuilder.StressPeak = stressPeakUsers(users)
+  def stressPeakUsers(users: Int): OpenInjectionBuilder.StressPeak = OpenInjectionBuilder.StressPeak(users)
   def atOnceUsers(users: Int): OpenInjectionStep = AtOnceOpenInjection(users)
 
-  def constantUsersPerSec(rate: Double): ConstantRateBuilder = ConstantRateBuilder(rate)
-  def rampUsersPerSec(rate1: Double): PartialRampRateBuilder = PartialRampRateBuilder(rate1)
+  def constantUsersPerSec(rate: Double): OpenInjectionBuilder.ConstantRate = OpenInjectionBuilder.ConstantRate(rate)
+  def rampUsersPerSec(rate1: Double): OpenInjectionBuilder.RampRate.To = OpenInjectionBuilder.RampRate.To(rate1)
 
   def nothingFor(d: FiniteDuration): OpenInjectionStep = NothingForOpenInjection(d)
 
-  def incrementUsersPerSec(usersPerSec: Double): IncreasingUsersPerSecProfileBuilder = IncreasingUsersPerSecProfileBuilder(usersPerSec)
+  def incrementUsersPerSec(usersPerSec: Double): OpenInjectionBuilder.Stairs.Times = OpenInjectionBuilder.Stairs.Times(usersPerSec)
 }

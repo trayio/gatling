@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package io.gatling.core.action.builder
 
+import scala.collection.immutable.ArraySeq
+
 import io.gatling.commons.util.CircularIterator
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.{ Action, Switch }
@@ -23,16 +25,14 @@ import io.gatling.core.session.Expression
 import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
 import io.gatling.core.util.NameGen
 
-class RoundRobinSwitchBuilder(possibilities: List[ChainBuilder]) extends ActionBuilder with NameGen {
-
-  require(possibilities.size >= 2, "Round robin switch requires at least 2 possibilities")
+private[core] final class RoundRobinSwitchBuilder(possibilities: List[ChainBuilder]) extends ActionBuilder with NameGen {
+  require(possibilities.sizeIs >= 2, "Round robin switch requires at least 2 possibilities")
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
-
-    val possibleActions = possibilities.map(_.build(ctx, next)).toArray
+    val possibleActions = ArraySeq.unsafeWrapArray(possibilities.map(_.build(ctx, next)).toArray)
     val roundRobin = CircularIterator(possibleActions, threadSafe = true)
 
-    val nextAction: Expression[Action] = _ => roundRobin.next.success
+    val nextAction: Expression[Action] = _ => roundRobin.next().success
 
     new Switch(nextAction, ctx.coreComponents.statsEngine, ctx.coreComponents.clock, genName("roundRobinSwitch"), next)
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,10 @@
 
 package io.gatling.http.client;
 
-import io.netty.channel.Channel;
-import io.netty.handler.ssl.SslContext;
-
-import java.nio.charset.Charset;
-import java.util.function.Consumer;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
+
+import io.netty.handler.ssl.SslContext;
+import java.nio.charset.Charset;
 
 public class HttpClientConfig {
 
@@ -42,11 +39,11 @@ public class HttpClientConfig {
 
   private boolean useNativeTransport;
 
+  private boolean useIoUring;
+
   private long channelPoolIdleTimeout = 30_000;
 
   private long channelPoolIdleCleanerPeriod = 1_000;
-
-  private Consumer<Channel> additionalChannelInitializer;
 
   private boolean tcpNoDelay;
 
@@ -110,6 +107,15 @@ public class HttpClientConfig {
     return useNativeTransport;
   }
 
+  public HttpClientConfig setUseIoUring(boolean useIoUring) {
+    this.useIoUring = useIoUring;
+    return this;
+  }
+
+  public boolean isUseIoUring() {
+    return useIoUring;
+  }
+
   public HttpClientConfig setChannelPoolIdleTimeout(long channelPoolIdleTimeout) {
     this.channelPoolIdleTimeout = channelPoolIdleTimeout;
     return this;
@@ -126,15 +132,6 @@ public class HttpClientConfig {
 
   public long getChannelPoolIdleCleanerPeriod() {
     return channelPoolIdleCleanerPeriod;
-  }
-
-  public HttpClientConfig setAdditionalChannelInitializer(Consumer<Channel> additionalChannelInitializer) {
-    this.additionalChannelInitializer = additionalChannelInitializer;
-    return this;
-  }
-
-  public Consumer<Channel> getAdditionalChannelInitializer() {
-    return additionalChannelInitializer;
   }
 
   public boolean isTcpNoDelay() {

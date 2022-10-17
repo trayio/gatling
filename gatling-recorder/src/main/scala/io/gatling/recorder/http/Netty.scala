@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,9 @@ import io.netty.channel.{ Channel, ChannelFuture, ChannelFutureListener }
 import io.netty.handler.codec.http._
 
 object Netty {
-
   implicit class PimpedChannelFuture(val cf: ChannelFuture) extends AnyVal {
-
     def addScalaListener(f: Try[Channel] => Unit): ChannelFuture =
-      cf.addListener((future: ChannelFuture) => {
+      cf.addListener { (future: ChannelFuture) =>
         val outcome =
           if (future.isSuccess) {
             Success(future.channel)
@@ -37,11 +35,10 @@ object Netty {
             Failure(future.cause)
           }
         f(outcome)
-      })
+      }
   }
 
   implicit class PimpedChannel(val channel: Channel) extends AnyVal {
-
     def reply500AndClose(): Unit =
       channel
         .writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR))
@@ -49,7 +46,6 @@ object Netty {
   }
 
   implicit class PimpedFullHttpRequest(val request: FullHttpRequest) extends AnyVal {
-
     def makeRelative: FullHttpRequest = {
       val relativeUrl = Uri.create(request.uri).toRelativeUrl
       val relativeRequest = new DefaultFullHttpRequest(request.protocolVersion, request.method, relativeUrl, request.content)

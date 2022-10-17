@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import io.gatling.BaseSpec
 import org.scalacheck.Gen
 
 class ShardSpec extends BaseSpec {
-
   "Shard.shards" should "return the proper count" in {
     forAll(Gen.choose(1, Int.MaxValue)) { total =>
       whenever(total >= 1) {
@@ -68,35 +67,32 @@ class ShardSpec extends BaseSpec {
     }
 
   it should "produce the same results as Shard.shards" in {
-    forAllPairs(1, 100) {
-      case (totalValue, totalCount) =>
-        val shards = Shard.shards(totalValue, totalCount).toArray
-        for (index <- 0 until totalCount) {
-          Shard.shard(totalValue, index, totalCount).length shouldBe shards(index)
-        }
+    forAllPairs(1, 100) { case (totalValue, totalCount) =>
+      val shards = Shard.shards(totalValue, totalCount).toArray
+      for (index <- 0 until totalCount) {
+        Shard.shard(totalValue, index, totalCount).length shouldBe shards(index)
+      }
     }
   }
 
   it should "shard all values" in {
-    forAllPairs(1, 100) {
-      case (totalValue, totalCount) =>
-        (0 until totalCount).map(index => Shard.shard(totalValue, index, totalCount).length).sum shouldBe totalValue
+    forAllPairs(1, 100) { case (totalValue, totalCount) =>
+      (0 until totalCount).map(index => Shard.shard(totalValue, index, totalCount).length).sum shouldBe totalValue
     }
   }
 
   it should "properly compute offsets" in {
-    forAllPairs(1, 100) {
-      case (totalValue, totalCount) =>
-        var previousOffset = 0
-        var previousLength = 0
-        for {
-          index <- 0 until totalCount
-        } {
-          val shard = Shard.shard(totalValue, index, totalCount)
-          shard.offset shouldBe previousOffset + previousLength
-          previousOffset = shard.offset
-          previousLength = shard.length
-        }
+    forAllPairs(1, 100) { case (totalValue, totalCount) =>
+      var previousOffset = 0
+      var previousLength = 0
+      for {
+        index <- 0 until totalCount
+      } {
+        val shard = Shard.shard(totalValue, index, totalCount)
+        shard.offset shouldBe previousOffset + previousLength
+        previousOffset = shard.offset
+        previousLength = shard.length
+      }
     }
   }
 }

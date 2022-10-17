@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,21 +19,64 @@ package io.gatling.core.structure
 import io.gatling.core.action.builder.FeedBuilder
 import io.gatling.core.feeder._
 import io.gatling.core.session._
-
-object Feeds {
-
-  private val OneExpression = 1.expressionSuccess
-}
+import io.gatling.core.session.el._
 
 private[structure] trait Feeds[B] extends Execs[B] {
 
   /**
-   * Method used to load data from a feeder in the current scenario
+   * Chain an action that will inject a single data record into the virtual users' Session
    *
-   * @param feederBuilder the feeder from which the values will be loaded
-   * @param number the number of records to be polled (default 1)
+   * @param feederBuilder
+   *   a factory of a source of records
    */
-  @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
-  def feed(feederBuilder: FeederBuilder, number: Expression[Int] = Feeds.OneExpression): B =
-    exec(new FeedBuilder(feederBuilder, number))
+  def feed(feederBuilder: FeederBuilder): B =
+    feed0(feederBuilder, System.identityHashCode(feederBuilder), None)
+
+  /**
+   * Chain an action that will inject multiple data records into the virtual users' Session
+   *
+   * @param feederBuilder
+   *   a factory of a source of records
+   * @param number
+   *   the number of records to be injected
+   */
+  def feed(feederBuilder: FeederBuilder, number: Expression[Int]): B =
+    feed0(feederBuilder, System.identityHashCode(feederBuilder), Some(number))
+
+  private[gatling] def feed0(feederBuilder: FeederBuilder, feederBuilderKey: Long, number: Option[Expression[Int]]): B =
+    exec(new FeedBuilder(feederBuilder, feederBuilderKey, number))
+
+  /**
+   * Chain an action that will inject a single data record into the virtual users' Session
+   *
+   * @param feeder
+   *   a source of records
+   */
+  def feed(feeder: Feeder[Any]): B =
+    feed0(feeder, System.identityHashCode(feeder), None)
+
+  /**
+   * Chain an action that will inject multiple data records into the virtual users' Session
+   *
+   * @param feeder
+   *   a source of records
+   * @param number
+   *   the number of records to be injected
+   */
+  def feed(feeder: Feeder[Any], number: String): B =
+    feed0(feeder, System.identityHashCode(feeder), Some(number.el[Int]))
+
+  /**
+   * Chain an action that will inject multiple data records into the virtual users' Session
+   *
+   * @param feeder
+   *   a source of records
+   * @param number
+   *   the number of records to be injected
+   */
+  def feed(feeder: Feeder[Any], number: Expression[Int]): B =
+    feed0(feeder, System.identityHashCode(feeder), Some(number))
+
+  private[gatling] def feed0(feeder: Feeder[Any], feederBuilderKey: Long, number: Option[Expression[Int]]): B =
+    feed0(() => feeder, feederBuilderKey, number)
 }

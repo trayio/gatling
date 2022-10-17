@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,46 +16,41 @@
 
 package io.gatling.http.action.sse.fsm
 
-import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.util.Throwables._
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.http.check.sse.SseMessageCheckSequence
 
-class SseIdleState(fsm: SseFsm, session: Session, stream: SseStream) extends SseState(fsm) with StrictLogging {
+import com.typesafe.scalalogging.StrictLogging
 
+class SseIdleState(fsm: SseFsm, session: Session) extends SseState(fsm) with StrictLogging {
   import fsm._
 
   override def onSetCheck(actionName: String, checkSequences: List[SseMessageCheckSequence], session: Session, next: Action): NextSseState = {
-    logger.debug(s"Sent check $actionName")
-    // actually send message!
+    logger.debug(s"Set check $actionName")
     val timestamp = clock.nowMillis
 
     checkSequences match {
       case SseMessageCheckSequence(timeout, currentCheck :: remainingChecks) :: remainingCheckSequences =>
-        logger.debug("Trigger check after send message")
+        logger.debug("Trigger check")
         scheduleTimeout(timeout)
-        //[fl]
+        // [e]
         //
-        //[fl]
+        // [e]
         NextSseState(
           SsePerformingCheckState(
             fsm,
-            stream = stream,
             currentCheck = currentCheck,
             remainingChecks = remainingChecks,
             checkSequenceStart = timestamp,
             remainingCheckSequences,
             session = session,
-            next = Left(next)
+            next = next
           )
         )
 
-      case _ => // same as Nil as WsFrameCheckSequence#checks can't be Nil, but compiler complains that match may not be exhaustive
-        NextSseState(
-          this,
-          () => next ! session
-        )
+      case _ =>
+        NextSseState(this, () => next ! session)
     }
   }
 
@@ -66,22 +61,22 @@ class SseIdleState(fsm: SseFsm, session: Session, stream: SseStream) extends Sse
     NextSseState(this)
   }
 
-  override def onSseStreamClosed(timestamp: Long): NextSseState = {
-    // server issued close
-    logger.info(s"SSE stream was forcefully closed by the server while in Idle state")
-    NextSseState(new SseCrashedState(fsm, None))
+  override def onSseStreamConnected(timestamp: Long): NextSseState = {
+    logger.debug("SSE Stream reconnected while in Idle state")
+    NextSseState(this)
   }
 
-  override def onSseStreamCrashed(t: Throwable, timestamp: Long): NextSseState = {
-    logger.info("SSE stream crashed by the server while in Idle state", t)
-    NextSseState(new SseCrashedState(fsm, Some(t.rootMessage)))
+  override def onSseEndOfStream(timestamp: Long): NextSseState = {
+    // server issued close
+    logger.debug(s"Server notified of end of stream while in Idle state")
+    NextSseState(new SseCrashedState(fsm, "End of stream"))
   }
+
   override def onClientCloseRequest(actionName: String, session: Session, next: Action): NextSseState = {
-    logger.info("Client requested SSE stream close")
-    stream.close()
-    //[fl]
+    logger.debug("Client requested SSE stream close")
+    // [e]
     //
-    //[fl]
-    NextSseState(new SseClosingState(fsm, actionName, session, next, clock.nowMillis))
+    // [e]
+    NextSseState(new SseClosingState(fsm, actionName, session, next, clock.nowMillis), () => stream.requestingCloseByClient())
   }
 }

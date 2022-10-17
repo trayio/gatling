@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 sealed trait ThrottleStep extends Product with Serializable {
-
   val durationInSec: Long
   def target(previousLastValue: Int): Int
   def rps(time: Long, previousLastValue: Int): Int
@@ -54,10 +53,11 @@ trait ThrottlingSupport {
   def jumpToRps(target: Int): ThrottleStep = Jump(target)
 }
 
-final case class Throttlings(global: Option[Throttling], perScenario: Map[String, Throttling])
+final case class Throttlings(global: Option[Throttling], perScenario: Map[String, Throttling]) {
+  val isEmpty: Boolean = global.isEmpty && perScenario.isEmpty
+}
 
 object Throttling {
-
   @tailrec
   private def valueAt(steps: List[ThrottleStep], pendingTime: Long, previousLastValue: Int): Int = steps match {
     case Nil => 0
@@ -69,7 +69,6 @@ object Throttling {
   }
 
   def apply(steps: Iterable[ThrottleStep]): Throttling = {
-
     val reversedSteps = steps.toList
     val limit: Long => Int = valueAt(reversedSteps, _, 0)
 

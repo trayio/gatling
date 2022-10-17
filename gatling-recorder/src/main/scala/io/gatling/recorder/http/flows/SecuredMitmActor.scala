@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,16 @@
 
 package io.gatling.recorder.http.flows
 
-import io.gatling.recorder.http.ssl.SslServerContext
 import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM._
 import io.gatling.recorder.http.flows.MitmMessage._
+import io.gatling.recorder.http.ssl.SslServerContext
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel
 import io.netty.handler.codec.http._
 
 abstract class SecuredMitmActor(serverChannel: Channel, clientBootstrap: Bootstrap, sslServerContext: SslServerContext) extends MitmActor(clientBootstrap) {
-
   protected def onClientChannelActive(clientChannel: Channel, pendingRequest: FullHttpRequest, remote: Remote): State
 
   startWith(Init, NoData)

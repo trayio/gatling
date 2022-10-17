@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,11 @@ import io.gatling.core.ConfigKeys._
 import io.gatling.core.config.GatlingConfiguration
 
 class RequestMetricsBufferSpec extends BaseSpec {
-
   private val configuration = GatlingConfiguration.loadForTest(
     mutable.Map(
       charting.indicators.Percentile1 -> 95,
       charting.indicators.Percentile2 -> 99,
-      http.ahc.RequestTimeout -> 60000
+      http.RequestTimeout -> 60000
     )
   )
 

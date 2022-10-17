@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,19 +22,29 @@ import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
 class SseCompileTest extends Simulation {
-
   private val scn = scenario(this.getClass.getSimpleName)
     .exec(
       sse("connect")
         .sseName("sse")
         .connect("/stocks/prices")
-        .await(30 seconds)(
-          sse.checkMessage("checkName1").check(regex("""event: snapshot(.*)"""))
+        .await(30.seconds)(
+          sse.checkMessage("checkName1").check(regex("event: snapshot(.*)"))
         )
     )
     .exec(
-      sse("waitForSomeMEssage").setCheck.await(30 seconds)(
-        sse.checkMessage("checkName1").check(jsonPath("$.foo"), jmesPath("foo"))
+      sse("waitForSomeMessage").setCheck.await(30.seconds)(
+        sse
+          .checkMessage("checkName1")
+          .check(
+            jsonPath("$.foo"),
+            jmesPath("foo"),
+            checkIf("#{cond}") {
+              jsonPath("$.foo")
+            }
+          )
+          .checkIf("#{cond}") {
+            jsonPath("$.foo")
+          }
       )
     )
     .pause(15)

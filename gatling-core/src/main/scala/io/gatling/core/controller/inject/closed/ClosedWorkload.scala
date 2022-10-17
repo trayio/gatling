@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,24 +20,22 @@ import java.util.concurrent.atomic.AtomicLong
 
 import scala.concurrent.duration._
 
-import io.gatling.commons.util.Clock
 import io.gatling.core.controller.inject.Workload
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.writer.UserEndMessage
 import io.gatling.core.util.Shard
 
 import io.netty.channel.EventLoopGroup
 
-class ClosedWorkload(
-    scenario: Scenario,
+private[inject] final class ClosedWorkload(
     steps: Iterable[ClosedInjectionStep],
+    override val duration: FiniteDuration,
+    override val isEmpty: Boolean,
+    scenario: Scenario,
     userIdGen: AtomicLong,
     eventLoopGroup: EventLoopGroup,
-    statsEngine: StatsEngine,
-    clock: Clock
-) extends Workload(scenario, userIdGen, eventLoopGroup, statsEngine, clock) {
-
+    statsEngine: StatsEngine
+) extends Workload(scenario, userIdGen, eventLoopGroup, statsEngine) {
   private val offsetedSteps: Array[(FiniteDuration, ClosedInjectionStep)] = {
     var offset: FiniteDuration = Duration.Zero
 
@@ -66,15 +64,14 @@ class ClosedWorkload(
           for {
             (number, millis) <- Shard.shards(missingUsers, batchWindow.toMillis.toInt).zipWithIndex
             if number > 0
-          } (0 until number.toInt).foreach(_ => injectUser(millis milliseconds))
+          } (0 until number.toInt).foreach(_ => injectUser(millis.milliseconds))
         }
 
       case _ => setAllScheduled()
     }
   }
 
-  override def endUser(userMessage: UserEndMessage): Unit = {
-    statsEngine.logUserEnd(userMessage)
+  override def endUser(): Unit = {
     incrementStoppedUsers()
     if (getConcurrentUsers < _thisBatchTarget && !isAllUsersScheduled) {
       // start a new user

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@
 
 package io.gatling.commons.validation
 
+import java.util.Locale
+
 import io.gatling.BaseSpec
 
 class ValidationSpec extends BaseSpec {
-
   "SuccessWrapper" should "wrap a value in a Success" in {
     1.success shouldBe Success(1)
   }
@@ -43,15 +44,15 @@ class ValidationSpec extends BaseSpec {
 
   it should "return the current instance when called on Failure" in {
     val failure: Validation[String] = "foo".failure
-    failure.flatMap(x => Success(x.toUpperCase)) should be theSameInstanceAs failure
+    failure.flatMap(x => Success(x.toUpperCase(Locale.ROOT))) should be theSameInstanceAs failure
   }
   "mapError" should "return the current instance when called on a Success" in {
     val success = 1.success
-    success.mapError(_.toUpperCase) should be theSameInstanceAs success
+    success.mapFailure(_.toUpperCase(Locale.ROOT)) should be theSameInstanceAs success
   }
 
   it should "apply the passed function on the error message when called on a Failure" in {
-    "foo".failure.mapError(_.toUpperCase) shouldBe Failure("FOO")
+    "foo".failure.mapFailure(_.toUpperCase(Locale.ROOT)) shouldBe Failure("FOO")
   }
 
   "filter" should "return the current instance when called on a Success and the predicate holds" in {

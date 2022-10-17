@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,44 +20,48 @@ import scala.concurrent.duration._
 
 import io.gatling.core.controller.inject.InjectionProfileFactory
 
-final case class ConstantConcurrentNumberBuilder(number: Int) {
+object ClosedInjectionBuilder {
+  def newEachLevelLasting(usersIncrement: Int, nbOfSteps: Int): Stairs.EachLevelLasting =
+    Stairs.EachLevelLasting(usersIncrement, nbOfSteps)
 
-  def during(d: FiniteDuration): ClosedInjectionStep = ConstantConcurrentNumberInjection(number, d)
-}
+  final case class Constant(number: Int) {
+    def during(d: FiniteDuration): ClosedInjectionStep = ConstantConcurrentUsersInjection(number, d)
+  }
 
-final case class RampConcurrentNumberInjectionFrom(from: Int) {
+  object Ramp {
+    final case class To(from: Int) {
+      def to(t: Int): During = During(from, t)
+    }
 
-  def to(t: Int): RampConcurrentNumberInjectionTo = RampConcurrentNumberInjectionTo(from, t)
-}
+    final case class During(from: Int, to: Int) {
+      def during(d: FiniteDuration): ClosedInjectionStep = RampConcurrentUsersInjection(from, to, d)
+    }
+  }
 
-final case class RampConcurrentNumberInjectionTo(from: Int, to: Int) {
+  object Stairs {
+    final case class Times(concurrentUsers: Int) {
+      def times(levels: Int): EachLevelLasting = EachLevelLasting(concurrentUsers, levels)
+    }
 
-  def during(d: FiniteDuration): ClosedInjectionStep = RampConcurrentNumberInjection(from, to, d)
-}
-
-final case class IncreasingConcurrentUsersProfileBuilderWithTime(concurrentUsers: Int, nbOfSteps: Int) {
-  def eachLevelLasting(levelDuration: FiniteDuration): IncreasingConcurrentUsersCompositeStep =
-    IncreasingConcurrentUsersCompositeStep(concurrentUsers, nbOfSteps, levelDuration, 0, Duration.Zero)
-}
-
-final case class IncreasingConcurrentUsersProfileBuilder(concurrentUsers: Int) {
-  def times(nbOfSteps: Int): IncreasingConcurrentUsersProfileBuilderWithTime = IncreasingConcurrentUsersProfileBuilderWithTime(concurrentUsers, nbOfSteps)
+    final case class EachLevelLasting(usersIncrement: Int, levels: Int) {
+      def eachLevelLasting(levelDuration: FiniteDuration): StairsConcurrentUsersCompositeStep =
+        StairsConcurrentUsersCompositeStep(usersIncrement, levels, levelDuration, 0, Duration.Zero)
+    }
+  }
 }
 
 object ClosedInjectionSupport {
-
   val ClosedInjectionProfileFactory: InjectionProfileFactory[ClosedInjectionStep] =
-    (steps: Iterable[ClosedInjectionStep]) => new ClosedInjectionProfile(steps)
+    (steps: Iterable[ClosedInjectionStep]) => new ClosedInjectionProfile(steps.toList)
 }
 
 trait ClosedInjectionSupport {
-
   implicit def closedInjectionProfileFactory: InjectionProfileFactory[ClosedInjectionStep] =
     ClosedInjectionSupport.ClosedInjectionProfileFactory
 
-  def constantConcurrentUsers(number: Int): ConstantConcurrentNumberBuilder = ConstantConcurrentNumberBuilder(number)
+  def constantConcurrentUsers(number: Int): ClosedInjectionBuilder.Constant = ClosedInjectionBuilder.Constant(number)
 
-  def rampConcurrentUsers(from: Int): RampConcurrentNumberInjectionFrom = RampConcurrentNumberInjectionFrom(from)
+  def rampConcurrentUsers(from: Int): ClosedInjectionBuilder.Ramp.To = ClosedInjectionBuilder.Ramp.To(from)
 
-  def incrementConcurrentUsers(concurrentUsers: Int): IncreasingConcurrentUsersProfileBuilder = IncreasingConcurrentUsersProfileBuilder(concurrentUsers)
+  def incrementConcurrentUsers(concurrentUsers: Int): ClosedInjectionBuilder.Stairs.Times = ClosedInjectionBuilder.Stairs.Times(concurrentUsers)
 }

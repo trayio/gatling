@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import io.netty.handler.codec.http.FullHttpResponse
 class ClientHandler(mitmActor: ActorRef, serverChannelId: ChannelId, trafficLogger: TrafficLogger, clock: Clock)
     extends ChannelInboundHandlerAdapter
     with StrictLogging {
-
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = {
     val receiveTimestamp = clock.nowMillis
     msg match {

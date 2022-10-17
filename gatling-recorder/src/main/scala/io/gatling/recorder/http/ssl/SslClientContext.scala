@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,12 @@ import javax.net.ssl.SSLEngine
 
 import io.gatling.recorder.http.flows.Remote
 
+import com.typesafe.scalalogging.StrictLogging
 import io.netty.buffer.ByteBufAllocator
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 
-import com.typesafe.scalalogging.StrictLogging
-
 private[http] object SslClientContext extends StrictLogging {
-
   private val TheSslContext =
     SslContextBuilder
       .forClient()

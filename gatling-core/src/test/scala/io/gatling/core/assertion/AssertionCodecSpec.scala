@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import boopickle.Default._
 import org.scalacheck.{ Arbitrary, Gen }
 
 trait AssertionGenerator {
-
   private val doubleGen = Arbitrary.arbitrary[Double]
 
   private val pathGen = {
@@ -78,7 +77,6 @@ trait AssertionGenerator {
 }
 
 class AssertionCodecSpec extends BaseSpec with AssertionGenerator {
-
   override implicit val generatorDrivenConfig = PropertyCheckConfiguration(minSuccessful = 300)
 
   "The assertion parser" should "be able to parse correctly arbitrary assertions" in {

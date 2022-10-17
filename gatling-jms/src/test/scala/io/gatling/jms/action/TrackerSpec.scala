@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,17 +22,13 @@ import io.gatling.commons.util.DefaultClock
 import io.gatling.core.CoreDsl
 import io.gatling.core.action.ActorDelegatingAction
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.session.SessionSpec.EmptySession
-import io.gatling.core.stats.writer.ResponseMessage
+import io.gatling.core.session.Session
 import io.gatling.jms._
-import io.gatling.jms.check.JmsSimpleCheck
 import io.gatling.jms.client.{ MessageReceived, MessageSent, Tracker }
 
 import akka.testkit.TestActorRef
-import io.gatling.core.session.Session
 
 class TrackerSpec extends AkkaSpec with CoreDsl with JmsDsl with MockMessage {
-
   override val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   private val clock = new DefaultClock
@@ -41,29 +37,29 @@ class TrackerSpec extends AkkaSpec with CoreDsl with JmsDsl with MockMessage {
     val statsEngine = new MockStatsEngine
     val tracker = TestActorRef(Tracker.props(statsEngine, clock, configuration))
 
-    tracker ! MessageSent("1", 15, 0, Nil, EmptySession, new ActorDelegatingAction("next", testActor), "success")
+    tracker ! MessageSent("1", 15, 0, Nil, emptySession, new ActorDelegatingAction("next", testActor), "success")
     tracker ! MessageReceived("1", 30, textMessage("test"))
 
     val nextSession = expectMsgType[Session]
 
-    nextSession shouldBe EmptySession
-    val expected = ResponseMessage(EmptySession.scenario, 0, Nil, "success", 15, 30, OK, None, None)
-    statsEngine.dataWriterMsg should contain(expected)
+    nextSession shouldBe emptySession
+    val expected = MockStatsEngine.Message.Response(emptySession.scenario, Nil, "success", 15, 30, OK, None, None)
+    statsEngine.messages should contain(expected)
   }
 
   it should "pass KO to next actor when check fails" in {
-    val failedCheck = new JmsSimpleCheck(_ => false)
+    val failedCheck = simpleCheck(_ => false)
     val statsEngine = new MockStatsEngine
     val tracker = TestActorRef(Tracker.props(statsEngine, clock, configuration))
 
-    tracker ! MessageSent("1", 15, 0, List(failedCheck), EmptySession, new ActorDelegatingAction("next", testActor), "failure")
+    tracker ! MessageSent("1", 15, 0, List(failedCheck), emptySession, new ActorDelegatingAction("next", testActor), "failure")
     tracker ! MessageReceived("1", 30, textMessage("test"))
 
     val nextSession = expectMsgType[Session]
 
-    nextSession shouldBe EmptySession.markAsFailed
-    val expected = ResponseMessage(EmptySession.scenario, 0, Nil, "failure", 15, 30, KO, None, Some("JMS check failed"))
-    statsEngine.dataWriterMsg should contain(expected)
+    nextSession shouldBe emptySession.markAsFailed
+    val expected = MockStatsEngine.Message.Response(emptySession.scenario, Nil, "failure", 15, 30, KO, None, Some("JMS check failed"))
+    statsEngine.messages should contain(expected)
   }
 
   it should "pass updated session to next actor if modified by checks" in {
@@ -71,28 +67,28 @@ class TrackerSpec extends AkkaSpec with CoreDsl with JmsDsl with MockMessage {
     val statsEngine = new MockStatsEngine
     val tracker = TestActorRef(Tracker.props(statsEngine, clock, configuration))
 
-    tracker ! MessageSent("1", 15, 0, List(check), EmptySession, new ActorDelegatingAction("next", testActor), "updated")
+    tracker ! MessageSent("1", 15, 0, List(check), emptySession, new ActorDelegatingAction("next", testActor), "updated")
     tracker ! MessageReceived("1", 30, textMessage("<id>5</id>"))
 
     val nextSession = expectMsgType[Session]
 
-    nextSession shouldBe EmptySession.set("id", "5")
-    val expected = ResponseMessage(EmptySession.scenario, 0, Nil, "updated", 15, 30, OK, None, None)
-    statsEngine.dataWriterMsg should contain(expected)
+    nextSession shouldBe emptySession.set("id", "5")
+    val expected = MockStatsEngine.Message.Response(emptySession.scenario, Nil, "updated", 15, 30, OK, None, None)
+    statsEngine.messages should contain(expected)
   }
 
   it should "pass information to session about response time in case group are used" in {
     val statsEngine = new MockStatsEngine
     val tracker = TestActorRef(Tracker.props(statsEngine, clock, configuration))
 
-    val groupSession = EmptySession.enterGroup("group", clock.nowMillis)
+    val groupSession = emptySession.enterGroup("group", clock.nowMillis)
     tracker ! MessageSent("1", 15, 0, Nil, groupSession, new ActorDelegatingAction("next", testActor), "logGroupResponse")
     tracker ! MessageReceived("1", 30, textMessage("group"))
 
     val newSession = groupSession.logGroupRequestTimings(15, 30)
     val nextSession1 = expectMsgType[Session]
 
-    val failedCheck = new JmsSimpleCheck(_ => false)
+    val failedCheck = simpleCheck(_ => false)
     tracker ! MessageSent("2", 25, 0, List(failedCheck), newSession, new ActorDelegatingAction("next", testActor), "logGroupResponse")
     tracker ! MessageReceived("2", 50, textMessage("group"))
 

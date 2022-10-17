@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ private[graphite] object GraphitePath {
   private val sanitizeStringMemo = mutable.Map.empty[String, String]
   def sanitizeString(s: String): String = sanitizeStringMemo.getOrElseUpdate(s, s.replace(' ', '_').replace('.', '-').replace('\\', '-'))
 
-  def graphitePath(root: String) = new GraphitePath(List(root))
+  def graphitePath(root: String) = new GraphitePath(root :: Nil)
   def graphitePath(path: List[String]) = new GraphitePath(path.map(sanitizeString))
 }
 

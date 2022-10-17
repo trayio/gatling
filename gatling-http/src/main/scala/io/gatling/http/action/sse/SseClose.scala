@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,24 +24,25 @@ import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
 class SseClose(
-    val requestName: Expression[String],
-    sseName: String,
-    val statsEngine: StatsEngine,
-    val clock: Clock,
-    val next: Action
+    override val requestName: Expression[String],
+    sseName: Expression[String],
+    override val statsEngine: StatsEngine,
+    override val clock: Clock,
+    override val next: Action
 ) extends RequestAction
     with SseAction
     with NameGen {
-
   override val name: String = genName("sseClose")
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
+  override def sendRequest(session: Session): Validation[Unit] =
     for {
-      fsm <- fetchFsm(sseName, session)
+      reqName <- requestName(session)
+      fsmName <- sseName(session)
+      fsm <- fetchFsm(fsmName, session)
     } yield {
-      // [fl]
+      // [e]
       //
-      // [fl]
-      fsm.onClientCloseRequest(requestName, session, next)
+      // [e]
+      fsm.onClientCloseRequest(reqName, session, next)
     }
 }

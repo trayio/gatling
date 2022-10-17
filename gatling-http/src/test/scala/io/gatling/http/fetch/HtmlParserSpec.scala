@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,35 +16,26 @@
 
 package io.gatling.http.fetch
 
-import scala.io.Codec.UTF8
-import scala.io.Source
+import java.nio.charset.StandardCharsets.UTF_8
+
+import scala.util.Using
 
 import io.gatling.BaseSpec
 import io.gatling.commons.util.Io._
 import io.gatling.http.client.uri.Uri
 
 class HtmlParserSpec extends BaseSpec {
-
-  private val htmlContent = withCloseable(getClass.getClassLoader.getResourceAsStream("akka.io.html")) { is =>
-    Source.fromInputStream(is)(UTF8).getLines().mkString.toCharArray
+  private val htmlContent = Using.resource(getClass.getClassLoader.getResourceAsStream("akka.io.html")) {
+    _.toString(UTF_8).toCharArray
   }
 
-  private def mockHtml(body: String): Array[Char] =
-    s"""<!DOCTYPE html>
-      <html>
-        <body>
-          $body
-        </body>
-      </html>
-      """.toCharArray
-
-  private def embeddedResources(documentUri: String, htmlContent: Array[Char], userAgent: Option[UserAgent]) =
-    new HtmlParser().getEmbeddedResources(Uri.create(documentUri), htmlContent, userAgent)
+  private def embeddedResources(documentUri: String, htmlContent: Array[Char]) =
+    new HtmlParser().getEmbeddedResources(Uri.create(documentUri), htmlContent)
 
   private implicit def string2Uri(string: String): Uri = Uri.create(string)
 
   "parsing akka.io page" should "extract all urls" in {
-    embeddedResources("http://akka.io", htmlContent, None) shouldBe List(
+    embeddedResources("http://akka.io", htmlContent) shouldBe List(
       BasicResource("http://akka.io/resources/favicon.ico"),
       CssResource("http://akka.io/resources/stylesheets/style.css"),
       CssResource("http://fonts.googleapis.com/css?family=Exo:300,400,600,700"),
@@ -84,107 +75,18 @@ class HtmlParserSpec extends BaseSpec {
     )
   }
 
-  it should "extract IE css" in {
-    val html = mockHtml(
-      """
-          <!--[if IE 9]>
-            <link rel="stylesheet" type="text/css" href="style.css">
-          <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 9))) shouldBe List(CssResource("http://example.com/style.css"))
-  }
-
-  it should "not extract IE css" in {
-    val html = mockHtml(
-      """
-        <!--[if IE 6]>
+  it should "ignore nested conditional comments" in {
+    val html =
+      s"""<!DOCTYPE html>
+      <html>
+        <body>
+          <!--[if gt IE 5]>
           <link rel="stylesheet" type="text/css" href="style.css">
         <![endif]-->
-      """
-    )
+        </body>
+      </html>
+      """.toCharArray
 
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 9))) shouldBe empty
-  }
-
-  it should "extract style for IE 7" in {
-    val html = mockHtml(
-      """
-        <!--[if IE 6]>
-          <link rel="stylesheet" type="text/css" href="style6.css">
-        <![endif]-->
-        <!--[if IE 7]>
-          <link rel="stylesheet" type="text/css" href="style7.css">
-        <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 7))) shouldBe List(CssResource("http://example.com/style7.css"))
-  }
-
-  it should "parse nexted conditional comments" in {
-    val html = mockHtml(
-      """
-        <!--[if gt IE 6]>
-          <!--[if lte IE 8]>
-            <!--[if lte IE 7]>
-              <link rel="stylesheet" type="text/css" href="style7.css">
-            <![endif]-->
-
-            <link rel="stylesheet" type="text/css" href="style8.css">
-          <![endif]-->
-
-          <link rel="stylesheet" type="text/css" href="style9.css">
-        <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 9))) shouldBe List(CssResource("http://example.com/style9.css"))
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 8))) shouldBe List(
-      CssResource("http://example.com/style8.css"),
-      CssResource("http://example.com/style9.css")
-    )
-  }
-
-  it should "parse nested conditional comments with alternative syntax" in {
-    val html = mockHtml(
-      """
-        <!--[if gt IE 5]>
-        <![if lt IE 6]>
-          <link rel="stylesheet" type="text/css" href="style55.css">
-        <![endif]
-        <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 5.5f))) shouldBe List(CssResource("http://example.com/style55.css"))
-
-    embeddedResources("http://example.com/", html, Some(UserAgent(UserAgent.IE, 6))) shouldBe empty
-  }
-
-  it should "ignore nested conditional comments for None UserAgent" in {
-    val html = mockHtml(
-      """
-        <!--[if gt IE 5]>
-          <link rel="stylesheet" type="text/css" href="style.css">
-        <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, None) shouldBe empty
-  }
-
-  it should "ignore nested conditional comments for user agents other than MSIE" in {
-    val html = mockHtml(
-      """
-        <!--[if gt IE 5]>
-          <link rel="stylesheet" type="text/css" href="style.css">
-        <![endif]-->
-      """
-    )
-
-    embeddedResources("http://example.com/", html, Some(UserAgent("Firefox", 29.0f))) shouldBe empty
+    embeddedResources("http://example.com/", html) shouldBe empty
   }
 }

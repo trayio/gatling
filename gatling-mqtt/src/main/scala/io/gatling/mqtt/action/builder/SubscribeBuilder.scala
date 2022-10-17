@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ import io.gatling.mqtt.check.{ MqttCheck, MqttExpectation }
 import io.netty.handler.codec.mqtt.MqttQoS
 
 trait CheckableSubscribeBuilder { this: SubscribeBuilder =>
-  def check(ck: MqttCheck): SubscribeBuilder =
-    SubscribeBuilder(requestName, topic, qosOverride, expectation.map(_.copy(check = Some(ck))))
+  def check(cks: MqttCheck*): SubscribeBuilder =
+    SubscribeBuilder(requestName, topic, qosOverride, expectation.map(_.copy(checks = cks.toList)))
 }
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
@@ -38,23 +38,20 @@ case class SubscribeBuilder(
     qosOverride: Option[MqttQoS],
     expectation: Option[MqttExpectation]
 ) extends MqttActionBuilder {
-
   def qosAtMostOnce: SubscribeBuilder = qos(MqttQoS.AT_MOST_ONCE)
   def qosAtLeastOnce: SubscribeBuilder = qos(MqttQoS.AT_LEAST_ONCE)
   def qosExactlyOnce: SubscribeBuilder = qos(MqttQoS.EXACTLY_ONCE)
   private def qos(newQos: MqttQoS): SubscribeBuilder = copy(qosOverride = Some(newQos))
 
+  def await(timeout: FiniteDuration): SubscribeBuilder with CheckableSubscribeBuilder =
+    new SubscribeBuilder(requestName, topic, qosOverride, Some(MqttExpectation(Nil, timeout, None, blocking = true))) with CheckableSubscribeBuilder
+
+  @deprecated("Use await instead", "3.7.0")
   def wait(timeout: FiniteDuration): SubscribeBuilder with CheckableSubscribeBuilder =
-    wait(timeout, null)
-  def wait(timeout: FiniteDuration, expectedTopic: Expression[String]): SubscribeBuilder with CheckableSubscribeBuilder =
-    new SubscribeBuilder(requestName, topic, qosOverride, Some(MqttExpectation(None, timeout, topic = Option(expectedTopic), blocking = true)))
-    with CheckableSubscribeBuilder
+    await(timeout)
 
   def expect(timeout: FiniteDuration): SubscribeBuilder with CheckableSubscribeBuilder =
-    expect(timeout, null)
-  def expect(timeout: FiniteDuration, expectedTopic: Expression[String]): SubscribeBuilder with CheckableSubscribeBuilder =
-    new SubscribeBuilder(requestName, topic, qosOverride, Some(MqttExpectation(None, timeout, topic = Option(expectedTopic), blocking = false)))
-    with CheckableSubscribeBuilder
+    new SubscribeBuilder(requestName, topic, qosOverride, Some(MqttExpectation(Nil, timeout, topic = None, blocking = false))) with CheckableSubscribeBuilder
 
   override def build(ctx: ScenarioContext, next: Action): Action = ???
 }

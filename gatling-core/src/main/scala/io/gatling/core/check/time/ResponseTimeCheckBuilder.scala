@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,15 @@
 package io.gatling.core.check.time
 
 import io.gatling.commons.validation._
-import io.gatling.core.check.{ DefaultFindCheckBuilder, FindCheckBuilder, FindExtractor }
+import io.gatling.core.check.{ CheckBuilder, FindExtractor }
 import io.gatling.core.session._
 import io.gatling.core.stats.message.ResponseTimings
 
-trait ResponseTimeCheckType
+sealed trait ResponseTimeCheckType
 
 object ResponseTimeCheckBuilder {
-
-  val ResponseTimeInMillis: FindCheckBuilder[ResponseTimeCheckType, ResponseTimings, Int] =
-    new DefaultFindCheckBuilder[ResponseTimeCheckType, ResponseTimings, Int](
+  val ResponseTimeInMillis: CheckBuilder.Find[ResponseTimeCheckType, ResponseTimings, Int] =
+    new CheckBuilder.Find.Default[ResponseTimeCheckType, ResponseTimings, Int](
       extractor = new FindExtractor[ResponseTimings, Int]("responseTimeInMillis", prepared => Some(prepared.responseTime).success).expressionSuccess,
       displayActualValue = false
     )

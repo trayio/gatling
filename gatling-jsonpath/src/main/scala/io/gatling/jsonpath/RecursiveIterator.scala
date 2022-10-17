@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode
 /**
  * Originally contributed by Nicolas Rémond.
  */
-abstract class RecursiveIterator[T](root: JsonNode) extends AbstractIterator[JsonNode] {
-
+private[jsonpath] abstract class RecursiveIterator[T](root: JsonNode) extends AbstractIterator[JsonNode] {
   protected var nextNode: JsonNode = _
   protected var finished: Boolean = _
   protected var pause: Boolean = _
@@ -34,7 +33,7 @@ abstract class RecursiveIterator[T](root: JsonNode) extends AbstractIterator[Jso
 
   protected def visit(t: T): Unit
 
-  override def hasNext(): Boolean =
+  override def hasNext: Boolean =
     (nextNode != null && !finished) || {
       pause = false
       if (stack == null) {

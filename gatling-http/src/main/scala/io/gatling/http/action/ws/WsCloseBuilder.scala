@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,18 @@ import io.gatling.core.session._
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.http.action.HttpActionBuilder
 
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus
+
 class WsCloseBuilder(
     requestName: Expression[String],
-    wsName: String
+    wsName: Expression[String],
+    closeStatus: WebSocketCloseStatus
 ) extends HttpActionBuilder {
-
   override def build(ctx: ScenarioContext, next: Action): Action =
     new WsClose(
       requestName,
       wsName,
+      closeStatus,
       ctx.coreComponents.statsEngine,
       ctx.coreComponents.clock,
       next = next

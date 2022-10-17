@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,68 +16,62 @@
 
 package io.gatling.core.stats.writer
 
-import java.time.format.DateTimeFormatter
 import java.time.{ Instant, ZoneOffset, ZonedDateTime }
+import java.time.format.DateTimeFormatter
 
 import io.gatling.commons.stats.Status
 import io.gatling.commons.stats.assertion.Assertion
-import io.gatling.core.session.Session
 
-final case class ShortScenarioDescription(name: String, totalUserCount: Option[Long])
+private[stats] final case class ShortScenarioDescription(name: String, totalUserCount: Option[Long])
 
-final case class RunMessage(
+private[gatling] final case class RunMessage(
     simulationClassName: String,
     simulationId: String,
     start: Long,
     runDescription: String,
     gatlingVersion: String
 ) {
-
   val runId: String = simulationId + "-" +
     DateTimeFormatter
       .ofPattern("yyyyMMddHHmmssSSS")
       .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(start), ZoneOffset.UTC))
 }
 
-sealed trait DataWriterMessage
-final case class Init(assertions: Seq[Assertion], runMessage: RunMessage, scenarios: Seq[ShortScenarioDescription]) extends DataWriterMessage
-case object Flush extends DataWriterMessage
-final case class Crash(cause: String) extends DataWriterMessage
-case object Stop extends DataWriterMessage
+private[gatling] sealed trait DataWriterMessage
+private[gatling] object DataWriterMessage {
+  final case class Init(assertions: Seq[Assertion], runMessage: RunMessage, scenarios: Seq[ShortScenarioDescription]) extends DataWriterMessage
+  case object Flush extends DataWriterMessage
+  private[stats] final case class Crash(cause: String) extends DataWriterMessage
+  private[stats] case object Stop extends DataWriterMessage
 
-sealed trait LoadEventMessage extends DataWriterMessage
+  sealed trait LoadEvent extends DataWriterMessage
+  object LoadEvent {
+    final case class UserStart(scenario: String, timestamp: Long) extends LoadEvent
 
-final case class UserStartMessage(
-    session: Session
-) extends LoadEventMessage
+    final case class UserEnd(scenario: String, timestamp: Long) extends LoadEvent
 
-final case class UserEndMessage(
-    session: Session,
-    timestamp: Long
-) extends LoadEventMessage
+    final case class Response(
+        scenario: String,
+        groupHierarchy: List[String],
+        name: String,
+        startTimestamp: Long,
+        endTimestamp: Long,
+        status: Status,
+        responseCode: Option[String],
+        message: Option[String]
+    ) extends LoadEvent
 
-final case class ResponseMessage(
-    scenario: String,
-    userId: Long,
-    groupHierarchy: List[String],
-    name: String,
-    startTimestamp: Long,
-    endTimestamp: Long,
-    status: Status,
-    responseCode: Option[String],
-    message: Option[String]
-) extends LoadEventMessage
+    final case class Group(
+        scenario: String,
+        groupHierarchy: List[String],
+        startTimestamp: Long,
+        endTimestamp: Long,
+        cumulatedResponseTime: Int,
+        status: Status
+    ) extends LoadEvent {
+      val duration: Int = (endTimestamp - startTimestamp).toInt
+    }
 
-final case class GroupMessage(
-    scenario: String,
-    userId: Long,
-    groupHierarchy: List[String],
-    startTimestamp: Long,
-    endTimestamp: Long,
-    cumulatedResponseTime: Int,
-    status: Status
-) extends LoadEventMessage {
-  val duration: Int = (endTimestamp - startTimestamp).toInt
+    final case class Error(message: String, date: Long) extends LoadEvent
+  }
 }
-
-final case class ErrorMessage(message: String, date: Long) extends LoadEventMessage

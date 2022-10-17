@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
 import io.gatling.core.json.JsonParsers
 
 trait CoreDefaultImplicits {
-
   implicit def configuration: GatlingConfiguration
 
   lazy implicit val defaultPatterns: Patterns = new Patterns(configuration.core.extract.regex.cacheMaxCapacity)
@@ -36,9 +35,9 @@ trait CoreDefaultImplicits {
   lazy implicit val defaultXmlParsers: XmlParsers = new XmlParsers(configuration.core.extract.xpath.cacheMaxCapacity)
   lazy implicit val defaultCssSelectors: CssSelectors = new CssSelectors(configuration.core.extract.css.cacheMaxCapacity)
   lazy implicit val elFileBodies: ElFileBodies =
-    new ElFileBodies(GatlingFiles.resourcesDirectory(configuration), configuration.core.charset, configuration.core.elFileBodiesCacheMaxCapacity)
+    new ElFileBodies(GatlingFiles.customResourcesDirectory(configuration), configuration.core.charset, configuration.core.elFileBodiesCacheMaxCapacity)
   lazy implicit val rawFileBodies: RawFileBodies =
-    new RawFileBodies(GatlingFiles.resourcesDirectory(configuration), configuration.core.rawFileBodiesInMemoryMaxSize)
+    new RawFileBodies(GatlingFiles.customResourcesDirectory(configuration), configuration.core.rawFileBodiesInMemoryMaxSize)
   lazy implicit val pebbleFileBodies: PebbleFileBodies =
-    new PebbleFileBodies(GatlingFiles.resourcesDirectory(configuration), configuration.core.pebbleFileBodiesCacheMaxCapacity)
+    new PebbleFileBodies(GatlingFiles.customResourcesDirectory(configuration), configuration.core.pebbleFileBodiesCacheMaxCapacity)
 }

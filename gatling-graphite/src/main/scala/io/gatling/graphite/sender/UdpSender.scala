@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import akka.actor.ActorRef
 import akka.io.{ IO, Udp }
 
 private[graphite] class UdpSender(remote: InetSocketAddress) extends MetricsSender {
-
   import Udp._
 
   IO(Udp) ! SimpleSender
@@ -38,7 +37,7 @@ private[graphite] class UdpSender(remote: InetSocketAddress) extends MetricsSend
     case _ => stash()
   }
 
-  private def connected(connection: ActorRef): Receive = {
-    case GraphiteMetrics(bytes) => connection ! Send(bytes, remote)
+  private def connected(connection: ActorRef): Receive = { case GraphiteMetrics(bytes) =>
+    connection ! Send(bytes, remote)
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,9 @@ import io.gatling.commons.util.DefaultClock
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.{ Action, ActorDelegatingAction }
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.pause.Constant
 import io.gatling.core.protocol.{ Protocol, ProtocolComponentsRegistries, Protocols }
 import io.gatling.core.session.{ Session, StaticValueExpression }
-import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.{ ScenarioBuilder, ScenarioContext }
 import io.gatling.jms._
@@ -47,21 +45,21 @@ class Replier(connectionFactory: ConnectionFactory, destination: JmsDestination,
     val jmsSession = connection.createSession(false, JmsSession.AUTO_ACKNOWLEDGE)
     val consumedDestination: Destination =
       destination match {
-        case JmsTemporaryQueue                     => jmsSession.createTemporaryQueue()
-        case JmsTemporaryTopic                     => jmsSession.createTemporaryTopic()
-        case JmsQueue(StaticValueExpression(name)) => jmsSession.createQueue(name)
-        case JmsTopic(StaticValueExpression(name)) => jmsSession.createTopic(name)
-        case _                                     => throw new UnsupportedOperationException("Support not implemented in this test yet")
+        case JmsDestination.TemporaryQueue                     => jmsSession.createTemporaryQueue()
+        case JmsDestination.TemporaryTopic                     => jmsSession.createTemporaryTopic()
+        case JmsDestination.Queue(StaticValueExpression(name)) => jmsSession.createQueue(name)
+        case JmsDestination.Topic(StaticValueExpression(name)) => jmsSession.createTopic(name)
+        case _                                                 => throw new UnsupportedOperationException("Support not implemented in this test yet")
       }
 
     val consumer = jmsSession.createConsumer(consumedDestination)
     val producer = jmsSession.createProducer(null)
-    consumer.setMessageListener(request => {
+    consumer.setMessageListener { request =>
       response.lift(request, jmsSession).foreach { response =>
         response.setJMSCorrelationID(request.getJMSCorrelationID)
         producer.send(request.getJMSReplyTo, response)
       }
-    })
+    }
     connection.start()
   })
 
@@ -69,7 +67,6 @@ class Replier(connectionFactory: ConnectionFactory, destination: JmsDestination,
 }
 
 trait JmsSpec extends AkkaSpec with JmsDsl {
-
   override def beforeAll(): Unit = {
     sys.props += "org.apache.activemq.SERIALIZABLE_PACKAGES" -> "io.gatling"
     startBroker()
@@ -112,16 +109,16 @@ trait JmsSpec extends AkkaSpec with JmsDsl {
       .matchByCorrelationId
 
   @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
-  def runScenario(sb: ScenarioBuilder, timeout: FiniteDuration = 10.seconds, protocols: Protocols = Protocol.indexByType(Seq(jmsProtocol)))(
-      implicit configuration: GatlingConfiguration
+  def runScenario(sb: ScenarioBuilder, timeout: FiniteDuration = 10.seconds, protocols: Protocols = Protocol.indexByType(Seq(jmsProtocol)))(implicit
+      configuration: GatlingConfiguration
   ): Session = {
     val clock = new DefaultClock
     val coreComponents =
-      new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], mock[Throttler], mock[StatsEngine], clock, mock[Action], configuration)
+      new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], None, mock[StatsEngine], clock, mock[Action], configuration)
     val next = new ActorDelegatingAction("next", self)
     val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, protocols).scenarioRegistry(Map.empty)
     val actor = sb.build(new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false), next)
-    actor ! EmptySession
+    actor ! emptySession
     val session = expectMsgClass(timeout, classOf[Session])
 
     session

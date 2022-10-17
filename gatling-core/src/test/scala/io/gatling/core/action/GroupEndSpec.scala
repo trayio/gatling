@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.DefaultClock
+import io.gatling.core.EmptySession
 import io.gatling.core.session.{ GroupBlock, Session }
-import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.core.stats.StatsEngine
 
 import org.mockito.{ ArgumentCaptor, ArgumentMatchers }
@@ -28,19 +28,17 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
-class GroupEndSpec extends AnyFlatSpec with Matchers with MockitoSugar with GivenWhenThen {
-
+class GroupEndSpec extends AnyFlatSpec with Matchers with MockitoSugar with GivenWhenThen with EmptySession {
   private val clock = new DefaultClock
 
   "GroupEnd" should "exit the current group" in {
-
     Given("a GroupEnd Action")
     val statsEngine = mock[StatsEngine]
     val next = mock[Action]
     val groupEnd = new GroupEnd(statsEngine, clock, next)
 
     When("being sent a Session that has one single group")
-    val session = EmptySession.enterGroup("group", clock.nowMillis)
+    val session = emptySession.enterGroup("group", clock.nowMillis)
     groupEnd ! session
 
     Then("next Action should receive a Session with an empty blockStack")
@@ -54,6 +52,6 @@ class GroupEndSpec extends AnyFlatSpec with Matchers with MockitoSugar with Give
     verify(statsEngine).logGroupEnd(ArgumentMatchers.any(), groupBlockCaptor.capture(), ArgumentMatchers.anyLong())
     val groupBlock = groupBlockCaptor.getValue
 
-    groupBlock.hierarchy shouldBe List("group")
+    groupBlock.groups shouldBe List("group")
   }
 }

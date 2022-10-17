@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,25 @@
 
 package io.gatling.jms.integration
 
+import java.util.Locale
 import javax.jms.TextMessage
 
 import io.gatling.core.CoreDsl
-import io.gatling.core.config.GatlingConfiguration
 import io.gatling.jms._
-import io.gatling.jms.request.JmsQueue
+import io.gatling.jms.request.JmsDestination
 
 class JmsIntegrationSpec extends JmsSpec with CoreDsl with JmsDsl {
-
   "gatling-jms" should "send and receive JMS message" in {
-
-    val requestQueue = JmsQueue("request")
+    val requestQueue = JmsDestination.Queue("request")
 
     replier(
-      requestQueue, {
-        case (tm: TextMessage, session) =>
-          session.createTextMessage(s"""<response>
-                                       |<hello>${tm.getText.toUpperCase}</hello>
-                                       |<property><key>${tm.getStringProperty("key")}</key></property>
-                                       |<jmsType>${tm.getJMSType}</jmsType>
-                                       |</response>""".stripMargin)
+      requestQueue,
+      { case (tm: TextMessage, session) =>
+        session.createTextMessage(s"""<response>
+                                     |<hello>${tm.getText.toUpperCase(Locale.ROOT)}</hello>
+                                     |<property><key>${tm.getStringProperty("key")}</key></property>
+                                     |<jmsType>${tm.getJMSType}</jmsType>
+                                     |</response>""".stripMargin)
       }
     )
 

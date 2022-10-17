@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,20 @@
 
 package io.gatling.core.json
 
+import java.{ util => ju }
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util.{ Collection => JCollection, Map => JMap }
 
 import scala.collection.mutable
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.util.Using
 
 import io.gatling.BaseSpec
 import io.gatling.commons.util.Io
 import io.gatling.core.json.Json._
 
-class JsonSpec extends BaseSpec {
+private final case class Foo(bar: String, baz: Int)
 
+class JsonSpec extends BaseSpec {
   "stringify" should "be able to stringify strings" in {
     stringify("Foo", isRootObject = true) shouldBe "Foo"
   }
@@ -69,7 +71,7 @@ class JsonSpec extends BaseSpec {
   }
 
   it should "be able to stringify Java collections" in {
-    val list: JCollection[Int] = Seq(1, 2, 3).asJava
+    val list: ju.Collection[Int] = Seq(1, 2, 3).asJava
     stringify(list, isRootObject = true) shouldBe "[1,2,3]"
   }
 
@@ -82,11 +84,14 @@ class JsonSpec extends BaseSpec {
   }
 
   it should "be able to stringify Scala maps with double quoted string values" in {
-    stringify(Map(1 -> """Double quoted "Foo"""", "bar" -> 4.5, "toto" -> Seq(1, 2)), isRootObject = true) shouldBe """{"1":"Double quoted \"Foo\"","bar":4.5,"toto":[1,2]}"""
+    stringify(
+      Map(1 -> """Double quoted "Foo"""", "bar" -> 4.5, "toto" -> Seq(1, 2)),
+      isRootObject = true
+    ) shouldBe """{"1":"Double quoted \"Foo\"","bar":4.5,"toto":[1,2]}"""
   }
 
   it should "be able to stringify Java maps" in {
-    val map: JMap[Any, Any] = Map(1 -> "foo", "bar" -> 4.5, "toto" -> Seq(1, 2)).asJava
+    val map: ju.Map[Any, Any] = Map(1 -> "foo", "bar" -> 4.5, "toto" -> Seq(1, 2)).asJava
     stringify(map, isRootObject = true) shouldBe """{"1":"foo","bar":4.5,"toto":[1,2]}"""
   }
 
@@ -95,8 +100,18 @@ class JsonSpec extends BaseSpec {
     stringify(url, isRootObject = true) shouldBe url
   }
 
+  it should "not wrap null values with double quotes" in {
+    val map: ju.Map[String, Any] = Map[String, Any]("name" -> "frodo", "note" -> null).asJava
+    stringify(map, isRootObject = true) shouldBe """{"name":"frodo","note":null}"""
+  }
+
+  it should "support case classes" in {
+    val foo = Foo("hello", 1)
+    stringify(foo, isRootObject = true) shouldBe """{"bar":"hello","baz":1}"""
+  }
+
   "asScala" should "deep convert into Scala structures" in {
-    val input = Io.withCloseable(Thread.currentThread().getContextClassLoader.getResourceAsStream("test.json")) { is =>
+    val input = Using.resource(Thread.currentThread().getContextClassLoader.getResourceAsStream("test.json")) { is =>
       new JsonParsers().parse(is, UTF_8)
     }
 

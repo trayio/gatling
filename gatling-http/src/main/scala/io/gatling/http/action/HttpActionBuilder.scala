@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.protocol.ProtocolComponentsRegistry
 import io.gatling.http.protocol.{ HttpComponents, HttpProtocol }
 
-abstract class HttpActionBuilder extends ActionBuilder {
-
-  def lookUpHttpComponents(protocolComponentsRegistry: ProtocolComponentsRegistry): HttpComponents =
+trait HttpActionBuilder extends ActionBuilder {
+  protected def lookUpHttpComponents(protocolComponentsRegistry: ProtocolComponentsRegistry): HttpComponents =
     protocolComponentsRegistry.components(HttpProtocol.HttpProtocolKey)
 }

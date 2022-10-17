@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import io.gatling.http.client.uri.Uri
 import io.netty.handler.codec.http.HttpMethod
 
 /**
- * @param requestName the name of the request
+ * @param requestName
+ *   the name of the request
  */
-final case class Http(requestName: Expression[String]) {
-
+final class Http(requestName: Expression[String]) {
   def get(url: Expression[String]): HttpRequestBuilder = httpRequest(HttpMethod.GET, url)
   def get(uri: Uri): HttpRequestBuilder = httpRequest(HttpMethod.GET, Right(uri))
   def put(url: Expression[String]): HttpRequestBuilder = httpRequest(HttpMethod.PUT, url)

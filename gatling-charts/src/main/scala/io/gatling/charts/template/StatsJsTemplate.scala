@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,21 @@ package io.gatling.charts.template
 
 import java.nio.charset.Charset
 
-import io.gatling.commons.util.StringHelper
-
-import StringHelper.RichString
 import io.gatling.charts.FileNamingConventions
 import io.gatling.charts.component.RequestStatistics
-import io.gatling.charts.report.GroupContainer
 import io.gatling.charts.report.Container.{ Group, Request }
+import io.gatling.charts.report.GroupContainer
+import io.gatling.charts.util.JsHelper._
 
-private[charts] class StatsJsTemplate(stats: GroupContainer, outputJson: Boolean) {
-
+private[charts] final class StatsJsTemplate(stats: GroupContainer, outputJson: Boolean) {
   private def fieldName(field: String): String = if (outputJson) s""""$field"""" else field
 
   def getOutput(charset: Charset): String = {
-
     def renderStats(request: RequestStatistics, path: String): String = {
       val jsonStats = new GlobalStatsJsonTemplate(request, outputJson).getOutput
 
-      s"""${fieldName("name")}: "${request.name.escapeJsIllegalChars}",
-${fieldName("path")}: "${request.path.escapeJsIllegalChars}",
+      s"""${fieldName("name")}: "${escapeJsIllegalChars(request.name)}",
+${fieldName("path")}: "${escapeJsIllegalChars(request.path)}",
 ${fieldName("pathFormatted")}: "$path",
 ${fieldName("stats")}: $jsonStats"""
     }

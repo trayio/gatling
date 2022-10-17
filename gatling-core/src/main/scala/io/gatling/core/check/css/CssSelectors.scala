@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,39 +16,32 @@
 
 package io.gatling.core.check.css
 
-import java.util.{ List => JList }
+import java.{ util => ju }
 
-import scala.collection._
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import io.gatling.core.util.cache.Cache
 
 import com.github.benmanes.caffeine.cache.LoadingCache
 import jodd.csselly.{ CSSelly, CssSelector }
 import jodd.lagarto.dom.NodeSelector
-import jodd.log.LoggerFactory
-import jodd.log.impl.Slf4jLogger
 
-class CssSelectors(cacheMaxCapacity: Long) {
-
-  LoggerFactory.setLoggerProvider(Slf4jLogger.PROVIDER)
-
-  private val domBuilder = Jodd.newLagartoDomBuilder
-  private val selectorCache: LoadingCache[String, JList[JList[CssSelector]]] =
+final class CssSelectors(cacheMaxCapacity: Long) {
+  private val domBuilder = Lagarto.newLagartoDomBuilder
+  private val selectorCache: LoadingCache[String, ju.List[ju.List[CssSelector]]] =
     Cache.newConcurrentLoadingCache(cacheMaxCapacity, CSSelly.parse)
 
   def parse(chars: Array[Char]): NodeSelector = new NodeSelector(domBuilder.parse(chars))
 
   def extractAll[X: NodeConverter](selector: NodeSelector, criterion: (String, Option[String])): Vector[X] = {
-
     val (query, nodeAttribute) = criterion
     val selectors = selectorCache.get(query)
 
     selector
       .select(selectors)
       .asScala
-      .flatMap { node =>
-        NodeConverter[X].convert(node, nodeAttribute).toList
-      }(breakOut)
+      .view
+      .flatMap(node => NodeConverter[X].convert(node, nodeAttribute).toList)
+      .to(Vector)
   }
 }

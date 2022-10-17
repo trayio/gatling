@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,15 @@ package io.gatling.jms.protocol
 
 import javax.jms.{ ConnectionFactory, DeliveryMode }
 
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.commons.model.Credentials
 
 /**
- * JmsProtocolBuilder allows building of the JMS protocol
- * <p>
- * This allows multiple scenarios or jms methods to refer to a single protocol configuration.
- * <p>
- * See your JMS provider documentation for information on the values to set here.
+ * JmsProtocolBuilder allows building of the JMS protocol <p> This allows multiple scenarios or jms methods to refer to a single protocol configuration. <p> See
+ * your JMS provider documentation for information on the values to set here.
  */
 case object JmsProtocolBuilderBase {
-
   def connectionFactory(cf: ConnectionFactory): JmsProtocolBuilder = JmsProtocolBuilder(cf, None, DeliveryMode.NON_PERSISTENT, MessageIdMessageMatcher, 1, None)
 }
 
@@ -38,16 +36,15 @@ final case class JmsProtocolBuilder(
     deliveryMode: Int,
     messageMatcher: JmsMessageMatcher,
     listenerThreadCount: Int,
-    replyTimeout: Option[Long]
+    replyTimeout: Option[FiniteDuration]
 ) {
-
   def credentials(user: String, password: String): JmsProtocolBuilder = copy(creds = Some(Credentials(user, password)))
   def usePersistentDeliveryMode: JmsProtocolBuilder = copy(deliveryMode = DeliveryMode.PERSISTENT)
   def useNonPersistentDeliveryMode: JmsProtocolBuilder = copy(deliveryMode = DeliveryMode.NON_PERSISTENT)
   def matchByMessageId: JmsProtocolBuilder = messageMatcher(MessageIdMessageMatcher)
   def matchByCorrelationId: JmsProtocolBuilder = messageMatcher(CorrelationIdMessageMatcher)
   def messageMatcher(matcher: JmsMessageMatcher): JmsProtocolBuilder = copy(messageMatcher = matcher)
-  def replyTimeout(timeout: Long): JmsProtocolBuilder = copy(replyTimeout = Some(timeout))
+  def replyTimeout(timeout: FiniteDuration): JmsProtocolBuilder = copy(replyTimeout = Some(timeout))
   def listenerThreadCount(threadCount: Int): JmsProtocolBuilder = copy(listenerThreadCount = threadCount)
 
   def build: JmsProtocol = JmsProtocol(

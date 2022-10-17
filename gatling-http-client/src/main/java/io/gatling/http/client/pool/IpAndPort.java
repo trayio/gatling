@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,7 @@ public class IpAndPort {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     IpAndPort ipAndPort = (IpAndPort) o;
-    return port == ipAndPort.port &&
-      Arrays.equals(ip, ipAndPort.ip);
+    return port == ipAndPort.port && Arrays.equals(ip, ipAndPort.ip);
   }
 
   @Override
@@ -55,9 +54,6 @@ public class IpAndPort {
 
   @Override
   public String toString() {
-    return "IpAndPort{" +
-      "ip=" + Arrays.toString(ip) +
-      ", port=" + port +
-      '}';
+    return "IpAndPort{" + "ip=" + Arrays.toString(ip) + ", port=" + port + '}';
   }
 }

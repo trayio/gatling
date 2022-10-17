@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package io.gatling.http.client.impl;
 
+import static io.gatling.http.client.impl.HttpAppHandler.PREMATURE_CLOSE;
+
 import io.gatling.http.client.HttpClientConfig;
 import io.gatling.http.client.WebSocketListener;
 import io.gatling.http.client.impl.request.WritableRequest;
@@ -30,8 +32,6 @@ import io.netty.handler.codec.http.websocketx.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.gatling.http.client.impl.HttpAppHandler.PREMATURE_CLOSE;
-
 public class WebSocketHandler extends ChannelDuplexHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(WebSocketHandler.class);
@@ -44,6 +44,11 @@ public class WebSocketHandler extends ChannelDuplexHandler {
 
   WebSocketHandler(HttpClientConfig config) {
     this.config = config;
+  }
+
+  @Override
+  public boolean isSharable() {
+    return false;
   }
 
   private void setActive(HttpTx tx) {
@@ -78,22 +83,24 @@ public class WebSocketHandler extends ChannelDuplexHandler {
       }
 
       try {
-        WritableRequest request = WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, false);
+        WritableRequest request =
+            WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, false);
 
-        boolean absoluteUpgradeUrl = !tx.request.getUri().isSecured() && tx.request.getProxyServer() instanceof HttpProxyServer;
+        boolean absoluteUpgradeUrl =
+            !tx.request.getUri().isSecured()
+                && tx.request.getProxyServer() instanceof HttpProxyServer;
         handshaker =
-          WebSocketClientHandshakerFactory.newHandshaker(
-            tx.request.getUri().toJavaNetURI(), // webSocketURL
-            WebSocketVersion.V13, // version
-            tx.request.getWsSubprotocol(), // subprotocol
-            true, // allowExtensions
-            request.getRequest().headers(), // customHeaders
-            Integer.MAX_VALUE, // maxFramePayloadLength
-            true, // performMasking
-            false, // allowMaskMismatch
-            -1, //forceCloseTimeoutMillis
-            absoluteUpgradeUrl
-          );
+            WebSocketClientHandshakerFactory.newHandshaker(
+                tx.request.getUri().toJavaNetURI(), // webSocketURL
+                WebSocketVersion.V13, // version
+                tx.request.getWsSubprotocol(), // subprotocol
+                true, // allowExtensions
+                request.getRequest().headers(), // customHeaders
+                Integer.MAX_VALUE, // maxFramePayloadLength
+                true, // performMasking
+                false, // allowMaskMismatch
+                -1, // forceCloseTimeoutMillis
+                absoluteUpgradeUrl);
 
         handshaker.handshake(ctx.channel());
 

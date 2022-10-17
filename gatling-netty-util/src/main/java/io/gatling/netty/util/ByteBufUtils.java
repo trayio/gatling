@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,15 @@
  * limitations under the License.
  */
 
-//
-// Copyright (c) 2018 AsyncHttpClient Project. All rights reserved.
-//
-// This program is licensed to you under the Apache License Version 2.0,
-// and you may not use this file except in compliance with the Apache License Version 2.0.
-// You may obtain a copy of the Apache License Version 2.0 at
-//     http://www.apache.org/licenses/LICENSE-2.0.
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the Apache License Version 2.0 is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
-//
-
 package io.gatling.netty.util;
 
+import static io.gatling.netty.util.Utf8ByteBufCharsetDecoder.*;
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.util.CharsetUtil;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -37,35 +30,54 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.util.CharsetUtil;
-
-import static java.nio.charset.StandardCharsets.US_ASCII;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static io.gatling.netty.util.Utf8ByteBufCharsetDecoder.*;
-
 public final class ByteBufUtils {
 
   public static final ByteBuf[] EMPTY_BYTEBUF_ARRAY = new ByteBuf[0];
-  private static final char[] EMPTY_CHARS = new char[0];
-  private static final ThreadLocal<CharBuffer> CHAR_BUFFERS = ThreadLocal.withInitial(() -> CharBuffer.allocate(1024));
 
-  private ByteBufUtils() {
-  }
+  private static final byte[] EMPTY_BYTES = new byte[0];
+  private static final char[] EMPTY_CHARS = new char[0];
+  private static final ThreadLocal<CharBuffer> CHAR_BUFFERS =
+      ThreadLocal.withInitial(() -> CharBuffer.allocate(1024));
+
+  private ByteBufUtils() {}
 
   public static byte[] byteBuf2Bytes(ByteBuf buf) {
     int readable = buf.readableBytes();
-    int readerIndex = buf.readerIndex();
-    if (buf.hasArray()) {
-      byte[] array = buf.array();
-      if (buf.arrayOffset() == 0 && readerIndex == 0 && array.length == readable) {
-        return array;
-      }
+    if (readable == 0) {
+      return EMPTY_BYTES;
     }
-    byte[] array = new byte[readable];
-    buf.getBytes(readerIndex, array);
-    return array;
+    byte[] bytes = new byte[readable];
+    if (buf.hasArray()) {
+      System.arraycopy(buf.array(), buf.readerIndex(), bytes, 0, readable);
+    } else {
+      buf.getBytes(buf.readerIndex(), bytes);
+    }
+    return bytes;
+  }
+
+  public static byte[] byteBufs2Bytes(ByteBuf... bufs) {
+    int size = 0;
+    for (ByteBuf buf : bufs) {
+      size += buf.readableBytes();
+    }
+
+    if (size == 0) {
+      return EMPTY_BYTES;
+    }
+
+    byte[] bytes = new byte[size];
+    int destPos = 0;
+    for (ByteBuf buf : bufs) {
+      int readable = buf.readableBytes();
+      if (buf.hasArray()) {
+        System.arraycopy(buf.array(), buf.readerIndex(), bytes, destPos, readable);
+      } else {
+        buf.getBytes(buf.readerIndex(), bytes, destPos, readable);
+      }
+      destPos += readable;
+    }
+
+    return bytes;
   }
 
   public static String byteBuf2String(Charset charset, ByteBuf buf) {
@@ -176,7 +188,8 @@ public final class ByteBufUtils {
       // BEWARE: NOT THREAD-SAFE
       decode(decoder, src.internalNioBuffer(readerIndex, len), dst);
     } else {
-      // We use a heap buffer as CharsetDecoder is most likely able to use a fast-path if src and dst buffers
+      // We use a heap buffer as CharsetDecoder is most likely able to use a fast-path if src and
+      // dst buffers
       // are both backed by a byte array.
       ByteBuf buffer = src.alloc().heapBuffer(len);
       try {

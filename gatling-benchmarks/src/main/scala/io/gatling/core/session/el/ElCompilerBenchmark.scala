@@ -25,18 +25,17 @@ import io.gatling.core.session.Session
 import org.openjdk.jmh.annotations.Benchmark
 
 object ElCompilerBenchmark extends ValidationImplicits {
-
   private implicit val config = GatlingConfiguration.loadForTest()
   private val charset = config.core.charset
 
-  private val Session1 = Session("Scenario", 0, 0).set("id", 3)
-  private val Template = ElCompiler.compile2BytesSeq(resourceAsString("sample-el.json", charset), charset)
+  private val Session1 = Session("Scenario", 0, null).set("id", 3)
+  private val Template = ElCompiler.compile[String](resourceAsString("sample-el.json", charset))
 }
 
 class ElCompilerBenchmark {
   import ElCompilerBenchmark._
 
   @Benchmark
-  def testBasic(): Validation[Seq[Array[Byte]]] =
+  def testBasic(): Validation[String] =
     Template(Session1)
 }

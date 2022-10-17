@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,14 @@
 
 package io.gatling.http.client.test.listener;
 
-import static java.nio.charset.StandardCharsets.*;
 import static io.gatling.http.client.util.HttpUtils.*;
 import static io.gatling.http.client.util.MiscUtils.*;
+import static java.nio.charset.StandardCharsets.*;
 
 import io.gatling.netty.util.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;
-
 import java.nio.charset.Charset;
 
 public abstract class ResponseAsStringListener extends CompleteResponseListener {
@@ -32,7 +31,9 @@ public abstract class ResponseAsStringListener extends CompleteResponseListener 
   protected String responseBody() {
 
     if (isNonEmpty(chunks)) {
-      Charset charset = withDefault(extractContentTypeCharsetAttribute(headers.get(HttpHeaderNames.CONTENT_TYPE)), UTF_8);
+      Charset charset =
+          withDefault(
+              extractContentTypeCharsetAttribute(headers.get(HttpHeaderNames.CONTENT_TYPE)), UTF_8);
 
       ByteBuf composite = Unpooled.wrappedBuffer(chunks.toArray(ByteBufUtils.EMPTY_BYTEBUF_ARRAY));
       try {

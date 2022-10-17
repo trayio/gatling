@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,21 @@
 package io.gatling.http.feeder
 
 import io.gatling.commons.validation._
-import io.gatling.core.feeder.{ InMemoryFeederSource, SourceFeederBuilder }
 import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
+import io.gatling.core.feeder.{ FileBasedFeederBuilder, InMemoryFeederSource, SourceFeederBuilder }
 import io.gatling.core.util.{ Resource, ResourceCache }
 
 /**
  * Feeder for [[http://www.sitemaps.org/protocol.html sitemap]] file format.
  */
 trait SitemapFeederSupport extends ResourceCache {
+  def sitemap(filePath: String)(implicit configuration: GatlingConfiguration): FileBasedFeederBuilder[String] =
+    sitemap(cachedResource(GatlingFiles.customResourcesDirectory(configuration), filePath))
 
-  def sitemap(fileName: String)(implicit configuration: GatlingConfiguration): SourceFeederBuilder[String] =
-    sitemap(cachedResource(GatlingFiles.resourcesDirectory(configuration), fileName))
-
-  def sitemap(resource: Validation[Resource])(implicit configuration: GatlingConfiguration): SourceFeederBuilder[String] =
+  def sitemap(resource: Validation[Resource])(implicit configuration: GatlingConfiguration): FileBasedFeederBuilder[String] =
     resource match {
-      case Success(res)     => SourceFeederBuilder(InMemoryFeederSource(SitemapParser.parse(res)), configuration)
+      case Success(res) =>
+        SourceFeederBuilder(InMemoryFeederSource(SitemapParser.parse(res, configuration.core.charset), s"sitemap(${res.name})"), configuration)
       case Failure(message) => throw new IllegalArgumentException(s"Could not locate sitemap file: $message")
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,18 @@
 
 package io.gatling.http.request
 
+import java.{ util => ju }
 import java.nio.charset.Charset
-import java.util.{ Collections, ArrayList => JArrayList, List => JList }
 
 import io.gatling.commons.validation.Validation
-import io.gatling.core.body.{ ElBody, ElFileBodies, RawFileBodies, ResourceAndCachedBytes }
+import io.gatling.core.body._
 import io.gatling.core.session._
 import io.gatling.http.client.Param
-import io.gatling.http.client.body.multipart.{ ByteArrayPart, FilePart, Part, StringPart }
+import io.gatling.http.client.body.multipart._
 
 import com.softwaremill.quicklens._
 
 object BodyPart {
-
   def rawFileBodyPart(
       name: Option[Expression[String]],
       filePath: Expression[String],
@@ -44,6 +43,17 @@ object BodyPart {
   ): BodyPart =
     stringBodyPart(name, new ElBody(elFileBodies.parse(filePath)), defaultCharset)
 
+  def pebbleStringBodyPart(name: Option[Expression[String]], string: String, defaultCharset: Charset): BodyPart =
+    stringBodyPart(name, PebbleStringBody(string, defaultCharset), defaultCharset)
+
+  def pebbleFileBodyPart(
+      name: Option[Expression[String]],
+      filePath: Expression[String],
+      defaultCharset: Charset,
+      pebbleFileBodies: PebbleFileBodies
+  ): BodyPart =
+    stringBodyPart(name, PebbleFileBody(filePath, pebbleFileBodies, defaultCharset), defaultCharset)
+
   def stringBodyPart(name: Option[Expression[String]], string: Expression[String], defaultCharset: Charset): BodyPart =
     BodyPart(name, stringBodyPartBuilder(string, defaultCharset), BodyPartAttributes.Empty)
 
@@ -57,16 +67,17 @@ object BodyPart {
       contentId: Option[String],
       dispositionType: Option[String],
       contentType: Option[String],
-      customHeaders: JList[Param],
+      customHeaders: ju.List[Param],
       fileName: Option[String]
-  ): Expression[Part[_]] =
+  ): Expression[Part[_]] = {
+    val resolvedCharset = charset.getOrElse(defaultCharset)
     fileName match {
       case None =>
         string.map { resolvedString =>
           new StringPart(
             name,
             resolvedString,
-            charset.getOrElse(defaultCharset),
+            resolvedCharset,
             transferEncoding.orNull,
             contentId.orNull,
             dispositionType.orNull,
@@ -75,7 +86,7 @@ object BodyPart {
           )
         }
       case _ =>
-        byteArrayBodyPartBuilder(string.map(_.getBytes(charset.getOrElse(defaultCharset))))(
+        byteArrayBodyPartBuilder(string.map(_.getBytes(resolvedCharset)))(
           name,
           charset,
           transferEncoding,
@@ -86,6 +97,7 @@ object BodyPart {
           fileName
         )
     }
+  }
 
   private def byteArrayBodyPartBuilder(bytes: Expression[Array[Byte]])(
       name: String,
@@ -94,7 +106,7 @@ object BodyPart {
       contentId: Option[String],
       dispositionType: Option[String],
       contentType: Option[String],
-      customHeaders: JList[Param],
+      customHeaders: ju.List[Param],
       fileName: Option[String]
   ): Expression[Part[_]] =
     bytes.map { resolvedBytes =>
@@ -118,7 +130,7 @@ object BodyPart {
       contentId: Option[String],
       dispositionType: Option[String],
       contentType: Option[String],
-      customHeaders: JList[Param],
+      customHeaders: ju.List[Param],
       fileName: Option[String]
   ): Expression[Part[_]] =
     session =>
@@ -163,10 +175,9 @@ final case class BodyPartAttributes(
     fileName: Option[Expression[String]],
     contentId: Option[Expression[String]],
     transferEncoding: Option[String],
-    customHeaders: List[(String, Expression[String])]
+    customHeaders: List[(Expression[String], Expression[String])]
 ) {
-
-  lazy val customHeadersExpression: Expression[Seq[(String, String)]] = resolveIterable(customHeaders)
+  lazy val customHeadersExpression: Expression[Seq[(String, String)]] = expressionSeq2SeqExpression(customHeaders)
 }
 
 final case class BodyPart(
@@ -178,12 +189,11 @@ final case class BodyPart(
         Option[String], // contentId
         Option[String], // dispositionType
         Option[String], // contentType
-        JList[Param], // customHeaders
+        ju.List[Param], // customHeaders
         Option[String] // fileName
     ) => Expression[Part[_]],
     attributes: BodyPartAttributes
 ) {
-
   def contentType(contentType: Expression[String]): BodyPart = this.modify(_.attributes.contentType).setTo(Some(contentType))
 
   def charset(charset: String): BodyPart = this.modify(_.attributes.charset).setTo(Some(Charset.forName(charset)))
@@ -196,7 +206,7 @@ final case class BodyPart(
 
   def transferEncoding(transferEncoding: String): BodyPart = this.modify(_.attributes.transferEncoding).setTo(Some(transferEncoding))
 
-  def header(name: String, value: Expression[String]): BodyPart = this.modify(_.attributes.customHeaders).using(_ ::: List(name -> value))
+  def header(name: Expression[String], value: Expression[String]): BodyPart = this.modify(_.attributes.customHeaders)(_ ::: List(name -> value))
 
   def toMultiPart(session: Session): Validation[Part[_]] =
     for {
@@ -206,13 +216,14 @@ final case class BodyPart(
       fileName <- resolveOptionalExpression(attributes.fileName, session)
       contentId <- resolveOptionalExpression(attributes.contentId, session)
       customHeaders <- attributes.customHeadersExpression(session)
-      customHeadersAsParams = if (customHeaders.nonEmpty) {
-        val params = new JArrayList[Param](customHeaders.size)
-        customHeaders.foreach { case (headerName, value) => params.add(new Param(headerName, value)) }
-        params
-      } else {
-        Collections.emptyList[Param]
-      }
+      customHeadersAsParams =
+        if (customHeaders.nonEmpty) {
+          val params = new ju.ArrayList[Param](customHeaders.size)
+          customHeaders.foreach { case (headerName, value) => params.add(new Param(headerName, value)) }
+          params
+        } else {
+          ju.Collections.emptyList[Param]
+        }
       part <- partBuilder(
         name.orNull,
         attributes.charset,
@@ -223,6 +234,5 @@ final case class BodyPart(
         customHeadersAsParams,
         fileName
       )(session)
-
     } yield part
 }

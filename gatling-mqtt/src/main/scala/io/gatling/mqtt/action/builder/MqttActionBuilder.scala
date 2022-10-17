@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import io.gatling.core.body.Body
 import io.gatling.core.session.Expression
 
 class MqttActionBuilderBase(requestName: Expression[String]) {
-
   def connect: ConnectBuilder = new ConnectBuilder(requestName)
 
   def subscribe(topic: Expression[String]): SubscribeBuilder = SubscribeBuilder(requestName, topic, None, None)
@@ -30,7 +29,6 @@ class MqttActionBuilderBase(requestName: Expression[String]) {
 }
 
 class MqttActionPublishBase(requestName: Expression[String], topic: Expression[String]) {
-
   def message(body: Body): PublishBuilder = PublishBuilder(requestName, topic, body, None, None, None)
 }
 

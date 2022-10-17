@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +22,14 @@ import io.gatling.recorder.ui.headless.HeadlessFrontEnd
 import io.gatling.recorder.ui.swing.SwingFrontEnd
 
 private[recorder] object RecorderFrontEnd {
-
-  def newFrontend(controller: RecorderController)(implicit configuration: RecorderConfiguration): RecorderFrontEnd =
-    if (configuration.core.headless) new HeadlessFrontEnd(controller)
-    else new SwingFrontEnd(controller)
+  def newFrontend(controller: RecorderController, configuration: RecorderConfiguration): RecorderFrontEnd =
+    if (configuration.core.headless) new HeadlessFrontEnd(controller, configuration)
+    else new SwingFrontEnd(controller, configuration)
 }
 private[recorder] abstract class RecorderFrontEnd(controller: RecorderController) {
-
-  /******************************/
-  /**  Controller => Frontend  **/
-  /******************************/
+  //////////////////////////////////////
+  //           Controller => Frontend
+  //////////////////////////////////////
   def selectedRecorderMode: RecorderMode
 
   def harFilePath: String
@@ -54,9 +52,9 @@ private[recorder] abstract class RecorderFrontEnd(controller: RecorderController
 
   def receiveEvent(event: FrontEndEvent): Unit
 
-  /******************************/
-  /**  Frontend => Controller  **/
-  /******************************/
+  //////////////////////////////////////
+  //           Frontend => Controller
+  //////////////////////////////////////
   def addTag(tag: String): Unit = controller.addTag(tag)
 
   def startRecording(): Unit = controller.startRecording()

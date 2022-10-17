@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,14 @@
 
 package io.gatling.http.cache
 
-import scala.util.control.NoStackTrace
-
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.http.protocol.{ HttpProtocol, Remote }
 import io.gatling.http.response.Response
 
 import com.typesafe.scalalogging.StrictLogging
 
-private[cache] object Http2PriorKnowledgeSupport {
-  val Http2PriorKnowledgeAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cache.priorKnowledgeHttp2"
-
-  val MissingPriorKnowledgeMapException = new UnsupportedOperationException("HTTP/2 is enabled but there is no prior knowledge map in session.")
-  with NoStackTrace
-}
-
-private[cache] trait Http2PriorKnowledgeSupport extends StrictLogging {
-
-  import Http2PriorKnowledgeSupport._
+private[http] object Http2PriorKnowledgeSupport extends StrictLogging {
+  private[cache] val Http2PriorKnowledgeAttributeName: String = SessionPrivateAttributes.generatePrivateAttribute("http.cache.priorKnowledgeHttp2")
 
   def setHttp2PriorKnowledge(httpProtocol: HttpProtocol): Session => Session =
     if (httpProtocol.enginePart.enableHttp2) {

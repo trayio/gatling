@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,14 +25,14 @@
 // Unless required by applicable law or agreed to in writing,
 // software distributed under the Apache License Version 2.0 is distributed on an
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+// See the Apache License Version 2.0 for the specific language governing permissions and
+// limitations there under.
 //
 
 package io.gatling.http.client.oauth;
 
 import io.gatling.http.client.Param;
-import io.gatling.netty.util.StringBuilderPool;
-
+import io.gatling.jdk.util.StringBuilderPool;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

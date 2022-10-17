@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,26 +19,27 @@ package io.gatling.core.config
 import java.nio.charset.Charset
 import java.nio.file.{ Path, Paths }
 import java.util.ResourceBundle
+import javax.net.ssl.{ KeyManagerFactory, SSLContext, TrustManagerFactory }
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
+import io.gatling.commons.shared.unstable.util.Ssl
 import io.gatling.commons.util.ConfigHelper._
-import io.gatling.commons.util.Ssl
 import io.gatling.commons.util.StringHelper._
 import io.gatling.core.ConfigKeys._
 import io.gatling.core.stats.writer._
 
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.typesafe.scalalogging.StrictLogging
-import javax.net.ssl.{ KeyManagerFactory, TrustManagerFactory }
 
-/**
- * Configuration loader of Gatling
- */
+sealed abstract class ObsoleteUsage(val message: String) extends Product with Serializable { def path: String }
+final case class Removed(path: String, advice: String) extends ObsoleteUsage(s"'$path' was removed, $advice.")
+final case class Renamed(path: String, replacement: String)
+    extends ObsoleteUsage(s"'$path' was renamed into $replacement and will be removed in the next minor release. Please rename.")
+
 object GatlingConfiguration extends StrictLogging {
-
   private val GatlingDefaultsConfigFile = "gatling-defaults.conf"
   private val GatlingCustomConfigFile = "gatling.conf"
   private val GatlingCustomConfigFileOverrideSystemProperty = "gatling.conf.file"
@@ -57,7 +58,6 @@ object GatlingConfiguration extends StrictLogging {
   def loadForTest(): GatlingConfiguration = loadForTest(mutable.Map.empty)
 
   def loadForTest(props: mutable.Map[String, _ <: Any]): GatlingConfiguration = {
-
     val defaultsConfig = ConfigFactory.parseResources(getClass.getClassLoader, GatlingDefaultsConfigFile)
     val propertiesConfig = ConfigFactory.parseMap(props.asJava)
     val config = configChain(ConfigFactory.systemProperties, propertiesConfig, defaultsConfig)
@@ -65,19 +65,12 @@ object GatlingConfiguration extends StrictLogging {
   }
 
   def load(props: mutable.Map[String, _ <: Any]): GatlingConfiguration = {
-    sealed abstract class ObsoleteUsage(val message: String) { def path: String }
-    final case class Removed(path: String, advice: String) extends ObsoleteUsage(s"'$path' was removed, $advice.")
-    final case class Renamed(path: String, replacement: String) extends ObsoleteUsage(s"'$path' was renamed into $replacement.")
-
-    def loadObsoleteUsagesFromBundle[T <: ObsoleteUsage](bundleName: String, creator: (String, String) => T): Seq[ObsoleteUsage] = {
+    def loadObsoleteUsagesFromBundle[T <: ObsoleteUsage](bundleName: String, creator: (String, String) => T): Seq[T] = {
       val bundle = ResourceBundle.getBundle(bundleName)
       bundle.getKeys.asScala.map(key => creator(key, bundle.getString(key))).toVector
     }
 
-    def warnAboutRemovedProperties(config: Config): Unit = {
-      val removedProperties = loadObsoleteUsagesFromBundle("config-removed", Removed.apply)
-      val renamedProperties = loadObsoleteUsagesFromBundle("config-renamed", Renamed.apply)
-
+    def warnAboutRemovedProperties(config: Config, removedProperties: Seq[Removed], renamedProperties: Seq[Renamed]): Unit = {
       val obsoleteUsages =
         (removedProperties ++ renamedProperties).collect { case obs if config.hasPath(obs.path) => obs.message }
 
@@ -91,25 +84,25 @@ object GatlingConfiguration extends StrictLogging {
       }
     }
 
-    val classLoader = getClass.getClassLoader
-
     val customConfigFile = sys.props.getOrElse(GatlingCustomConfigFileOverrideSystemProperty, GatlingCustomConfigFile)
-    logger.info(s"Gatling will try to use '$customConfigFile' as custom config file.")
+    logger.info(s"Gatling will try to load '$customConfigFile' config file as ClassLoader resource.")
 
-    val defaultsConfig = ConfigFactory.parseResources(classLoader, GatlingDefaultsConfigFile)
-    val customConfig = ConfigFactory.parseResources(classLoader, customConfigFile)
+    val defaultsConfig = ConfigFactory.parseResources(GatlingDefaultsConfigFile)
+    val customConfig = ConfigFactory.parseResources(customConfigFile)
     val propertiesConfig = ConfigFactory.parseMap(props.asJava)
 
     val config = configChain(ConfigFactory.systemProperties, customConfig, propertiesConfig, defaultsConfig)
 
-    warnAboutRemovedProperties(config)
+    val removedProperties = loadObsoleteUsagesFromBundle("config-removed", Removed.apply)
+    val renamedProperties = loadObsoleteUsagesFromBundle("config-renamed", Renamed.apply)
 
-    mapToGatlingConfig(config)
+    warnAboutRemovedProperties(config, removedProperties, renamedProperties)
+
+    mapToGatlingConfig(RenamedAwareConfig(config, renamedProperties))
   }
 
   private def coreConfiguration(config: Config) =
     new CoreConfiguration(
-      version = ResourceBundle.getBundle("gatling-version").getString("version"),
       outputDirectoryBaseName = config.getString(core.OutputDirectoryBaseName).trimToOption,
       runDescription = config.getString(core.RunDescription).trimToOption,
       encoding = config.getString(core.Encoding),
@@ -135,12 +128,75 @@ object GatlingConfiguration extends StrictLogging {
         )
       ),
       directory = new DirectoryConfiguration(
-        simulations = Paths.get(config.getString(core.directory.Simulations)),
-        resources = Paths.get(config.getString(core.directory.Resources)),
+        customResources = config.getString(core.directory.Resources).trimToOption.map(Paths.get(_)),
         binaries = config.getString(core.directory.Binaries).trimToOption.map(Paths.get(_)),
         reportsOnly = config.getString(core.directory.ReportsOnly).trimToOption,
         results = Paths.get(config.getString(core.directory.Results))
       )
+    )
+
+  private def socketConfiguration(config: Config) =
+    new SocketConfiguration(
+      connectTimeout = config.getInt(socket.ConnectTimeout).millis,
+      tcpNoDelay = config.getBoolean(socket.TcpNoDelay),
+      soKeepAlive = config.getBoolean(socket.SoKeepAlive),
+      soReuseAddress = config.getBoolean(socket.SoReuseAddress)
+    )
+
+  private def defaultEnabledProtocols(useOpenSsl: Boolean) =
+    if (useOpenSsl) {
+      List("TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1")
+    } else {
+      try {
+        val ctx = SSLContext.getInstance("TLS")
+        ctx.init(null, null, null)
+        ctx.getDefaultSSLParameters.getProtocols.filterNot(_ == "SSLv3").toList
+      } catch {
+        case e: Exception =>
+          throw new Error("Failed to initialize the default SSL context", e)
+      }
+    }
+
+  private def sslConfiguration(config: Config) = {
+    val useOpenSsl = config.getBoolean(ssl.UseOpenSsl)
+    val enabledProtocols = config.getStringList(ssl.EnabledProtocols).asScala.toList match {
+      case Nil                  => defaultEnabledProtocols(useOpenSsl)
+      case userDefinedProtocols => userDefinedProtocols
+    }
+
+    new SslConfiguration(
+      useOpenSsl = useOpenSsl,
+      useOpenSslFinalizers = config.getBoolean(ssl.UseOpenSslFinalizers),
+      handshakeTimeout = config.getInt(ssl.HandshakeTimeout).millis,
+      useInsecureTrustManager = config.getBoolean(ssl.UseInsecureTrustManager),
+      enabledProtocols = enabledProtocols,
+      enabledCipherSuites = config.getStringList(ssl.EnabledCipherSuites).asScala.toList,
+      sessionCacheSize = config.getInt(ssl.SessionCacheSize),
+      sessionTimeout = config.getInt(ssl.SessionTimeout).seconds,
+      enableSni = config.getBoolean(ssl.EnableSni),
+      keyManagerFactory = {
+        val storeType = config.getString(ssl.keyStore.Type).trimToOption
+        val storeFile = config.getString(ssl.keyStore.File).trimToOption
+        val storePassword = config.getString(ssl.keyStore.Password)
+        val storeAlgorithm = config.getString(ssl.keyStore.Algorithm).trimToOption
+        storeFile.map(Ssl.newKeyManagerFactory(storeType, _, storePassword, storeAlgorithm))
+      },
+      trustManagerFactory = {
+        val storeType = config.getString(ssl.trustStore.Type).trimToOption
+        val storeFile = config.getString(ssl.trustStore.File).trimToOption
+        val storePassword = config.getString(ssl.trustStore.Password)
+        val storeAlgorithm = config.getString(ssl.trustStore.Algorithm).trimToOption
+        storeFile.map(Ssl.newTrustManagerFactory(storeType, _, storePassword, storeAlgorithm))
+      }
+    )
+  }
+
+  private def nettyConfiguration(config: Config) =
+    new NettyConfiguration(
+      useNativeTransport = config.getBoolean(netty.UseNativeTransport),
+      useIoUring = config.getBoolean(netty.UseIoUring),
+      allocator = config.getString(netty.Allocator),
+      maxThreadLocalCharBufferSize = config.getInt(netty.MaxThreadLocalCharBufferSize)
     )
 
   private def chartingConfiguration(config: Config) =
@@ -164,74 +220,39 @@ object GatlingConfiguration extends StrictLogging {
       fetchedHtmlCacheMaxCapacity = config.getLong(http.FetchedHtmlCacheMaxCapacity),
       perUserCacheMaxCapacity = config.getInt(http.PerUserCacheMaxCapacity),
       warmUpUrl = config.getString(http.WarmUpUrl).trimToOption,
-      enableGA = config.getBoolean(http.EnableGA),
-      ssl = new SslConfiguration(
-        keyManagerFactory = {
-          val storeType = config.getString(http.ssl.keyStore.Type).trimToOption
-          val storeFile = config.getString(http.ssl.keyStore.File).trimToOption
-          val storePassword = config.getString(http.ssl.keyStore.Password)
-          val storeAlgorithm = config.getString(http.ssl.keyStore.Algorithm).trimToOption
-          storeFile.map(Ssl.newKeyManagerFactory(storeType, _, storePassword, storeAlgorithm))
-        },
-        trustManagerFactory = {
-          val storeType = config.getString(http.ssl.trustStore.Type).trimToOption
-          val storeFile = config.getString(http.ssl.trustStore.File).trimToOption
-          val storePassword = config.getString(http.ssl.trustStore.Password)
-          val storeAlgorithm = config.getString(http.ssl.trustStore.Algorithm).trimToOption
-          storeFile.map(Ssl.newTrustManagerFactory(storeType, _, storePassword, storeAlgorithm))
+      requestTimeout = config.getInt(http.RequestTimeout).millis,
+      pooledConnectionIdleTimeout = config.getInt(http.PooledConnectionIdleTimeout).millis,
+      enableHostnameVerification = {
+        val enable = config.getBoolean(http.EnableHostnameVerification)
+        if (!enable) {
+          System.setProperty("jdk.tls.allowUnsafeServerCertChange", "true")
+          System.setProperty("sun.security.ssl.allowUnsafeRenegotiation", "true")
         }
-      ),
-      advanced = new AdvancedConfiguration(
-        connectTimeout = config.getInt(http.ahc.ConnectTimeout) millis,
-        handshakeTimeout = config.getInt(http.ahc.HandshakeTimeout) millis,
-        pooledConnectionIdleTimeout = config.getInt(http.ahc.PooledConnectionIdleTimeout) millis,
-        requestTimeout = config.getInt(http.ahc.RequestTimeout) millis,
-        enableSni = config.getBoolean(http.ahc.EnableSni),
-        enableHostnameVerification = {
-          val enable = config.getBoolean(http.ahc.EnableHostnameVerification)
-          if (!enable) {
-            System.setProperty("jdk.tls.allowUnsafeServerCertChange", "true")
-            System.setProperty("sun.security.ssl.allowUnsafeRenegotiation", "true")
-          }
-          enable
-        },
-        useInsecureTrustManager = config.getBoolean(http.ahc.UseInsecureTrustManager),
-        sslEnabledProtocols = config.getStringList(http.ahc.SslEnabledProtocols).asScala.toList,
-        sslEnabledCipherSuites = config.getStringList(http.ahc.SslEnabledCipherSuites).asScala.toList,
-        sslSessionCacheSize = config.getInt(http.ahc.SslSessionCacheSize),
-        sslSessionTimeout = config.getInt(http.ahc.SslSessionTimeout) seconds,
-        useOpenSsl = config.getBoolean(http.ahc.UseOpenSsl),
-        useOpenSslFinalizers = config.getBoolean(http.ahc.UseOpenSslFinalizers),
-        useNativeTransport = config.getBoolean(http.ahc.UseNativeTransport),
-        tcpNoDelay = config.getBoolean(http.ahc.TcpNoDelay),
-        soKeepAlive = config.getBoolean(http.ahc.SoKeepAlive),
-        soReuseAddress = config.getBoolean(http.ahc.SoReuseAddress),
-        allocator = config.getString(http.ahc.Allocator),
-        maxThreadLocalCharBufferSize = config.getInt(http.ahc.MaxThreadLocalCharBufferSize)
-      ),
+        enable
+      },
       dns = new DnsConfiguration(
-        queryTimeout = config.getInt(http.dns.QueryTimeout) millis,
+        queryTimeout = config.getInt(http.dns.QueryTimeout).millis,
         maxQueriesPerResolve = config.getInt(http.dns.MaxQueriesPerResolve)
       )
     )
 
   private def jmsConfiguration(config: Config) =
     new JmsConfiguration(
-      replyTimeoutScanPeriod = config.getLong(jms.ReplyTimeoutScanPeriod) millis
+      replyTimeoutScanPeriod = config.getLong(jms.ReplyTimeoutScanPeriod).millis
     )
 
   private def dataConfiguration(config: Config) =
     new DataConfiguration(
-      dataWriters = config.getStringList(data.Writers).asScala.flatMap(DataWriterType.findByName(_).toList),
+      dataWriters = config.getStringList(data.Writers).asScala.flatMap(DataWriterType.findByName(_).toList).toSeq,
       console = new ConsoleDataWriterConfiguration(
         light = config.getBoolean(data.console.Light),
-        writePeriod = config.getInt(data.console.WritePeriod) seconds
+        writePeriod = config.getInt(data.console.WritePeriod).seconds
       ),
       file = new FileDataWriterConfiguration(
         bufferSize = config.getInt(data.file.BufferSize)
       ),
       leak = new LeakDataWriterConfiguration(
-        noActivityTimeout = config.getInt(data.leak.NoActivityTimeout) seconds
+        noActivityTimeout = config.getInt(data.leak.NoActivityTimeout).seconds
       ),
       graphite = new GraphiteDataWriterConfiguration(
         light = config.getBoolean(data.graphite.Light),
@@ -240,53 +261,31 @@ object GatlingConfiguration extends StrictLogging {
         protocol = TransportProtocol(config.getString(data.graphite.Protocol).trim),
         rootPathPrefix = config.getString(data.graphite.RootPathPrefix),
         bufferSize = config.getInt(data.graphite.BufferSize),
-        writePeriod = config.getInt(data.graphite.WritePeriod) seconds
-      )
+        writePeriod = config.getInt(data.graphite.WritePeriod).seconds
+      ),
+      enableAnalytics = config.getBoolean(data.EnableAnalytics),
+      launcher = config.getStringOption(data.Launcher),
+      buildToolVersion = config.getStringOption(data.BuildToolVersion)
     )
 
   private def mapToGatlingConfig(config: Config) =
     new GatlingConfiguration(
+      // [e]
+      //
+      //
+      // [e]
       core = coreConfiguration(config),
+      socket = socketConfiguration(config),
+      ssl = sslConfiguration(config),
+      netty = nettyConfiguration(config),
       charting = chartingConfiguration(config),
       http = httpConfiguration(config),
       jms = jmsConfiguration(config),
-      data = dataConfiguration(config),
-      // [fl]
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      // [fl]
-      config = config
+      data = dataConfiguration(config)
     )
 }
 
 final class CoreConfiguration(
-    val version: String,
     val outputDirectoryBaseName: Option[String],
     val runDescription: Option[String],
     val encoding: String,
@@ -327,11 +326,38 @@ final class CssConfiguration(
 )
 
 final class DirectoryConfiguration(
-    val simulations: Path,
-    val resources: Path,
+    val customResources: Option[Path],
     val binaries: Option[Path],
     val reportsOnly: Option[String],
     val results: Path
+)
+
+final class SocketConfiguration(
+    val connectTimeout: FiniteDuration,
+    val tcpNoDelay: Boolean,
+    val soKeepAlive: Boolean,
+    val soReuseAddress: Boolean
+)
+
+final class SslConfiguration(
+    val useOpenSsl: Boolean,
+    val useOpenSslFinalizers: Boolean,
+    val handshakeTimeout: FiniteDuration,
+    val useInsecureTrustManager: Boolean,
+    val enabledProtocols: List[String],
+    val enabledCipherSuites: List[String],
+    val sessionCacheSize: Int,
+    val sessionTimeout: FiniteDuration,
+    val enableSni: Boolean,
+    val keyManagerFactory: Option[KeyManagerFactory],
+    val trustManagerFactory: Option[TrustManagerFactory]
+)
+
+final class NettyConfiguration(
+    val useNativeTransport: Boolean,
+    val useIoUring: Boolean,
+    val allocator: String,
+    val maxThreadLocalCharBufferSize: Int
 )
 
 final class ChartingConfiguration(
@@ -355,9 +381,9 @@ final class HttpConfiguration(
     val fetchedHtmlCacheMaxCapacity: Long,
     val perUserCacheMaxCapacity: Int,
     val warmUpUrl: Option[String],
-    val enableGA: Boolean,
-    val ssl: SslConfiguration,
-    val advanced: AdvancedConfiguration,
+    val pooledConnectionIdleTimeout: FiniteDuration,
+    val requestTimeout: FiniteDuration,
+    val enableHostnameVerification: Boolean,
     val dns: DnsConfiguration
 )
 
@@ -365,36 +391,9 @@ final class JmsConfiguration(
     val replyTimeoutScanPeriod: FiniteDuration
 )
 
-final class AdvancedConfiguration(
-    val connectTimeout: FiniteDuration,
-    val handshakeTimeout: FiniteDuration,
-    val pooledConnectionIdleTimeout: FiniteDuration,
-    val requestTimeout: FiniteDuration,
-    val enableSni: Boolean,
-    val enableHostnameVerification: Boolean,
-    val useInsecureTrustManager: Boolean,
-    val sslEnabledProtocols: List[String],
-    val sslEnabledCipherSuites: List[String],
-    val sslSessionCacheSize: Int,
-    val sslSessionTimeout: FiniteDuration,
-    val useOpenSsl: Boolean,
-    val useOpenSslFinalizers: Boolean,
-    val useNativeTransport: Boolean,
-    val tcpNoDelay: Boolean,
-    val soKeepAlive: Boolean,
-    val soReuseAddress: Boolean,
-    val allocator: String,
-    val maxThreadLocalCharBufferSize: Int
-)
-
 final class DnsConfiguration(
     val queryTimeout: FiniteDuration,
     val maxQueriesPerResolve: Int
-)
-
-final class SslConfiguration(
-    val keyManagerFactory: Option[KeyManagerFactory],
-    val trustManagerFactory: Option[TrustManagerFactory]
 )
 
 final class DataConfiguration(
@@ -402,9 +401,12 @@ final class DataConfiguration(
     val file: FileDataWriterConfiguration,
     val leak: LeakDataWriterConfiguration,
     val console: ConsoleDataWriterConfiguration,
-    val graphite: GraphiteDataWriterConfiguration
+    val graphite: GraphiteDataWriterConfiguration,
+    val enableAnalytics: Boolean,
+    val launcher: Option[String],
+    val buildToolVersion: Option[String]
 ) {
-  def fileDataWriterEnabled: Boolean = dataWriters.contains(FileDataWriterType)
+  def fileDataWriterEnabled: Boolean = dataWriters.contains(DataWriterType.File)
 }
 
 final class FileDataWriterConfiguration(
@@ -430,34 +432,17 @@ final class GraphiteDataWriterConfiguration(
     val writePeriod: FiniteDuration
 )
 
-// [fl]
-//
-//
-//
-//
-//
-//
-//
-//
-//
-// [fl]
-
 final class GatlingConfiguration(
+    // [e]
+    //
+    //
+    // [e]
     val core: CoreConfiguration,
+    val socket: SocketConfiguration,
+    val netty: NettyConfiguration,
+    val ssl: SslConfiguration,
     val charting: ChartingConfiguration,
     val http: HttpConfiguration,
     val jms: JmsConfiguration,
-    val data: DataConfiguration,
-    // [fl]
-    //
-    // [fl]
-    val config: Config
-) {
-  def resolve[T](value: T): T = value
-
-  // [fl]
-  //
-  //
-  //
-  // [fl]
-}
+    val data: DataConfiguration
+)

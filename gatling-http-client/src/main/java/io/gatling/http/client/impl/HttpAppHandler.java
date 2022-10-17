@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,31 +17,31 @@
 package io.gatling.http.client.impl;
 
 import io.gatling.http.client.HttpClientConfig;
-import io.gatling.http.client.util.HttpUtils;
 import io.gatling.http.client.impl.request.WritableRequest;
 import io.gatling.http.client.impl.request.WritableRequestBuilder;
 import io.gatling.http.client.pool.ChannelPool;
+import io.gatling.http.client.util.HttpUtils;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.DecoderResultProvider;
 import io.netty.handler.codec.http.*;
 import io.netty.util.ReferenceCountUtil;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 class HttpAppHandler extends ChannelDuplexHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(HttpAppHandler.class);
 
-  static final IOException PREMATURE_CLOSE = new IOException("Premature close") {
-    @Override
-    public synchronized Throwable fillInStackTrace() {
-      return this;
-    }
-  };
+  static final IOException PREMATURE_CLOSE =
+      new IOException("Premature close") {
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+          return this;
+        }
+      };
 
   private final DefaultHttpClient client;
   private final ChannelPool channelPool;
@@ -53,6 +53,11 @@ class HttpAppHandler extends ChannelDuplexHandler {
     this.client = client;
     this.channelPool = channelPool;
     this.config = config;
+  }
+
+  @Override
+  public boolean isSharable() {
+    return false;
   }
 
   private void setActive(HttpTx tx) {
@@ -82,7 +87,8 @@ class HttpAppHandler extends ChannelDuplexHandler {
       setInactive();
 
     } catch (Exception e) {
-      LOGGER.error("Exception while handling HTTP/1.1 crash, please report to Gatling maintainers", e);
+      LOGGER.error(
+          "Exception while handling HTTP/1.1 crash, please report to Gatling maintainers", e);
     } finally {
       if (close) {
         ctx.close();
@@ -102,7 +108,8 @@ class HttpAppHandler extends ChannelDuplexHandler {
     }
 
     try {
-      WritableRequest request = WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, false);
+      WritableRequest request =
+          WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, false);
       LOGGER.debug("Write request {}", request);
 
       tx.listener.onWrite(ctx.channel());
@@ -148,7 +155,9 @@ class HttpAppHandler extends ChannelDuplexHandler {
 
           } else {
             // TODO implement 417 support
-            LOGGER.debug("Request was sent with Expect:100-Continue but received response with status {}, dropping", status);
+            LOGGER.debug(
+                "Request was sent with Expect:100-Continue but received response with status {}, dropping",
+                status);
             tx.releasePendingRequestExpectingContinue();
           }
         }
@@ -192,7 +201,8 @@ class HttpAppHandler extends ChannelDuplexHandler {
         try {
           tx.listener.onHttpResponseBodyChunk(chunk.content(), last);
         } catch (Throwable e) {
-          // can't let exceptionCaught handle this because setInactive might have been called (on last)
+          // can't let exceptionCaught handle this because setInactive might have been called (on
+          // last)
           crash(ctx, e, true, tx);
           throw e;
         }
@@ -215,7 +225,7 @@ class HttpAppHandler extends ChannelDuplexHandler {
     tx.requestTimeout.cancel();
 
     // only retry when we haven't started receiving response
-    if (!httpResponseReceived && client.canRetry(tx, ctx.channel())) {
+    if (!httpResponseReceived && client.canRetry(tx)) {
       client.retry(tx, ctx.channel().eventLoop());
     } else {
       crash(ctx, PREMATURE_CLOSE, false, tx);

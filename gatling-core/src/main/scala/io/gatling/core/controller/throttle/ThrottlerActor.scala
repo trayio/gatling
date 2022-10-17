@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,23 +18,20 @@ package io.gatling.core.controller.throttle
 
 import java.lang.System._
 
-import scala.concurrent.duration._
 import scala.collection.mutable
+import scala.concurrent.duration._
 
-final case class ThrottledRequest(scenarioName: String, request: () => Unit)
+private final case class ThrottledRequest(scenarioName: String, request: () => Unit)
 
-class ThrottlerActor extends ThrottlerActorFSM {
-
-  import ThrottlerActorState._
+private final class ThrottlerActor extends ThrottlerActorFSM {
   import ThrottlerActorData._
+  import ThrottlerActorState._
 
   startWith(WaitingToStart, NoData)
 
-  when(WaitingToStart) {
-
-    case Event(throttles: Throttles, NoData) =>
-      // FIXME use a capped size? or kill when overflow?
-      goto(Started) using StartedData(throttles, mutable.ArrayBuffer.empty[ThrottledRequest], nanoTime)
+  when(WaitingToStart) { case Event(throttles: Throttles, NoData) =>
+    // FIXME use a capped size? or kill when overflow?
+    goto(Started) using StartedData(throttles, mutable.ArrayBuffer.empty[ThrottledRequest], nanoTime)
   }
 
   private def millisSinceTick(tickNanos: Long): Int = ((nanoTime - tickNanos) / 1000000).toInt
@@ -45,7 +42,7 @@ class ThrottlerActor extends ThrottlerActorFSM {
       request()
     } else {
       val delay = (requestStep * count).toInt - millisSinceTick(tickNanos)
-      scheduler.scheduleOnce(delay milliseconds) {
+      scheduler.scheduleOnce(delay.milliseconds) {
         request()
       }
     }
@@ -55,7 +52,6 @@ class ThrottlerActor extends ThrottlerActorFSM {
     import data._
     if (throttles.limitReached(throttledRequest.scenarioName)) {
       buffer += throttledRequest
-
     } else {
       sendRequest(data, throttledRequest.request)
       throttles.increment(throttledRequest.scenarioName)

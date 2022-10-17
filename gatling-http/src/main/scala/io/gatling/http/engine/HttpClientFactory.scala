@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,39 +26,32 @@ import com.typesafe.scalalogging.StrictLogging
 
 private[gatling] final class HttpClientFactory(
     sslContextsFactory: SslContextsFactory,
-    // [fl]
     configuration: GatlingConfiguration
 ) extends StrictLogging {
-
-  private val advancedHttpConfig = configuration.http.advanced
-  setSystemPropertyIfUndefined("io.netty.allocator.type", advancedHttpConfig.allocator)
-  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", advancedHttpConfig.maxThreadLocalCharBufferSize)
+  private val httpConfig = configuration.http
+  private val socketConfig = configuration.socket
+  private val sslConfig = configuration.ssl
+  private val nettyConfig = configuration.netty
+  setSystemPropertyIfUndefined("io.netty.allocator.type", nettyConfig.allocator)
+  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", nettyConfig.maxThreadLocalCharBufferSize)
 
   private[gatling] def newClientConfig(): HttpClientConfig = {
-
     val defaultSslContexts = sslContextsFactory.newSslContexts(http2Enabled = true, None)
     new HttpClientConfig()
       .setDefaultSslContext(defaultSslContexts.sslContext)
       .setDefaultAlpnSslContext(defaultSslContexts.alpnSslContext.orNull)
-      .setConnectTimeout(advancedHttpConfig.connectTimeout.toMillis)
-      .setHandshakeTimeout(advancedHttpConfig.handshakeTimeout.toMillis)
-      .setChannelPoolIdleTimeout(advancedHttpConfig.pooledConnectionIdleTimeout.toMillis)
-      .setEnableSni(advancedHttpConfig.enableSni)
-      .setEnableHostnameVerification(advancedHttpConfig.enableHostnameVerification)
       .setDefaultCharset(configuration.core.charset)
-      .setUseNativeTransport(advancedHttpConfig.useNativeTransport)
-      .setTcpNoDelay(advancedHttpConfig.tcpNoDelay)
-      .setSoKeepAlive(advancedHttpConfig.soKeepAlive)
-      .setSoReuseAddress(advancedHttpConfig.soReuseAddress)
+      .setEnableHostnameVerification(httpConfig.enableHostnameVerification)
+      .setChannelPoolIdleTimeout(httpConfig.pooledConnectionIdleTimeout.toMillis)
+      .setConnectTimeout(socketConfig.connectTimeout.toMillis)
+      .setTcpNoDelay(socketConfig.tcpNoDelay)
+      .setSoKeepAlive(socketConfig.soKeepAlive)
+      .setSoReuseAddress(socketConfig.soReuseAddress)
+      .setHandshakeTimeout(sslConfig.handshakeTimeout.toMillis)
+      .setEnableSni(sslConfig.enableSni)
+      .setUseNativeTransport(nettyConfig.useNativeTransport)
+      .setUseIoUring(nettyConfig.useIoUring)
       .setThreadPoolName("gatling-http")
-    //[fl]
-    //
-    //
-    //
-    //
-    //
-    //
-    //[fl]
   }
 
   def newClient: HttpClient = new DefaultHttpClient(newClientConfig())

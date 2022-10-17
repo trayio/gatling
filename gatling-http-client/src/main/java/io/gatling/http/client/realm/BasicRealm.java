@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package io.gatling.http.client.realm;
 
-import java.util.Base64;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.util.Base64;
 
 public class BasicRealm implements Realm {
 
@@ -29,7 +29,8 @@ public class BasicRealm implements Realm {
   public BasicRealm(String username, String password) {
     this.username = username;
     this.password = password;
-    this.authorizationHeader = "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(UTF_8));
+    this.authorizationHeader =
+        "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(UTF_8));
   }
 
   public String getUsername() {

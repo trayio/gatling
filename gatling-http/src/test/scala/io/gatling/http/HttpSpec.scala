@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,41 +18,36 @@ package io.gatling.http
 
 import java.io.RandomAccessFile
 import java.net.ServerSocket
-
 import javax.activation.FileTypeMap
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import scala.util.Try
+import scala.jdk.CollectionConverters._
+import scala.util.{ Try, Using }
 
 import io.gatling.AkkaSpec
 import io.gatling.commons.util.DefaultClock
 import io.gatling.commons.util.Io._
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.{ Action, ActorDelegatingAction }
-import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.pause.Constant
 import io.gatling.core.protocol.{ Protocol, ProtocolComponentsRegistries }
 import io.gatling.core.session.Session
-import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.{ ScenarioBuilder, ScenarioContext }
 import io.gatling.http.protocol.HttpProtocolBuilder
 
-import akka.actor.ActorRef
-import org.scalatest.BeforeAndAfter
 import io.netty.channel._
 import io.netty.handler.codec.http._
 import io.netty.handler.codec.http.cookie._
+import org.scalatest.BeforeAndAfter
 
 abstract class HttpSpec extends AkkaSpec with BeforeAndAfter {
-
   type ChannelProcessor = ChannelHandlerContext => Unit
   type Handler = PartialFunction[FullHttpRequest, ChannelProcessor]
 
   private val clock = new DefaultClock
-  protected val mockHttpPort: Int = Try(withCloseable(new ServerSocket(0))(_.getLocalPort)).getOrElse(8072)
+  protected val mockHttpPort: Int = Using(new ServerSocket(0))(_.getLocalPort).getOrElse(8072)
 
   private def httpProtocol(implicit configuration: GatlingConfiguration): HttpProtocolBuilder =
     HttpProtocolBuilder(configuration).baseUrl(s"http://localhost:$mockHttpPort")
@@ -74,11 +69,11 @@ abstract class HttpSpec extends AkkaSpec with BeforeAndAfter {
   )(implicit configuration: GatlingConfiguration): Session = {
     val protocols = Protocol.indexByType(Seq(protocolCustomizer(httpProtocol)))
     val coreComponents =
-      new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], mock[Throttler], mock[StatsEngine], clock, mock[Action], configuration)
+      new CoreComponents(system, mock[EventLoopGroup], null, None, mock[StatsEngine], clock, mock[Action], configuration)
     val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, protocols).scenarioRegistry(Map.empty)
     val next = new ActorDelegatingAction("next", self)
-    val actor = sb.build(new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false), next)
-    actor ! EmptySession
+    val action = sb.build(new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false), next)
+    action ! emptySession
     expectMsgClass(timeout, classOf[Session])
   }
 
@@ -93,8 +88,8 @@ abstract class HttpSpec extends AkkaSpec with BeforeAndAfter {
     val region = new DefaultFileRegion(raf.getChannel, 0, raf.length) // THIS WORKS ONLY WITH HTTP, NOT HTTPS
 
     response.headers
-      .set(HeaderNames.ContentType, FileTypeMap.getDefaultFileTypeMap.getContentType(fileUri))
-      .set(HeaderNames.ContentLength, raf.length)
+      .set(HttpHeaderNames.CONTENT_TYPE, FileTypeMap.getDefaultFileTypeMap.getContentType(fileUri))
+      .set(HttpHeaderNames.CONTENT_LENGTH, raf.length)
 
     ctx.write(response)
     ctx.write(region)
@@ -118,7 +113,7 @@ abstract class HttpSpec extends AkkaSpec with BeforeAndAfter {
   }
 
   def checkCookie(cookie: String, value: String)(request: FullHttpRequest): Unit = {
-    val cookies = ServerCookieDecoder.STRICT.decode(request.headers.get(HeaderNames.Cookie)).asScala.toList
+    val cookies = ServerCookieDecoder.STRICT.decode(request.headers.get(HttpHeaderNames.COOKIE)).asScala.toList
     val matchingCookies = cookies.filter(_.name == cookie)
 
     matchingCookies match {

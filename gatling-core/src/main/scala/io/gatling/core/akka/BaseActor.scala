@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ import scala.concurrent.duration.Duration
 import akka.actor.{ Actor, ActorSystem, Scheduler, Terminated }
 import com.typesafe.scalalogging.LazyLogging
 
-abstract class BaseActor extends Actor with LazyLogging {
-
+private[gatling] abstract class BaseActor extends Actor with LazyLogging {
   implicit def system: ActorSystem = context.system
   def scheduler: Scheduler = system.scheduler
   implicit def dispatcher: ExecutionContext = system.dispatcher

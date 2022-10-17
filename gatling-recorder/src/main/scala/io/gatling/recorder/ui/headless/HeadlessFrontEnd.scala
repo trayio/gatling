@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,17 @@ package io.gatling.recorder.ui.headless
 import java.io.{ File, PrintStream }
 import java.lang.management.ManagementFactory
 
-import io.gatling.commons.util.Io._
-import io.gatling.recorder.config.RecorderMode.Proxy
+import scala.util.Using
+
 import io.gatling.recorder.config.{ RecorderConfiguration, RecorderMode }
+import io.gatling.recorder.config.RecorderMode.Proxy
 import io.gatling.recorder.controller.RecorderController
 import io.gatling.recorder.ui.{ FrontEndEvent, RecorderFrontEnd }
 
 private[headless] object HeadlessFrontEnd {
   private val RecorderPidFile = new File(".gatling-recorder-pid")
 }
-private[ui] class HeadlessFrontEnd(controller: RecorderController)(implicit configuration: RecorderConfiguration) extends RecorderFrontEnd(controller) {
-
+private[ui] class HeadlessFrontEnd(controller: RecorderController, configuration: RecorderConfiguration) extends RecorderFrontEnd(controller) {
   import HeadlessFrontEnd._
 
   private var hasRun = false
@@ -45,6 +45,7 @@ private[ui] class HeadlessFrontEnd(controller: RecorderController)(implicit conf
       if (selectedRecorderMode == Proxy && RecorderPidFile.exists()) {
         printErr(s"Recorder lock file found at $RecorderPidFile.")
         printErr("Make sure that there is no other recording in progress.")
+        System.out.flush()
         sys.exit(1)
       } else startRecording()
     } else sys.runtime.halt(0)
@@ -79,16 +80,15 @@ private[ui] class HeadlessFrontEnd(controller: RecorderController)(implicit conf
   }
 
   override def handleMissingHarFile(path: String): Unit = {
-    val errorMessage = {
+    val errorMessage =
       if (path.isEmpty) "The HAR file to convert was not specified, either through recorder.conf or through CLI options."
       else s"Could not find the HAR file (path: $path)"
-    }
     printErr(errorMessage)
   }
 
   private def createLockFile(): Unit = {
     val pid = ManagementFactory.getRuntimeMXBean.getName.split("@").head
-    withCloseable(new PrintStream(RecorderPidFile))(_.println(pid))
+    Using.resource(new PrintStream(RecorderPidFile))(_.println(pid))
   }
 
   private def printErr(msg: String): Unit =

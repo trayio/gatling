@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 package io.gatling.redis
 
 import io.gatling.redis.feeder.RedisFeederBuilder
+
 import com.redis.RedisClientPool
 
 object Predef {
-  def redisFeeder(clients: RedisClientPool, key: String): RedisFeederBuilder = RedisFeederBuilder(clients, key)
+  def redisFeeder(clients: RedisClientPool, key: String): RedisFeederBuilder = RedisFeederBuilder(clients, key, key)
+  def redisFeeder(clients: RedisClientPool, keySrc: String, keyDest: String): RedisFeederBuilder = RedisFeederBuilder(clients, keySrc, keyDest)
 }

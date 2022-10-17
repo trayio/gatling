@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,7 @@ import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
 
-class SessionHookBuilder(sessionFunction: Expression[Session], exitable: Boolean) extends ActionBuilder with NameGen {
-
+private[core] final class SessionHookBuilder(sessionFunction: Expression[Session], exitable: Boolean) extends ActionBuilder with NameGen {
   override def build(ctx: ScenarioContext, next: Action): Action = {
     val name = genName("hook")
     if (exitable) {

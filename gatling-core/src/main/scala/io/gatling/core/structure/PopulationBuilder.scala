@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 package io.gatling.core.structure
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.FiniteDuration
 
 import io.gatling.core.CoreComponents
-import io.gatling.core.controller.inject.InjectionProfile
+import io.gatling.core.controller.inject.{ InjectionProfile, ScenarioFlows }
 import io.gatling.core.controller.throttle.{ ThrottleStep, Throttling }
 import io.gatling.core.pause._
 import io.gatling.core.protocol.{ Protocol, ProtocolComponentsRegistries, Protocols }
@@ -30,50 +30,46 @@ import com.softwaremill.quicklens._
 import com.typesafe.scalalogging.LazyLogging
 
 object PopulationBuilder {
-
-  def groupChildrenByParent(populationBuilders: List[PopulationBuilder]): Map[String, List[PopulationBuilder]] = {
-    @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
-    def groupChildrenByParentRec(ancestorName: String, populationBuilders: List[PopulationBuilder]): Map[String, List[PopulationBuilder]] =
-      if (populationBuilders.isEmpty) {
-        Map.empty
-      } else {
-        Map(ancestorName -> populationBuilders) ++ populationBuilders.flatMap(pb => groupChildrenByParentRec(pb.scenarioBuilder.name, pb.children.toList))
-      }
-
-    populationBuilders.foldLeft(Map.empty[String, List[PopulationBuilder]]) { (acc, populationBuilder) =>
-      acc ++ groupChildrenByParentRec(populationBuilder.scenarioBuilder.name, populationBuilder.children.toList)
-    }
+  @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
+  private def collectRec(populationBuilder: PopulationBuilder): Seq[PopulationBuilder] = {
+    val children = populationBuilder.children.flatten
+    populationBuilder :: children.flatMap(collectRec)
   }
+
+  def flatten(populationBuilders: List[PopulationBuilder]): List[PopulationBuilder] =
+    populationBuilders.flatMap(collectRec)
 }
 
 final case class PopulationBuilder(
     scenarioBuilder: ScenarioBuilder,
     injectionProfile: InjectionProfile,
     scenarioProtocols: Protocols,
-    scenarioThrottleSteps: Iterable[ThrottleStep],
+    scenarioThrottleSteps: List[ThrottleStep],
     pauseType: Option[PauseType],
-    children: Iterable[PopulationBuilder]
+    children: List[List[PopulationBuilder]],
+    shard: Boolean
 ) extends LazyLogging {
-
-  def protocols(ps: Protocol*): PopulationBuilder = protocols(ps.toIterable)
+  def protocols(ps: Protocol*): PopulationBuilder = protocols(ps.toList)
   def protocols(ps: Iterable[Protocol]): PopulationBuilder = copy(scenarioProtocols = this.scenarioProtocols ++ Protocol.indexByType(ps))
 
-  def andThen(children: PopulationBuilder*): PopulationBuilder = andThen(children.toIterable)
-  def andThen(children: Iterable[PopulationBuilder]): PopulationBuilder = this.modify(_.children).using(_ ++ children)
+  def andThen(children: PopulationBuilder*): PopulationBuilder = andThen(children.toList)
+  def andThen(children: Iterable[PopulationBuilder]): PopulationBuilder = this.modify(_.children)(_ ::: List(children.toList))
 
   def disablePauses: PopulationBuilder = pauses(Disabled)
   def constantPauses: PopulationBuilder = pauses(Constant)
   def exponentialPauses: PopulationBuilder = pauses(Exponential)
   def customPauses(custom: Expression[Long]): PopulationBuilder = pauses(new Custom(custom))
   def uniformPauses(plusOrMinus: Double): PopulationBuilder = pauses(new UniformPercentage(plusOrMinus))
-  def uniformPauses(plusOrMinus: Duration): PopulationBuilder = pauses(new UniformDuration(plusOrMinus))
+  def uniformPauses(plusOrMinus: FiniteDuration): PopulationBuilder = pauses(new UniformDuration(plusOrMinus))
   def pauses(pauseType: PauseType): PopulationBuilder = copy(pauseType = Some(pauseType))
 
-  def throttle(throttleSteps: ThrottleStep*): PopulationBuilder = throttle(throttleSteps.toIterable)
+  def throttle(throttleSteps: ThrottleStep*): PopulationBuilder = throttle(throttleSteps)
   def throttle(throttleSteps: Iterable[ThrottleStep]): PopulationBuilder = {
     require(throttleSteps.nonEmpty, s"Scenario '${scenarioBuilder.name}' has an empty throttling definition.")
-    copy(scenarioThrottleSteps = throttleSteps)
+    copy(scenarioThrottleSteps = throttleSteps.toList)
   }
+
+  def noShard: PopulationBuilder = copy(shard = false)
 
   @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
   private[core] def build(
@@ -81,7 +77,7 @@ final case class PopulationBuilder(
       protocolComponentsRegistries: ProtocolComponentsRegistries,
       globalPauseType: PauseType,
       globalThrottling: Option[Throttling]
-  ): Scenario = {
+  ): ScenarioFlows.Node[String, Scenario] = {
     val resolvedPauseType =
       if (scenarioThrottleSteps.nonEmpty || globalThrottling.isDefined) {
         logger.info("Throttle is enabled, disabling pauses")
@@ -96,8 +92,17 @@ final case class PopulationBuilder(
 
     val entry = scenarioBuilder.build(ctx, coreComponents.exit)
 
-    val childrenScenarios = children.map(_.build(coreComponents, protocolComponentsRegistries, globalPauseType, globalThrottling))
-
-    new Scenario(scenarioBuilder.name, entry, protocolComponentsRegistry.onStart, protocolComponentsRegistry.onExit, injectionProfile, ctx, childrenScenarios)
+    ScenarioFlows.Node(
+      key = scenarioBuilder.name,
+      value = new Scenario(
+        scenarioBuilder.name,
+        entry,
+        protocolComponentsRegistry.onStart,
+        protocolComponentsRegistry.onExit,
+        injectionProfile,
+        ctx
+      ),
+      childrenSequences = children.map(_.map(_.build(coreComponents, protocolComponentsRegistries, globalPauseType, globalThrottling)))
+    )
   }
 }

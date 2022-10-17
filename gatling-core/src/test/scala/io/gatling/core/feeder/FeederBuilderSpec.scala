@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import io.gatling.BaseSpec
 import io.gatling.core.config._
 
 class FeederBuilderSpec extends BaseSpec with FeederSupport {
-
   private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   "FeederSupport.separatedValues" should "throw an exception when provided with bad resource" in {
@@ -31,7 +30,7 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
   }
 
   "FeederSupport.seq2FeederBuilder" should "build a Feeder with a queue strategy" in {
-    val queuedFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test")).queue.apply
+    val queuedFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test")).queue.apply()
     queuedFeeder.toArray shouldBe Array(Map("1" -> "Test"), Map("2" -> "Test"))
   }
 
@@ -44,7 +43,7 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
 
     val testsOutcome: immutable.IndexedSeq[Boolean] =
       (1 to 3).map { _ =>
-        val randomFeeder = orderedMaps.random.apply
+        val randomFeeder = orderedMaps.random.apply()
         randomFeeder.hasNext shouldBe true
         val retrievedMaps = fiftyTimes.map(_ => randomFeeder.next())
         retrievedMaps != orderedMaps
@@ -62,82 +61,43 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
 
     val shuffledOutcome: immutable.IndexedSeq[IndexedSeq[Record[_]]] =
       (1 to 3).map { _ =>
-        val shuffleFeeder = orderedMaps.shuffle.apply
+        val shuffleFeeder = orderedMaps.shuffle.apply()
         shuffleFeeder.hasNext shouldBe true
         fiftyTimes.map(_ => shuffleFeeder.next())
       }
 
-    val allShuffledSeqsAreDifferent = (shuffledOutcome :+ orderedMaps).distinct.length == 4
+    val allShuffledSeqsAreDifferent = (shuffledOutcome :+ orderedMaps).distinct.sizeIs == 4
     if (!allShuffledSeqsAreDifferent) fail("Shuffle feeder returned the same order at least once out of three attempts")
   }
 
   it should "build a Feeder with a circular strategy" in {
-    val circularFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test")).circular.apply
+    val circularFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test")).circular.apply()
     circularFeeder.next()
     circularFeeder.next()
     circularFeeder.next() shouldBe Map("1" -> "Test")
   }
 
-  "RecordSeqFeederBuilder" should "be able to have a record converted" in {
+  "RecordSeqFeederBuilder" should "be able to have a record transformed" in {
     val queuedFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test"))
 
-    val convertedValue: Option[Any] = queuedFeeder
-      .convert {
-        case ("1", attr) => attr.concat("s are boring !")
+    val transformedValue: Option[Any] = queuedFeeder
+      .transform { case ("1", attr) =>
+        attr.concat("s are boring !")
       }
-      .apply
+      .apply()
       .next()
       .get("1")
 
-    convertedValue.fold(fail("Could not find key"))(_ shouldBe "Tests are boring !")
+    transformedValue.fold(fail("Could not find key"))(_ shouldBe "Tests are boring !")
 
-    val cantConvert: Option[Any] = queuedFeeder
-      .convert {
-        case ("Can't find because don't exist", shouldKeepAsIs) => shouldKeepAsIs.concat("s are boring !")
+    val cantTransform: Option[Any] = queuedFeeder
+      .transform { case ("Can't find because don't exist", shouldKeepAsIs) =>
+        shouldKeepAsIs.concat("s are boring !")
       }
-      .apply
+      .apply()
       .next()
       .get("1")
 
-    cantConvert.fold(fail("Could not find key"))(_ shouldBe "Test")
+    cantTransform.fold(fail("Could not find key"))(_ shouldBe "Test")
   }
-
-  // [fl]
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  // [fl]
 }

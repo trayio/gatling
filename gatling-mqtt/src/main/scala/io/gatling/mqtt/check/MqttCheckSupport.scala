@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,20 @@
 package io.gatling.mqtt.check
 
 import scala.annotation.implicitNotFound
+
 import io.gatling.core.check._
 import io.gatling.core.check.bytes.BodyBytesCheckType
+import io.gatling.core.check.jmespath.JmesPathCheckType
 import io.gatling.core.check.jsonpath.JsonPathCheckType
 import io.gatling.core.check.regex.RegexCheckType
 import io.gatling.core.check.string.BodyStringCheckType
+import io.gatling.core.check.substring.SubstringCheckType
 import io.gatling.core.json.JsonParsers
 
 import com.fasterxml.jackson.databind.JsonNode
-import io.gatling.core.check.jmespath.JmesPathCheckType
-import io.gatling.core.check.substring.SubstringCheckType
 import io.netty.buffer.ByteBuf
 
 trait MqttCheckSupport {
-
   // materializers
   implicit def mqttTextJmesPathMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JmesPathCheckType, Check[String], String, JsonNode] = ???
 
@@ -46,43 +46,47 @@ trait MqttCheckSupport {
 
   implicit val MqttTextBodyStringCorrelatorMaterializer: CheckMaterializer[BodyStringCheckType, Check[String], String, String] = ???
 
-  implicit val MqttBufferBodyStringCorrelatorMaterializer: CheckMaterializer[SubstringCheckType, Check[ByteBuf], ByteBuf, String] = ???
+  implicit val MqttBufferBodyStringCorrelatorMaterializer: CheckMaterializer[BodyStringCheckType, Check[ByteBuf], ByteBuf, String] = ???
 
-  implicit val MqttTextBodySubstringCorrelatorMaterializer: CheckMaterializer[SubstringCheckType, Check[String], String, String] = ???
+  implicit val MqttTextSubstringCorrelatorMaterializer: CheckMaterializer[SubstringCheckType, Check[String], String, String] = ???
 
-  implicit val MqttBufferBodySubstringCorrelatorMaterializer: CheckMaterializer[BodyStringCheckType, Check[ByteBuf], ByteBuf, String] = ???
+  implicit val MqttBufferSubstringCorrelatorMaterializer: CheckMaterializer[SubstringCheckType, Check[ByteBuf], ByteBuf, String] = ???
 
   implicit val MqttTextBodyBytesCorrelatorMaterializer: CheckMaterializer[BodyBytesCheckType, Check[String], String, Array[Byte]] = ???
 
   implicit val MqttBufferBodyBytesCorrelatorMaterializer: CheckMaterializer[BodyBytesCheckType, Check[ByteBuf], ByteBuf, Array[Byte]] = ???
 
+  implicit val MqttTextBodyLengthCorrelatorMaterializer: CheckMaterializer[BodyBytesCheckType, Check[String], String, Int] = ???
+
+  implicit val MqttBufferBodyLengthCorrelatorMaterializer: CheckMaterializer[BodyBytesCheckType, Check[ByteBuf], ByteBuf, Int] = ???
+
   // checks
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for MQTT.")
-  implicit def checkBuilder2MqttCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X]) //
+  implicit def checkBuilder2MqttCheck[A, P](checkBuilder: CheckBuilder[A, P]) //
   (implicit materializer: CheckMaterializer[A, MqttCheck, ByteBuf, P]): MqttCheck =
     checkBuilder.build(materializer)
 
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for MQTT.")
-  implicit def validatorCheckBuilder2MqttCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]) //
-  (implicit materializer: CheckMaterializer[A, MqttCheck, ByteBuf, P]): MqttCheck =
-    validatorCheckBuilder.exists
+  implicit def validate2MqttCheck[T, P, X](
+      validate: CheckBuilder.Validate[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, MqttCheck, ByteBuf, P]): MqttCheck =
+    validate.exists
 
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for MQTT.")
-  implicit def findCheckBuilder2MqttCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X]) //
-  (implicit materializer: CheckMaterializer[A, MqttCheck, ByteBuf, P]): MqttCheck =
-    findCheckBuilder.find.exists
+  implicit def find2MqttCheck[T, P, X](
+      find: CheckBuilder.Find[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, MqttCheck, ByteBuf, P]): MqttCheck =
+    find.find.exists
 
   // correlators
-  implicit def findCheckBuilder2MessageCorrelator[A, P](findCheckBuilder: FindCheckBuilder[A, P, String]) //
-  (
-      implicit textMaterializer: CheckMaterializer[A, Check[String], String, P],
-      bufferMaterializer: CheckMaterializer[A, Check[ByteBuf], ByteBuf, P]
+  implicit def find2MessageCorrelator[T, P](findCheckBuilder: CheckBuilder.Find[T, P, String])(implicit
+      textMaterializer: CheckMaterializer[T, Check[String], String, P],
+      bufferMaterializer: CheckMaterializer[T, Check[ByteBuf], ByteBuf, P]
   ): MessageCorrelator =
-    validatorCheckBuilder2MessageCorrelator(findCheckBuilder.find)
+    validate2MessageCorrelator(findCheckBuilder.find)
 
-  implicit def validatorCheckBuilder2MessageCorrelator[A, P](validatorCheckBuilder: ValidatorCheckBuilder[A, P, String]) //
-  (
-      implicit textMaterializer: CheckMaterializer[A, Check[String], String, P],
-      bufferMaterializer: CheckMaterializer[A, Check[ByteBuf], ByteBuf, P]
+  implicit def validate2MessageCorrelator[T, P](validate: CheckBuilder.Validate[T, P, String])(implicit
+      textMaterializer: CheckMaterializer[T, Check[String], String, P],
+      bufferMaterializer: CheckMaterializer[T, Check[ByteBuf], ByteBuf, P]
   ): MessageCorrelator = ???
 }

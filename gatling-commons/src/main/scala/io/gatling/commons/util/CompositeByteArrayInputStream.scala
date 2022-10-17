@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ class CompositeByteArrayInputStream(parts: Seq[Array[Byte]]) extends InputStream
   private var active: Array[Byte] = parts.head
   private var _available = parts.sumBy(_.length)
 
-  override val available: Int = _available
+  override def available: Int = _available
 
   override def read(): Int = {
     if (_available > 0) {
@@ -50,7 +50,7 @@ class CompositeByteArrayInputStream(parts: Seq[Array[Byte]]) extends InputStream
       -1
     } else {
       _available -= 1
-      active(bytePos) & 0xFF
+      active(bytePos) & 0xff
     }
   }
 }

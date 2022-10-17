@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.http.client.impl;
 import io.gatling.http.client.HttpListener;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
-
 import java.net.InetSocketAddress;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -38,10 +37,13 @@ public interface RequestTimeout {
 
   void setChannel(Channel channel);
 
+  void setStreamId(int streamId);
+
   class DefaultRequestTimeout implements RequestTimeout {
     private final long timeout;
     private final HttpListener listener;
     private Channel channel;
+    private Integer streamId;
     private InetSocketAddress remoteAddress;
     private ScheduledFuture<?> f;
 
@@ -58,7 +60,15 @@ public interface RequestTimeout {
     private void execute() {
       listener.onThrowable(new RequestTimeoutException(timeout, remoteAddress));
       if (channel != null) {
-        channel.close();
+        if (channel.pipeline().get(DefaultHttpClient.APP_HTTP2_HANDLER) != null) {
+          // don't close the channel when HTTP/2
+          if (streamId != null) {
+            // the stream is active so it's safe to interrupt it
+            channel.pipeline().fireUserEventTriggered(new Http2AppHandler.StreamTimeout(streamId));
+          }
+        } else {
+          channel.close();
+        }
       }
     }
 
@@ -74,19 +84,20 @@ public interface RequestTimeout {
       this.channel = channel;
       remoteAddress = (InetSocketAddress) channel.remoteAddress();
     }
+
+    public void setStreamId(int streamId) {
+      this.streamId = streamId;
+    }
   }
 
   class NoopRequestTimeout implements RequestTimeout {
 
     private static final NoopRequestTimeout INSTANCE = new NoopRequestTimeout();
 
-    private NoopRequestTimeout() {
-
-    }
+    private NoopRequestTimeout() {}
 
     @Override
-    public void start(EventLoop eventLoop) {
-    }
+    public void start(EventLoop eventLoop) {}
 
     @Override
     public boolean isDone() {
@@ -94,11 +105,12 @@ public interface RequestTimeout {
     }
 
     @Override
-    public void cancel() {
-    }
+    public void cancel() {}
 
     @Override
-    public void setChannel(Channel channel) {
-    }
+    public void setChannel(Channel channel) {}
+
+    @Override
+    public void setStreamId(int streamId) {}
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,52 +24,55 @@ import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 import io.gatling.http.action.sse.fsm.SseFsm
-import io.gatling.http.check.sse.SseMessageCheckSequence
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpComponents
 
 class SseConnect(
-    val requestName: Expression[String],
-    sseName: String,
+    override val requestName: Expression[String],
+    sseName: Expression[String],
     request: Expression[Request],
-    connectCheckSequences: List[SseMessageCheckSequence],
+    connectCheckSequences: List[SseMessageCheckSequenceBuilder],
     coreComponents: CoreComponents,
     httpComponents: HttpComponents,
     val next: Action
 ) extends RequestAction
     with SseAction
     with NameGen {
-
   override val name: String = genName("sseConnect")
 
   override def clock: Clock = coreComponents.clock
 
   override def statsEngine: StatsEngine = coreComponents.statsEngine
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
-    fetchFsm(sseName, session) match {
-      case _: Failure =>
-        for {
-          request <- request(session)
-        } yield {
-          logger.info(s"Opening sse '$sseName': Scenario '${session.scenario}', UserId #${session.userId}")
+  override def sendRequest(session: Session): Validation[Unit] =
+    for {
+      reqName <- requestName(session)
+      fsmName <- sseName(session)
+      _ <- fetchFsm(fsmName, session) match {
+        case _: Failure =>
+          for {
+            request <- request(session)
+            resolvedCheckSequences <- SseMessageCheckSequenceBuilder.resolve(connectCheckSequences, session)
+          } yield {
+            logger.debug(s"Opening sse '$fsmName': Scenario '${session.scenario}', UserId #${session.userId}")
 
-          val fsm = new SseFsm(
-            sseName,
-            request,
-            requestName,
-            connectCheckSequences,
-            statsEngine,
-            httpComponents.httpEngine,
-            httpComponents.httpProtocol,
-            session.eventLoop,
-            clock
-          )
+            val fsm = SseFsm(
+              session,
+              fsmName,
+              reqName,
+              request,
+              resolvedCheckSequences,
+              statsEngine,
+              httpComponents.httpEngine,
+              httpComponents.httpProtocol,
+              clock
+            )
 
-          fsm.onPerformInitialConnect(session, next)
-        }
+            fsm.onPerformInitialConnect(session.set(fsmName, fsm), next)
+          }
 
-      case _ =>
-        Failure(s"Unable to create a new SSE stream with name $sseName: already exists")
-    }
+        case _ =>
+          Failure(s"Unable to create a new SSE stream with name $sseName: already exists")
+      }
+    } yield ()
 }

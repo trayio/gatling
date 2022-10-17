@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,17 +20,16 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.jms._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class JmsSessionPool(connection: Connection) {
-
   private val registeredJmsSessions = Collections.newSetFromMap(new ConcurrentHashMap[Session, java.lang.Boolean])
 
-  private val jmsSessions = ThreadLocal.withInitial[Session](() => {
+  private val jmsSessions = ThreadLocal.withInitial[Session] { () =>
     val s = connection.createSession(false, Session.AUTO_ACKNOWLEDGE)
     registeredJmsSessions.add(s)
     s
-  })
+  }
 
   def jmsSession(): Session = jmsSessions.get()
 

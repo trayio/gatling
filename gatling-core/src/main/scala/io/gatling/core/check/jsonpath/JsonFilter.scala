@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,23 @@
 
 package io.gatling.core.check.jsonpath
 
+import java.{ util => ju }
+
 import scala.annotation.implicitNotFound
 
-import io.gatling.core.json.Json
+import io.gatling.core.json.{ Json, JsonJava }
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeType._
 
-trait LowPriorityJsonFilterImplicits {
-
+sealed trait LowPriorityJsonFilterImplicits {
   private def newJsonFilter[T](f: PartialFunction[JsonNode, T]): JsonFilter[T] =
     new JsonFilter[T] {
       override val filter: PartialFunction[JsonNode, T] = f
     }
 
-  implicit val stringJsonFilter: JsonFilter[String] = newJsonFilter {
-    case node =>
-      if (node.getNodeType == NULL) {
-        null
-      } else {
-        Json.stringifyNode(node, isRootObject = true)
-      }
+  implicit val stringJsonFilter: JsonFilter[String] = newJsonFilter { case node =>
+    if (node.getNodeType == NULL) null else Json.stringifyNode(node, isRootObject = true)
   }
 
   implicit val jBooleanJsonFilter: JsonFilter[Boolean] = newJsonFilter {
@@ -44,7 +40,7 @@ trait LowPriorityJsonFilterImplicits {
     case node if node.getNodeType == NULL    => null.asInstanceOf[Boolean]
   }
 
-  implicit val integerJsonFilter: JsonFilter[Int] = newJsonFilter {
+  implicit val jIntegerJsonFilter: JsonFilter[Int] = newJsonFilter {
     case node if node.getNodeType == NUMBER => node.intValue
     case node if node.getNodeType == NULL   => null.asInstanceOf[Int]
   }
@@ -64,18 +60,32 @@ trait LowPriorityJsonFilterImplicits {
     case node if node.getNodeType == NULL   => null.asInstanceOf[Float]
   }
 
-  implicit val jListJsonFilter: JsonFilter[Seq[Any]] = newJsonFilter {
+  implicit val seqJsonFilter: JsonFilter[Seq[Any]] = newJsonFilter {
     case node if node.getNodeType == ARRAY => Json.asScala(node).asInstanceOf[Seq[Any]]
     case node if node.getNodeType == NULL  => null.asInstanceOf[Seq[Any]]
   }
 
-  implicit val jMapJsonFilter: JsonFilter[Map[String, Any]] = newJsonFilter {
+  implicit val mapJsonFilter: JsonFilter[Map[String, Any]] = newJsonFilter {
     case node if node.getNodeType == OBJECT => Json.asScala(node).asInstanceOf[Map[String, Any]]
     case node if node.getNodeType == NULL   => null.asInstanceOf[Map[String, Any]]
   }
 
-  implicit val anyJsonFilter: JsonFilter[Any] = newJsonFilter {
-    case e => Json.asScala(e)
+  implicit val anyJsonFilter: JsonFilter[Any] = newJsonFilter { case e =>
+    Json.asScala(e)
+  }
+
+  val jListJsonFilter: JsonFilter[ju.List[Object]] = newJsonFilter {
+    case node if node.getNodeType == ARRAY => JsonJava.asJava(node).asInstanceOf[ju.List[Object]]
+    case node if node.getNodeType == NULL  => null.asInstanceOf[ju.List[Object]]
+  }
+
+  val jMapJsonFilter: JsonFilter[ju.Map[String, Object]] = newJsonFilter {
+    case node if node.getNodeType == OBJECT => JsonJava.asJava(node).asInstanceOf[ju.Map[String, Object]]
+    case node if node.getNodeType == NULL   => null.asInstanceOf[ju.Map[String, Object]]
+  }
+
+  implicit val jObjectJsonFilter: JsonFilter[Object] = newJsonFilter { case e =>
+    JsonJava.asJava(e)
   }
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 package io.gatling.charts.report
 
-import io.gatling.charts.stats.LogFileReader
-import io.gatling.commons.stats.assertion.AssertionResult
+import io.gatling.charts.stats.LogFileData
+import io.gatling.commons.shared.unstable.model.stats.assertion.AssertionResult
 
 private[gatling] final class ReportsGenerationInputs(
     val reportFolderName: String,
-    val logFileReader: LogFileReader,
+    val logFileData: LogFileData,
     val assertionResults: List[AssertionResult]
 )

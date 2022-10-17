@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,16 @@ package io.gatling.charts.stats
 import scala.annotation.tailrec
 
 import io.gatling.charts.stats.buffers._
-import io.gatling.commons.stats.{ Group, OK }
-import io.gatling.core.config.GatlingConfiguration
+import io.gatling.commons.shared.unstable.model.stats.Group
+import io.gatling.commons.stats.OK
 
-private class ResultsHolder(val minTimestamp: Long, val maxTimestamp: Long, val buckets: Array[Int])(implicit configuration: GatlingConfiguration)
-    extends GeneralStatsBuffers(math.ceil((maxTimestamp - minTimestamp) / 1000.0).toInt)
+private class ResultsHolder(
+    override val minTimestamp: Long,
+    override val maxTimestamp: Long,
+    override val buckets: Array[Int],
+    override val lowerBound: Int,
+    override val higherBound: Int
+) extends GeneralStatsBuffers(math.ceil((maxTimestamp - minTimestamp) / 1000.0).toInt)
     with Buckets
     with RunTimes
     with NamesBuffers
@@ -34,7 +39,6 @@ private class ResultsHolder(val minTimestamp: Long, val maxTimestamp: Long, val 
     with ErrorsBuffers
     with RequestPercentilesBuffers
     with GroupPercentilesBuffers {
-
   def addUserRecord(record: UserRecord): Unit = {
     addSessionBuffers(record)
     addScenarioName(record)
@@ -68,7 +72,6 @@ private class ResultsHolder(val minTimestamp: Long, val maxTimestamp: Long, val 
       updateRequestPercentilesBuffers(record)
     }
 
-  def addErrorRecord(record: ErrorRecord): Unit = {
+  def addErrorRecord(record: ErrorRecord): Unit =
     updateGlobalError(record.message)
-  }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,28 +16,26 @@
 
 package io.gatling.jms.check
 
-import java.io.StringReader
 import java.nio.charset.{ Charset, StandardCharsets }
+import javax.jms.{ BytesMessage, Message, TextMessage }
 
-import com.fasterxml.jackson.databind.JsonNode
 import io.gatling.commons.validation._
+import io.gatling.core.check.{ CheckMaterializer, Preparer }
 import io.gatling.core.check.bytes.BodyBytesCheckType
 import io.gatling.core.check.jmespath.JmesPathCheckType
 import io.gatling.core.check.jsonpath.JsonPathCheckType
 import io.gatling.core.check.string.BodyStringCheckType
 import io.gatling.core.check.substring.SubstringCheckType
 import io.gatling.core.check.xpath.{ XPathCheckType, XmlParsers }
-import io.gatling.core.check.{ CheckMaterializer, Preparer }
 import io.gatling.core.json.JsonParsers
 import io.gatling.jms.JmsCheck
-import javax.jms.{ BytesMessage, Message, TextMessage }
+
+import com.fasterxml.jackson.databind.JsonNode
 import net.sf.saxon.s9api.XdmNode
-import org.xml.sax.InputSource
 
 class JmsCheckMaterializer[T, P](override val preparer: Preparer[Message, P]) extends CheckMaterializer[T, JmsCheck, Message, P](identity)
 
 object JmsCheckMaterializer {
-
   private def toBytes(bytesMessage: BytesMessage): Array[Byte] = {
     val buffer = Array.ofDim[Byte](bytesMessage.getBodyLength.toInt)
     bytesMessage.readBytes(buffer)
@@ -50,9 +48,15 @@ object JmsCheckMaterializer {
     else
       new String(toBytes(bytesMessage), charset)
 
-  private def bytesPreparer(charset: Charset): Preparer[Message, Array[Byte]] = {
+  private def bodyBytesPreparer(charset: Charset): Preparer[Message, Array[Byte]] = {
     case tm: TextMessage  => tm.getText.getBytes(charset).success
     case bm: BytesMessage => toBytes(bm).success
+    case _                => "Unsupported message type".failure
+  }
+
+  private def bodyLengthPreparer(charset: Charset): Preparer[Message, Int] = {
+    case tm: TextMessage  => tm.getText.getBytes(charset).length.success
+    case bm: BytesMessage => bm.getBodyLength.toInt.success
     case _                => "Unsupported message type".failure
   }
 
@@ -78,7 +82,10 @@ object JmsCheckMaterializer {
     new JmsCheckMaterializer(stringBodyPreparer(charset))
 
   def bodyBytes(charset: Charset): CheckMaterializer[BodyBytesCheckType, JmsCheck, Message, Array[Byte]] =
-    new JmsCheckMaterializer(bytesPreparer(charset))
+    new JmsCheckMaterializer(bodyBytesPreparer(charset))
+
+  def bodyLength(charset: Charset): CheckMaterializer[BodyBytesCheckType, JmsCheck, Message, Int] =
+    new JmsCheckMaterializer(bodyLengthPreparer(charset))
 
   def substring(charset: Charset): CheckMaterializer[SubstringCheckType, JmsCheck, Message, String] =
     new JmsCheckMaterializer(stringBodyPreparer(charset))
@@ -89,17 +96,18 @@ object JmsCheckMaterializer {
   def jsonPath(jsonParsers: JsonParsers, charset: Charset): CheckMaterializer[JsonPathCheckType, JmsCheck, Message, JsonNode] =
     new JmsCheckMaterializer(jsonPreparer(jsonParsers, charset))
 
-  private val XPathPreparerErrorMapper: String => String = "Could not parse response into a DOM Document: " + _
+  val Xpath: CheckMaterializer[XPathCheckType, JmsCheck, Message, XdmNode] = {
+    val errorMapper: String => String = "Could not parse response into a DOM Document: " + _
 
-  private def xpathPreparer(xmlParsers: XmlParsers): Preparer[Message, Option[XdmNode]] =
-    message =>
-      safely(XPathPreparerErrorMapper) {
-        message match {
-          case tm: TextMessage => Some(xmlParsers.parse(new InputSource(new StringReader(tm.getText)))).success
-          case _               => "Unsupported message type".failure
+    val preparer: Preparer[Message, XdmNode] =
+      message =>
+        safely(errorMapper) {
+          message match {
+            case tm: TextMessage => XmlParsers.parse(tm.getText).success
+            case _               => "Unsupported message type".failure
+          }
         }
-      }
 
-  def xpath(xmlParsers: XmlParsers): CheckMaterializer[XPathCheckType, JmsCheck, Message, Option[XdmNode]] =
-    new JmsCheckMaterializer(xpathPreparer(xmlParsers))
+    new JmsCheckMaterializer(preparer)
+  }
 }

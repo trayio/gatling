@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.core.feeder
 import io.gatling.BaseSpec
 
 class ArrayBasedMapSpec extends BaseSpec {
-
   "ArrayBasedMap" should "generate iterator with proper records" in {
     ArrayBasedMap(Array("col1", "col2"), Array("val1", "val2")).iterator.toArray shouldBe Array("col1" -> "val1", "col2" -> "val2")
   }

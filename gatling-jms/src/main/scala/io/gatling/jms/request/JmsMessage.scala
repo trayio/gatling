@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,10 @@
 package io.gatling.jms.request
 
 import java.io.{ Serializable => JSerializable }
+import javax.jms.{ Message, Session => JmsSession }
 
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session.{ Expression, Session }
-
-import javax.jms.{ Message, Session => JmsSession }
 
 sealed trait JmsMessage {
   private[jms] def jmsMessage(session: Session, jmsSession: JmsSession): Validation[Message]

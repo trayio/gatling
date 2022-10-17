@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,11 @@ package io.gatling.recorder.har
 
 import java.io.InputStream
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import com.fasterxml.jackson.databind.{ DeserializationFeature, ObjectMapper }
 
 object HarParser {
-
   final case class HarEntry(startedDateTime: String, time: Option[Double], timings: Option[HarTimings], request: HarRequest, response: HarResponse)
 
   final case class HarRequest(httpVersion: String, method: String, url: String, headers: Seq[HarHeader], postData: Option[HarRequestPostData])
@@ -45,7 +44,7 @@ object HarParser {
   private val TheObjectMapper = new ObjectMapper()
     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-  def parseHarEntries(is: InputStream): Seq[HarEntry] = {
+  def parseHarEntries(is: InputStream): List[HarEntry] = {
     val javaModel = TheObjectMapper.readValue(is, classOf[HarJavaModel.HarHttpArchive])
 
     Option(javaModel.getLog.getEntries)
@@ -54,17 +53,16 @@ object HarParser {
           HarEntry(
             startedDateTime = entry.getStartedDateTime,
             time = Option(entry.getTime),
-            timings = Option(entry.getTimings).map(
-              timings =>
-                HarTimings(
-                  blocked = timings.getBlocked,
-                  dns = timings.getDns,
-                  connect = timings.getConnect,
-                  ssl = timings.getSsl,
-                  send = timings.getSend,
-                  waitTiming = timings.getWait,
-                  receive = timings.getReceive
-                )
+            timings = Option(entry.getTimings).map(timings =>
+              HarTimings(
+                blocked = timings.getBlocked,
+                dns = timings.getDns,
+                connect = timings.getConnect,
+                ssl = timings.getSsl,
+                send = timings.getSend,
+                waitTiming = timings.getWait,
+                receive = timings.getReceive
+              )
             ),
             request = HarRequest(
               httpVersion = entry.getRequest.getHttpVersion,
@@ -72,41 +70,46 @@ object HarParser {
               url = entry.getRequest.getUrl,
               headers = Option(entry.getRequest.getHeaders)
                 .map(
-                  _.asScala.map(
-                    header =>
+                  _.asScala
+                    .map(header =>
                       HarHeader(
                         name = header.getName,
                         value = header.getValue
                       )
-                  )
+                    )
+                    .toSeq
                 )
                 .getOrElse(Nil),
-              postData = Option(entry.getRequest.getPostData).map(
-                postData =>
-                  HarRequestPostData(
-                    text = Option(postData.getText),
-                    params = Option(postData.getParams)
-                      .map(_.asScala.map { param =>
-                        HarRequestPostParam(
-                          name = param.getName,
-                          value = param.getValue
+              postData = Option(entry.getRequest.getPostData).map(postData =>
+                HarRequestPostData(
+                  text = Option(postData.getText),
+                  params = Option(postData.getParams)
+                    .map(
+                      _.asScala
+                        .map(param =>
+                          HarRequestPostParam(
+                            name = param.getName,
+                            value = param.getValue
+                          )
                         )
-                      })
-                      .getOrElse(Nil)
-                  )
+                        .toSeq
+                    )
+                    .getOrElse(Nil)
+                )
               )
             ),
             response = HarResponse(
               status = entry.getResponse.getStatus,
               headers = Option(entry.getResponse.getHeaders)
                 .map(
-                  _.asScala.map(
-                    header =>
+                  _.asScala
+                    .map(header =>
                       HarHeader(
                         name = header.getName,
                         value = header.getValue
                       )
-                  )
+                    )
+                    .toSeq
                 )
                 .getOrElse(Nil),
               statusText = entry.getResponse.getStatusText,
@@ -118,8 +121,7 @@ object HarParser {
               )
             )
           )
-        }
-
+        }.toList
       }
       .getOrElse(Nil)
   }

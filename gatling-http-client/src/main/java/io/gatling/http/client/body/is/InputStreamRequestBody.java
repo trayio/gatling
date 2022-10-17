@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,25 +21,43 @@ import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.stream.ChunkedStream;
-
+import java.io.IOException;
 import java.io.InputStream;
 
-public final class InputStreamRequestBody extends RequestBody<InputStream> {
+public final class InputStreamRequestBody extends RequestBody.Base<InputStream> {
 
-  public InputStreamRequestBody(InputStream stream, String contentType) {
-    super(stream, contentType);
+  private static class ConsumableInputStream extends InputStream {
+    private final InputStream is;
+
+    ConsumableInputStream(InputStream is) {
+      this.is = is;
+    }
+
+    boolean consumed = false;
+
+    public int read() throws IOException {
+      consumed = true;
+      return is.read();
+    }
+
+    @Override
+    public int available() throws IOException {
+      return is.available();
+    }
+  }
+
+  public InputStreamRequestBody(InputStream stream) {
+    super(new ConsumableInputStream(stream));
   }
 
   @Override
   public WritableContent build(ByteBufAllocator alloc) {
-
     ChunkedStream chunkedStream = new ChunkedStream(content);
-
     return new WritableContent(chunkedStream, -1);
   }
 
   @Override
-  public RequestBodyBuilder<InputStream> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new InputStreamRequestBodyBuilder(content);
   }
 
@@ -48,11 +66,12 @@ public final class InputStreamRequestBody extends RequestBody<InputStream> {
     throw new UnsupportedOperationException("Can't read InputStream bytes without consuming it");
   }
 
+  public boolean isConsumed() {
+    return ((ConsumableInputStream) content).consumed;
+  }
+
   @Override
   public String toString() {
-    return "InputStreamRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
-      '}';
+    return "InputStreamRequestBody{content=???}";
   }
 }

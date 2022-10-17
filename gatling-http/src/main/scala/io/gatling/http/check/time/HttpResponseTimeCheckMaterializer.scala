@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import io.gatling.http.check.HttpCheckScope.Time
 import io.gatling.http.response.Response
 
 object HttpResponseTimeCheckMaterializer {
-
   val Instance: CheckMaterializer[ResponseTimeCheckType, HttpCheck, Response, ResponseTimings] = {
     val preparer: Preparer[Response, ResponseTimings] = response => new ResponseTimings(response.startTimestamp, response.endTimestamp).success
     new HttpCheckMaterializer[ResponseTimeCheckType, ResponseTimings](Time, preparer)

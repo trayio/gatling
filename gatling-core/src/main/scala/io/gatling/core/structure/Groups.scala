@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.gatling.core.action.builder.GroupBuilder
 import io.gatling.core.session.Expression
 
 private[structure] trait Groups[B] extends Execs[B] {
-
   def group(name: Expression[String])(chain: ChainBuilder): B =
     exec(new ChainBuilder(List(GroupBuilder.start(name))).exec(chain).exec(GroupBuilder.End))
 }

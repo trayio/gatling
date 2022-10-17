@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,37 +16,40 @@
 
 package io.gatling.http.client.body.multipart;
 
-import io.gatling.http.client.body.RequestBody;
-import io.gatling.http.client.body.RequestBodyBuilder;
-import io.netty.handler.codec.http.HttpHeaderValues;
-
-import java.nio.charset.Charset;
-import java.util.List;
-
 import static io.gatling.http.client.util.HttpUtils.computeMultipartBoundary;
 import static io.gatling.http.client.util.HttpUtils.extractContentTypeBoundaryAttribute;
 import static io.gatling.http.client.util.HttpUtils.patchContentTypeWithBoundaryAttribute;
 import static io.gatling.http.client.util.MiscUtils.withDefault;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
-public class MultipartFormDataRequestBodyBuilder extends RequestBodyBuilder<List<Part<?>>> {
+import io.gatling.http.client.body.RequestBody;
+import io.gatling.http.client.body.RequestBodyBuilder;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import java.nio.charset.Charset;
+import java.util.List;
+
+public class MultipartFormDataRequestBodyBuilder extends RequestBodyBuilder.Base<List<Part<?>>> {
 
   public MultipartFormDataRequestBodyBuilder(List<Part<?>> content) {
     super(content);
   }
 
   @Override
-  public RequestBody<List<Part<?>>> build(String contentType, Charset charset, Charset defaultCharset) {
+  public RequestBody build(String contentType, Charset charset, Charset defaultCharset) {
 
     byte[] boundary;
+    String patchedContentType;
     String contentTypeBoundaryAttribute = extractContentTypeBoundaryAttribute(contentType);
     if (contentTypeBoundaryAttribute != null) {
       boundary = contentTypeBoundaryAttribute.getBytes(US_ASCII);
+      patchedContentType = null;
     } else {
       boundary = computeMultipartBoundary();
-      contentType = patchContentTypeWithBoundaryAttribute(withDefault(contentType, HttpHeaderValues.MULTIPART_FORM_DATA), boundary);
+      patchedContentType =
+          patchContentTypeWithBoundaryAttribute(
+              withDefault(contentType, HttpHeaderValues.MULTIPART_FORM_DATA), boundary);
     }
 
-    return new MultipartFormDataRequestBody(content, contentType, boundary);
+    return new MultipartFormDataRequestBody(content, patchedContentType, boundary);
   }
 }

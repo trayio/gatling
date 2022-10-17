@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package io.gatling.recorder.http.flows
 import scala.util.{ Failure, Success }
 
 import io.gatling.commons.util.Clock
-import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.{ OutgoingProxy, TrafficLogger }
+import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM.{ WaitingForClientChannelConnect, WaitingForClientChannelConnectData }
 import io.gatling.recorder.http.flows.MitmMessage.{ ClientChannelActive, ClientChannelException }
 import io.gatling.recorder.http.ssl.SslServerContext
@@ -55,11 +55,9 @@ object MitmActor {
 }
 
 abstract class MitmActor(clientBootstrap: Bootstrap) extends MitmActorFSM with StrictLogging {
-
   protected def connectedRemote(requestRemote: Remote): Remote
 
   protected def connectClientChannel(requestRemote: Remote, request: FullHttpRequest): State = {
-
     val remote = connectedRemote(requestRemote)
 
     logger.debug(s"Connecting to $remote")

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,26 +18,25 @@ package io.gatling.core.action
 
 import io.gatling.AkkaSpec
 import io.gatling.commons.util.DefaultClock
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.EmptySession
 import io.gatling.core.stats.StatsEngine
 
 class RendezVousSpec extends AkkaSpec {
-
   private val clock = new DefaultClock
 
   "RendezVous" should "block the specified number of sessions until they have all reached it" in {
     val rendezVous = RendezVous(3, system, mock[StatsEngine], clock, new ActorDelegatingAction("next", self))
 
-    rendezVous ! EmptySession
+    rendezVous ! emptySession
     expectNoMessage(remainingOrDefault)
 
-    rendezVous ! EmptySession
+    rendezVous ! emptySession
     expectNoMessage(remainingOrDefault)
 
-    rendezVous ! EmptySession
-    expectMsgAllOf(EmptySession, EmptySession, EmptySession)
+    rendezVous ! emptySession
+    expectMsgAllOf(emptySession, emptySession, emptySession)
 
-    rendezVous ! EmptySession
-    expectMsg(EmptySession)
+    rendezVous ! emptySession
+    expectMsg(emptySession)
   }
 }

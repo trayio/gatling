@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,10 +35,11 @@ sealed trait OpenInjectionStep extends Product with Serializable {
    * Number of users to inject
    */
   private[inject] def users: Long
+
+  private[inject] def duration: FiniteDuration
 }
 
 abstract class InjectionIterator(durationInSeconds: Int) extends AbstractIterator[FiniteDuration] {
-
   private var thisSecond: Int = -1
   private var thisSecondIterator: Iterator[FiniteDuration] = Iterator.empty
   private var finished = finishedAfterMovingToNextBatch()
@@ -54,7 +55,6 @@ abstract class InjectionIterator(durationInSeconds: Int) extends AbstractIterato
       if (thisSecond == durationInSeconds) {
         thisSecondIterator = Iterator.empty
         result = Some(true)
-
       } else {
         val users = thisSecondUsers(thisSecond)
 
@@ -62,12 +62,11 @@ abstract class InjectionIterator(durationInSeconds: Int) extends AbstractIterato
           thisSecondIterator = Shard
             .shards(users, 1000)
             .zipWithIndex
-            .flatMap {
-              case (millisUsers, millis) =>
-                if (millisUsers > 0)
-                  Iterator.fill(millisUsers.toInt)((thisSecond * 1000 + millis) milliseconds)
-                else
-                  Iterator.empty
+            .flatMap { case (millisUsers, millis) =>
+              if (millisUsers > 0)
+                Iterator.fill(millisUsers.toInt)((thisSecond * 1000 + millis).milliseconds)
+              else
+                Iterator.empty
             }
           result = Some(false)
         }
@@ -76,7 +75,7 @@ abstract class InjectionIterator(durationInSeconds: Int) extends AbstractIterato
     result.getOrElse(true)
   }
 
-  override def hasNext(): Boolean =
+  override def hasNext: Boolean =
     if (thisSecondIterator.hasNext) {
       true
     } else if (finished) {
@@ -94,18 +93,15 @@ abstract class InjectionIterator(durationInSeconds: Int) extends AbstractIterato
 /**
  * Ramp a given number of users over a given duration
  */
-final case class RampOpenInjection(users: Long, duration: FiniteDuration) extends OpenInjectionStep {
-
+final case class RampOpenInjection private[inject] (users: Long, duration: FiniteDuration) extends OpenInjectionStep {
   require(users >= 0, s"users ($users) must be >= 0")
   require(duration >= Duration.Zero, s"duration ($duration) must be >= 0")
 
   override def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
     if (users == 0) {
       NothingForOpenInjection(duration).chain(chained)
-
     } else if (duration == Duration.Zero) {
       AtOnceOpenInjection(users).chain(chained)
-
     } else {
       val durationInSeconds = duration.toSeconds.toInt
 
@@ -118,8 +114,7 @@ final case class RampOpenInjection(users: Long, duration: FiniteDuration) extend
 /**
  * Inject users at constant rate : an other expression of a RampInjection
  */
-final case class ConstantRateOpenInjection(rate: Double, duration: FiniteDuration) extends OpenInjectionStep {
-
+final case class ConstantRateOpenInjection private[inject] (rate: Double, duration: FiniteDuration) extends OpenInjectionStep {
   require(rate >= 0, s"rate ($rate) must be >= 0")
   require(duration >= Duration.Zero, s"duration ($duration) must be >= 0")
   require(!(rate > 0 && duration == Duration.Zero), s"can't inject a non 0 rate ($rate) for a 0 duration")
@@ -139,8 +134,7 @@ final case class ConstantRateOpenInjection(rate: Double, duration: FiniteDuratio
 /**
  * Don't injection any user for a given duration
  */
-final case class NothingForOpenInjection(duration: FiniteDuration) extends OpenInjectionStep {
-
+final case class NothingForOpenInjection private[inject] (duration: FiniteDuration) extends OpenInjectionStep {
   require(duration >= Duration.Zero, s"duration ($duration) must be >= 0")
 
   override private[inject] def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
@@ -156,8 +150,7 @@ final case class NothingForOpenInjection(duration: FiniteDuration) extends OpenI
 /**
  * Inject all the users at once
  */
-final case class AtOnceOpenInjection(users: Long) extends OpenInjectionStep {
-
+final case class AtOnceOpenInjection private[inject] (users: Long) extends OpenInjectionStep {
   require(users >= 0, s"users ($users) must be >= 0")
 
   override private[inject] def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
@@ -165,7 +158,6 @@ final case class AtOnceOpenInjection(users: Long) extends OpenInjectionStep {
       chained
     } else {
       new AbstractIterator[FiniteDuration] {
-
         private var i: Long = 0L
 
         override def hasNext: Boolean = i < users
@@ -177,15 +169,19 @@ final case class AtOnceOpenInjection(users: Long) extends OpenInjectionStep {
         }
       } ++ chained
     }
+
+  override private[inject] def duration: FiniteDuration = Duration.Zero
 }
 
 /**
- * @param startRate Initial injection rate in users/seconds
- * @param endRate Final injection rate in users/seconds
- * @param duration Injection duration
+ * @param startRate
+ *   Initial injection rate in users/seconds
+ * @param endRate
+ *   Final injection rate in users/seconds
+ * @param duration
+ *   Injection duration
  */
-final case class RampRateOpenInjection(startRate: Double, endRate: Double, duration: FiniteDuration) extends OpenInjectionStep {
-
+final case class RampRateOpenInjection private[inject] (startRate: Double, endRate: Double, duration: FiniteDuration) extends OpenInjectionStep {
   require(startRate >= 0.0 && endRate >= 0.0, s"injection rates ($startRate, $endRate) must be >= 0")
   require(duration >= Duration.Zero, s"duration ($duration) must be >= 0")
   require(!((startRate > 0 || endRate > 0) && duration == Duration.Zero), s"can't inject non 0 rates ($startRate, $endRate) for a 0 duration")
@@ -197,14 +193,12 @@ final case class RampRateOpenInjection(startRate: Double, endRate: Double, durat
   override private[inject] def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
     if (startRate == 0 && endRate == 0) {
       NothingForOpenInjection(duration).chain(chained)
-
     } else {
       val durationInSeconds = duration.toSeconds.toInt
       val a = (BigDecimal(endRate) - startRate) / (2 * durationInSeconds)
       var pendingFraction = BigDecimal(0.0)
 
       new InjectionIterator(durationInSeconds) {
-
         override protected def thisSecondUsers(thisSecondParam: Int): Int = {
           val thisSecondUsersBigDecimal = a * (2 * thisSecondParam + 1) + startRate + pendingFraction
           val thisSecondUsersIntValue = thisSecondUsersBigDecimal.setScale(10, BigDecimal.RoundingMode.HALF_UP).intValue
@@ -226,18 +220,15 @@ final case class RampRateOpenInjection(startRate: Double, endRate: Double, durat
  *                          // (good numerical approximation)
  * }}}
  */
-final case class HeavisideOpenInjection(private[inject] val users: Long, duration: FiniteDuration) extends OpenInjectionStep {
-
+final case class HeavisideOpenInjection private[inject] (private[inject] val users: Long, duration: FiniteDuration) extends OpenInjectionStep {
   require(users >= 0, s"users ($users) must be >= 0")
   require(duration >= Duration.Zero, s"Duration ($duration) must be >= 0")
 
   override private[inject] def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
     if (users == 0) {
       NothingForOpenInjection(duration).chain(chained)
-
     } else if (duration == Duration.Zero) {
       AtOnceOpenInjection(users).chain(chained)
-
     } else {
       def heavisideInv(u: Long): Double = {
         val x = u.toDouble / (users + 2)
@@ -249,7 +240,6 @@ final case class HeavisideOpenInjection(private[inject] val users: Long, duratio
       val k = duration.toMillis / d
 
       new AbstractIterator[FiniteDuration] {
-
         private var i: Long = 0L
 
         override def hasNext: Boolean = i < users
@@ -265,26 +255,27 @@ final case class HeavisideOpenInjection(private[inject] val users: Long, duratio
 }
 
 object PoissonOpenInjection {
-  def apply(duration: FiniteDuration, startRate: Double, endRate: Double): PoissonOpenInjection =
+  private[inject] def apply(duration: FiniteDuration, startRate: Double, endRate: Double): PoissonOpenInjection =
     new PoissonOpenInjection(duration, startRate, endRate, System.nanoTime)
 }
 
 /**
  * Inject users following a Poisson random process, with a ramped injection rate.
  *
- * A Poisson process models users arriving at a page randomly. You can specify the rate
- * that users arrive at, and this rate can ramp-up.
+ * A Poisson process models users arriving at a page randomly. You can specify the rate that users arrive at, and this rate can ramp-up.
  *
- * Note that since this injector has an element of randomness, the total number of users
- * may vary from run to run, depending on the seed.
+ * Note that since this injector has an element of randomness, the total number of users may vary from run to run, depending on the seed.
  *
- * @param duration the length of time this injector should run for
- * @param startRate initial injection rate for users
- * @param endRate final injection rate for users
- * @param seed a seed for the randomization. If the same seed is re-used, the same timings will be obtained
+ * @param duration
+ *   the length of time this injector should run for
+ * @param startRate
+ *   initial injection rate for users
+ * @param endRate
+ *   final injection rate for users
+ * @param seed
+ *   a seed for the randomization. If the same seed is re-used, the same timings will be obtained
  */
-final case class PoissonOpenInjection(duration: FiniteDuration, startRate: Double, endRate: Double, seed: Long) extends OpenInjectionStep {
-
+final case class PoissonOpenInjection private[inject] (duration: FiniteDuration, startRate: Double, endRate: Double, seed: Long) extends OpenInjectionStep {
   require(startRate >= 0.0 && endRate >= 0.0, s"injection rates ($startRate, $endRate) must be >= 0")
   require(duration >= Duration.Zero, s"duration ($duration) must be > 0")
   require(!((startRate > 0 || endRate > 0) && duration == Duration.Zero), s"can't inject non 0 rates ($startRate, $endRate) for a 0 duration")
@@ -294,7 +285,6 @@ final case class PoissonOpenInjection(duration: FiniteDuration, startRate: Doubl
   override private[inject] def chain(chained: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
     if (startRate == 0 && endRate == 0) {
       NothingForOpenInjection(duration).chain(chained)
-
     } else {
       val durationSecs = duration.toSeconds
       val rand = new Random(seed)
@@ -321,28 +311,41 @@ sealed trait CompositeOpenInjectionStepLike extends OpenInjectionStep {
   private[inject] def composite: CompositeOpenInjectionStep
 }
 
-final case class IncreasingUsersPerSecCompositeStep(
-    usersPerSec: Double,
-    nbOfSteps: Int,
+final case class StairsUsersPerSecCompositeStep private[inject] (
+    rateIncrement: Double,
+    levels: Int,
     duration: FiniteDuration,
-    startingUsers: Double,
+    startingRate: Double,
     rampDuration: FiniteDuration
 ) extends CompositeOpenInjectionStepLike {
-  def startingFrom(startingUsers: Double): IncreasingUsersPerSecCompositeStep = this.copy(startingUsers = startingUsers)
-  def separatedByRampsLasting(duration: FiniteDuration): IncreasingUsersPerSecCompositeStep = this.copy(rampDuration = duration)
+  def startingFrom(startingRate: Double): StairsUsersPerSecCompositeStep = this.copy(startingRate = startingRate)
+  def separatedByRampsLasting(duration: FiniteDuration): StairsUsersPerSecCompositeStep = this.copy(rampDuration = duration)
 
   override private[inject] lazy val composite = {
     val injectionSteps =
-      (1 to nbOfSteps).foldLeft(List.empty[OpenInjectionStep]) { (acc, currentStep) =>
-        val step = if (startingUsers > 0) currentStep - 1 else currentStep
-        val newRate = startingUsers + step * usersPerSec
-
-        val newInjectionsSteps = if (currentStep < nbOfSteps && rampDuration > Duration.Zero) {
-          List(ConstantRateOpenInjection(newRate, duration), RampRateOpenInjection(newRate, newRate + usersPerSec, rampDuration))
+      List.range(0, levels).flatMap { stepIdx =>
+        if (rampDuration > Duration.Zero) {
+          if (startingRate == 0) {
+            // (ramp, level)*
+            val rampStartRate = stepIdx * rateIncrement
+            val levelRate = (stepIdx + 1) * rateIncrement
+            RampRateOpenInjection(rampStartRate, levelRate, rampDuration) :: ConstantRateOpenInjection(levelRate, duration) :: Nil
+          } else {
+            // (level, ramp)* + level
+            val levelRate = stepIdx * rateIncrement + startingRate
+            val level = ConstantRateOpenInjection(levelRate, duration)
+            if (stepIdx == levels - 1) {
+              level :: Nil
+            } else {
+              val rampEndRate = (stepIdx + 1) * rateIncrement + startingRate
+              level :: RampRateOpenInjection(levelRate, rampEndRate, rampDuration) :: Nil
+            }
+          }
         } else {
-          List(ConstantRateOpenInjection(newRate, duration))
+          // only levels
+          val levelRate = stepIdx * rateIncrement + startingRate
+          ConstantRateOpenInjection(levelRate, duration) :: Nil
         }
-        acc ++ newInjectionsSteps
       }
 
     CompositeOpenInjectionStep(injectionSteps)
@@ -355,13 +358,13 @@ final case class IncreasingUsersPerSecCompositeStep(
     composite.users
 }
 
-private[inject] final case class CompositeOpenInjectionStep(injectionSteps: List[OpenInjectionStep]) extends OpenInjectionStep {
-
+private[inject] final case class CompositeOpenInjectionStep private[inject] (steps: List[OpenInjectionStep]) extends OpenInjectionStep {
   override private[inject] def chain(iterator: Iterator[FiniteDuration]): Iterator[FiniteDuration] =
-    injectionSteps.foldRight(iterator) {
-      case (injectionStep, acc) =>
-        injectionStep.chain(acc)
+    steps.foldRight(iterator) { case (injectionStep, acc) =>
+      injectionStep.chain(acc)
     }
 
-  override private[inject] def users: Long = injectionSteps.map(_.users).sum
+  override private[inject] def users: Long = steps.map(_.users).sum
+
+  override private[inject] def duration: FiniteDuration = steps.foldLeft(Duration.Zero)((acc, step) => acc.plus(step.duration))
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package io.gatling.core.stats.message
 
 object ResponseTimings {
-
   def responseTime(startTimestamp: Long, endTimestamp: Long): Int =
     // < 0 means incoming message without duration
     if (endTimestamp < 0)
@@ -27,6 +26,5 @@ object ResponseTimings {
 }
 
 final class ResponseTimings(val startTimestamp: Long, val endTimestamp: Long) {
-
   val responseTime: Int = ResponseTimings.responseTime(startTimestamp, endTimestamp)
 }

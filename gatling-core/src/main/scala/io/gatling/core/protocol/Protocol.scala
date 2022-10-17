@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package io.gatling.core.protocol
 
-import scala.collection.breakOut
 import scala.collection.mutable
 
 import io.gatling.core.CoreComponents
@@ -25,7 +24,7 @@ import io.gatling.core.session.Session
 
 object Protocol {
   def indexByType(protocols: Iterable[Protocol]): Protocols =
-    protocols.map(p => p.getClass.asInstanceOf[Class[Protocol]] -> p)(breakOut)
+    protocols.map(p => p.getClass.asInstanceOf[Class[Protocol]] -> p).toMap
 }
 
 trait Protocol
@@ -38,9 +37,6 @@ trait ProtocolKey[P, C] {
 }
 
 object ProtocolComponents {
-
-  val NoopOnStart: Session => Session = identity
-
   val NoopOnExit: Session => Unit = _ => ()
 }
 
@@ -50,7 +46,6 @@ trait ProtocolComponents {
 }
 
 class ProtocolComponentsRegistries(coreComponents: CoreComponents, globalProtocols: Protocols) {
-
   private val componentsFactoryCache = mutable.Map.empty[ProtocolKey[_, _], Any]
 
   def scenarioRegistry(scenarioProtocols: Protocols): ProtocolComponentsRegistry =
@@ -62,12 +57,10 @@ class ProtocolComponentsRegistries(coreComponents: CoreComponents, globalProtoco
 }
 
 class ProtocolComponentsRegistry(coreComponents: CoreComponents, protocols: Protocols, componentsFactoryCache: mutable.Map[ProtocolKey[_, _], Any]) {
-
   private val protocolCache = mutable.Map.empty[ProtocolKey[_, _], Protocol]
   private val componentsCache = mutable.Map.empty[ProtocolKey[_, _], ProtocolComponents]
 
   def components[P, C](key: ProtocolKey[P, C]): C = {
-
     def componentsFactory: P => C = componentsFactoryCache.getOrElseUpdate(key, key.newComponents(coreComponents)).asInstanceOf[P => C]
     def protocol: P =
       protocolCache.getOrElse(key, protocols.getOrElse(key.protocolClass, key.defaultProtocolValue(coreComponents.configuration))).asInstanceOf[P]
@@ -80,7 +73,7 @@ class ProtocolComponentsRegistry(coreComponents: CoreComponents, protocols: Prot
     if (componentsCache.values.nonEmpty) {
       componentsCache.values.map(_.onStart).reduceLeft(_ andThen _)
     } else {
-      ProtocolComponents.NoopOnStart
+      Session.Identity
     }
 
   def onExit: Session => Unit =

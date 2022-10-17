@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,11 @@ public class MessageEndPartImpl extends PartImpl {
   private ByteBuf lazyLoadContentBuffer(ByteBufAllocator alloc) {
     if (contentBuffer == null) {
       contentBuffer = alloc.buffer((int) getContentLength());
-      contentBuffer.writeBytes(EXTRA_BYTES).writeBytes(boundary).writeBytes(EXTRA_BYTES).writeBytes(CRLF_BYTES);
+      contentBuffer
+          .writeBytes(EXTRA_BYTES)
+          .writeBytes(boundary)
+          .writeBytes(EXTRA_BYTES)
+          .writeBytes(CRLF_BYTES);
     }
     return contentBuffer;
   }
@@ -76,7 +80,6 @@ public class MessageEndPartImpl extends PartImpl {
   @Override
   public void close() {
     super.close();
-    if (contentBuffer != null)
-      contentBuffer.release();
+    if (contentBuffer != null) contentBuffer.release();
   }
 }

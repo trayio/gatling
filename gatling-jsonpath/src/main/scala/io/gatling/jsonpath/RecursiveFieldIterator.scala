@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,36 +16,37 @@
 
 package io.gatling.jsonpath
 
-import java.util.{ Iterator => JIterator, Map => JMap }
+import java.{ util => ju }
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeType.{ ARRAY, OBJECT }
 
-sealed trait VisitedIterator {
+private[jsonpath] sealed trait VisitedIterator {
   def hasNext: Boolean
 }
-final case class VisitedObject(it: JIterator[JMap.Entry[String, JsonNode]]) extends VisitedIterator {
+final case class VisitedObject(it: ju.Iterator[ju.Map.Entry[String, JsonNode]]) extends VisitedIterator {
   override def hasNext: Boolean = it.hasNext
 }
-final case class VisitedArray(it: JIterator[JsonNode]) extends VisitedIterator {
+final case class VisitedArray(it: ju.Iterator[JsonNode]) extends VisitedIterator {
   override def hasNext: Boolean = it.hasNext
 }
 
 /**
  * Collect all first nodes in a branch with a given name
- * @param root the tree root
- * @param name the searched name
+ * @param root
+ *   the tree root
+ * @param name
+ *   the searched name
  *
- *  Originally contributed by Nicolas Rémond.
+ * Originally contributed by Nicolas Rémond.
  */
 class RecursiveFieldIterator(root: JsonNode, name: String) extends RecursiveIterator[VisitedIterator](root) {
-
   override def visit(t: VisitedIterator): Unit = t match {
     case VisitedObject(it) => visitObject(it)
     case VisitedArray(it)  => visitArray(it)
   }
 
-  private def visitObject(it: JIterator[JMap.Entry[String, JsonNode]]): Unit = {
+  private def visitObject(it: ju.Iterator[ju.Map.Entry[String, JsonNode]]): Unit = {
     while (it.hasNext && !pause) {
       val e = it.next()
       if (e.getKey == name) {
@@ -60,7 +61,7 @@ class RecursiveFieldIterator(root: JsonNode, name: String) extends RecursiveIter
     }
   }
 
-  private def visitArray(it: JIterator[JsonNode]): Unit = {
+  private def visitArray(it: ju.Iterator[JsonNode]): Unit = {
     while (it.hasNext && !pause) {
       visitNode(it.next())
     }

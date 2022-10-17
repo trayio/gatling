@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,88 +16,67 @@
 
 package io.gatling.http.client;
 
-import io.gatling.http.client.resolver.InetAddressNameResolver;
-import io.gatling.http.client.uri.Uri;
-import io.gatling.http.client.uri.UriEncoder;
+import static io.gatling.http.client.util.HttpUtils.*;
+import static io.gatling.http.client.util.MiscUtils.isNonEmpty;
+import static io.netty.handler.codec.http.HttpHeaderNames.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.RequestBodyBuilder;
+import io.gatling.http.client.proxy.HttpProxyServer;
 import io.gatling.http.client.proxy.ProxyServer;
 import io.gatling.http.client.realm.BasicRealm;
+import io.gatling.http.client.realm.DigestRealm;
 import io.gatling.http.client.realm.Realm;
+import io.gatling.http.client.resolver.InetAddressNameResolver;
+import io.gatling.http.client.uri.Uri;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.ClientCookieEncoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.util.AsciiString;
-
 import java.net.InetAddress;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.List;
-
-import static io.gatling.http.client.util.HttpUtils.*;
-import static io.gatling.http.client.util.MiscUtils.isNonEmpty;
-import static io.netty.handler.codec.http.HttpHeaderNames.*;
-import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.function.Consumer;
 
 public class RequestBuilder {
 
   private static final AsciiString ACCEPT_ALL_HEADER_VALUE = new AsciiString("*/*");
 
-  private static InetAddressNameResolver DEFAULT_NAME_RESOLVER = InetAddressNameResolver.DEFAULT;
-
+  private final String name;
   private final HttpMethod method;
   private final Uri uri;
-  private List<Param> queryParams;
+  private final InetAddressNameResolver nameResolver;
   private HttpHeaders headers = new DefaultHttpHeaders(false);
-  private List<Cookie> cookies;
-  private RequestBodyBuilder<?> bodyBuilder;
+  private List<Cookie> cookies = Collections.emptyList();
+  private RequestBodyBuilder bodyBuilder;
   private long requestTimeout;
   private String virtualHost;
-  private InetAddress localAddress;
+  private boolean autoOrigin;
+  private InetAddress localIpV4Address;
+  private InetAddress localIpV6Address;
   private Realm realm;
   private ProxyServer proxyServer;
-  private SignatureCalculator signatureCalculator;
-  private InetAddressNameResolver nameResolver = DEFAULT_NAME_RESOLVER;
+  private Consumer<Request> signatureCalculator;
   private boolean http2Enabled;
   private boolean alpnRequired;
   private boolean http2PriorKnowledge;
   private String wsSubprotocol;
-  private boolean fixUrlEncoding = true;
   private Charset defaultCharset = UTF_8;
 
-  public RequestBuilder(HttpMethod method, Uri uri) {
+  public RequestBuilder(
+      String name, HttpMethod method, Uri uri, InetAddressNameResolver nameResolver) {
+    this.name = name;
     this.method = method;
     this.uri = uri;
-  }
-
-  public RequestBuilder(Request request, Uri uri) {
-    method = request.getMethod();
-    this.uri = uri;
-    headers = request.getHeaders();
-    cookies = request.getCookies();
-    bodyBuilder = request.getBody() != null ? request.getBody().newBuilder() : null;
-    requestTimeout = request.getRequestTimeout();
-    virtualHost = request.getVirtualHost();
-    localAddress = request.getLocalAddress();
-    realm = request.getRealm();
-    proxyServer = request.getProxyServer();
-    signatureCalculator = request.getSignatureCalculator();
-    nameResolver = request.getNameResolver();
-    http2Enabled = request.isHttp2Enabled();
-    alpnRequired = request.isAlpnRequired();
-    http2PriorKnowledge = request.isHttp2PriorKnowledge();
-    wsSubprotocol = request.getWsSubprotocol();
+    this.nameResolver = nameResolver;
   }
 
   public Uri getUri() {
     return uri;
-  }
-
-  public RequestBuilder setQueryParams(List<Param> queryParams) {
-    this.queryParams = queryParams;
-    return this;
   }
 
   public RequestBuilder setHeaders(HttpHeaders headers) {
@@ -115,7 +94,7 @@ public class RequestBuilder {
     return this;
   }
 
-  public RequestBuilder setBodyBuilder(RequestBodyBuilder<?> bodyBuilder) {
+  public RequestBuilder setBodyBuilder(RequestBodyBuilder bodyBuilder) {
     this.bodyBuilder = bodyBuilder;
     return this;
   }
@@ -130,8 +109,18 @@ public class RequestBuilder {
     return this;
   }
 
-  public RequestBuilder setLocalAddress(InetAddress localAddress) {
-    this.localAddress = localAddress;
+  public RequestBuilder setAutoOrigin(boolean autoOrigin) {
+    this.autoOrigin = autoOrigin;
+    return this;
+  }
+
+  public RequestBuilder setLocalIpV4Address(InetAddress localIpV4Address) {
+    this.localIpV4Address = localIpV4Address;
+    return this;
+  }
+
+  public RequestBuilder setLocalIpV6Address(InetAddress localIpV6Address) {
+    this.localIpV6Address = localIpV6Address;
     return this;
   }
 
@@ -145,13 +134,8 @@ public class RequestBuilder {
     return this;
   }
 
-  public RequestBuilder setSignatureCalculator(SignatureCalculator signatureCalculator) {
+  public RequestBuilder setSignatureCalculator(Consumer<Request> signatureCalculator) {
     this.signatureCalculator = signatureCalculator;
-    return this;
-  }
-
-  public RequestBuilder setNameResolver(InetAddressNameResolver nameResolver) {
-    this.nameResolver = nameResolver;
     return this;
   }
 
@@ -170,11 +154,6 @@ public class RequestBuilder {
     return this;
   }
 
-  public RequestBuilder setFixUrlEncoding(boolean fixUrlEncoding) {
-    this.fixUrlEncoding = fixUrlEncoding;
-    return this;
-  }
-
   public RequestBuilder setDefaultCharset(Charset defaultCharset) {
     this.defaultCharset = defaultCharset;
     return this;
@@ -185,22 +164,36 @@ public class RequestBuilder {
     return this;
   }
 
+  public String getContentType() {
+    return headers.get(CONTENT_TYPE);
+  }
+
   public Request build() {
-
-    Uri fullUri = UriEncoder.uriEncoder(fixUrlEncoding).encode(uri, queryParams);
-
     if (!headers.contains(ACCEPT)) {
       headers.set(ACCEPT, ACCEPT_ALL_HEADER_VALUE);
     }
 
+    String authorization = null;
     if (realm instanceof BasicRealm) {
-      headers.add(AUTHORIZATION, ((BasicRealm) realm).getAuthorizationHeader());
+      authorization = ((BasicRealm) realm).getAuthorizationHeader();
+    } else if (realm instanceof DigestRealm) {
+      authorization = ((DigestRealm) realm).getAuthorizationHeader(method, uri);
+    }
+    if (authorization != null) {
+      headers.add(AUTHORIZATION, authorization);
+    }
+
+    if (!uri.isSecured() && proxyServer instanceof HttpProxyServer) {
+      BasicRealm realm = ((HttpProxyServer) proxyServer).getRealm();
+      if (realm != null) {
+        headers.set(PROXY_AUTHORIZATION, realm.getAuthorizationHeader());
+      }
     }
 
     String originalAcceptEncoding = headers.get(ACCEPT_ENCODING);
     if (originalAcceptEncoding != null) {
-      // we don't support Brotly ATM
-      String newAcceptEncodingHeader = filterOutBrotliFromAcceptEncoding(originalAcceptEncoding);
+      String newAcceptEncodingHeader =
+          filterOutBrotliFromAcceptEncodingWhenUnavailable(originalAcceptEncoding);
       if (newAcceptEncodingHeader != null) {
         headers.set(ACCEPT_ENCODING, newAcceptEncodingHeader);
       }
@@ -210,46 +203,53 @@ public class RequestBuilder {
       headers.set(COOKIE, ClientCookieEncoder.LAX.encode(cookies));
     }
 
-    String referer = headers.get(REFERER);
-    if (!headers.contains(ORIGIN)
-      && !HttpMethod.GET.equals(method)
-      && !HttpMethod.HEAD.equals(method)
-      && referer != null) {
-      headers.set(ORIGIN, originHeader(Uri.create(referer)));
+    if (autoOrigin) {
+      String referer = headers.get(REFERER);
+      if (referer != null
+          && !HttpMethod.GET.equals(method)
+          && !HttpMethod.HEAD.equals(method)
+          && !headers.contains(ORIGIN)) {
+        String origin = originHeader(referer);
+        if (origin != null) {
+          headers.set(ORIGIN, origin);
+        }
+      }
     }
 
     if (!headers.contains(HOST)) {
       headers.set(HOST, virtualHost != null ? virtualHost : hostHeader(uri));
     }
 
-    RequestBody<?> body = null;
+    RequestBody body = null;
     if (bodyBuilder != null) {
-      String contentType = headers.get(CONTENT_TYPE);
+      String contentType = getContentType();
       Charset charset = extractContentTypeCharsetAttribute(contentType);
       body = bodyBuilder.build(contentType, charset, defaultCharset);
-      String bodyContentType = body.getContentType();
-      if (bodyContentType != null) {
-        headers.set(CONTENT_TYPE, bodyContentType);
+      CharSequence patchedContentType = body.getPatchedContentType();
+      if (patchedContentType != null) {
+        headers.set(CONTENT_TYPE, patchedContentType);
       }
     }
 
     return new Request(
-      method,
-      fullUri,
-      headers,
-      cookies != null ? cookies : Collections.emptyList(),
-      body,
-      requestTimeout,
-      virtualHost,
-      localAddress,
-      realm,
-      proxyServer,
-      signatureCalculator,
-      nameResolver,
-      http2Enabled,
-      alpnRequired,
-      http2PriorKnowledge,
-      wsSubprotocol
-      );
+        name,
+        method,
+        uri,
+        headers,
+        cookies != null ? cookies : Collections.emptyList(),
+        body,
+        requestTimeout,
+        virtualHost,
+        autoOrigin,
+        localIpV4Address,
+        localIpV6Address,
+        realm,
+        proxyServer,
+        signatureCalculator,
+        nameResolver,
+        http2Enabled,
+        alpnRequired,
+        http2PriorKnowledge,
+        wsSubprotocol);
   }
 }

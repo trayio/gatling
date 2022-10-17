@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,12 @@ import io.gatling.core.check._
 import io.gatling.http.response.Response
 
 object HttpHeaderExtractors {
-  def find(headerName: String, occurrence: Int): FindCriterionExtractor[Response, String, String] =
-    new FindCriterionExtractor[Response, String, String]("header", headerName, occurrence, _.headers(headerName).lift(occurrence).success)
+  def find(headerName: CharSequence, occurrence: Int): FindCriterionExtractor[Response, CharSequence, String] =
+    new FindCriterionExtractor[Response, CharSequence, String]("header", headerName, occurrence, _.headers(headerName).lift(occurrence).success)
 
-  def findAll(headerName: String): FindAllCriterionExtractor[Response, String, String] =
-    new FindAllCriterionExtractor[Response, String, String]("header", headerName, _.headers(headerName).liftSeqOption.success)
+  def findAll(headerName: CharSequence): FindAllCriterionExtractor[Response, CharSequence, String] =
+    new FindAllCriterionExtractor[Response, CharSequence, String]("header", headerName, _.headers(headerName).liftSeqOption.success)
 
-  def count(headerName: String): CountCriterionExtractor[Response, String] =
-    new CountCriterionExtractor[Response, String]("header", headerName, _.headers(headerName).liftSeqOption.map(_.size).success)
+  def count(headerName: CharSequence): CountCriterionExtractor[Response, CharSequence] =
+    new CountCriterionExtractor[Response, CharSequence]("header", headerName, _.headers(headerName).liftSeqOption.map(_.size).success)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,11 +28,11 @@ import akka.io.Tcp._
 import akka.testkit._
 import akka.util.ByteString
 
+@SuppressWarnings(Array("org.wartremover.warts.ThreadSleep"))
 class TcpSenderSpec extends AkkaSpec {
-
   private val dummySocketAddress = new InetSocketAddress(9999)
 
-  private class TcpSenderNoIo extends TcpSender(dummySocketAddress, 2, 1 second, new DefaultClock) {
+  private class TcpSenderNoIo extends TcpSender(dummySocketAddress, 2, 1.second, new DefaultClock) {
     override def askForConnection(): Unit = ()
   }
 

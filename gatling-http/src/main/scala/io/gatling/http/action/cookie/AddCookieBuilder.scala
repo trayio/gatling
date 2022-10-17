@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,28 +26,23 @@ import io.gatling.http.cookie.CookieSupport.storeCookie
 import io.netty.handler.codec.http.cookie.{ Cookie, DefaultCookie }
 
 object AddCookieBuilder {
-
   def apply(cookie: AddCookieDsl): AddCookieBuilder =
     new AddCookieBuilder(cookie.name, cookie.value, cookie.domain, cookie.path, cookie.maxAge.getOrElse(Cookie.UNDEFINED_MAX_AGE), cookie.secure)
 }
 
-class AddCookieBuilder(name: String, value: Expression[String], domain: Option[String], path: Option[String], maxAge: Long, secure: Boolean)
+class AddCookieBuilder(name: Expression[String], value: Expression[String], domain: Option[String], path: Option[String], maxAge: Long, secure: Boolean)
     extends HttpActionBuilder
     with NameGen {
-
   import CookieActionBuilder._
 
   def build(ctx: ScenarioContext, next: Action): Action = {
-
-    import ctx._
-
     val clock = ctx.coreComponents.clock
-    val httpComponents = lookUpHttpComponents(protocolComponentsRegistry)
+    val httpProtocol = lookUpHttpComponents(ctx.protocolComponentsRegistry).httpProtocol
 
     val requestDomain = domain match {
       case None =>
         // no cookie domain defined, we absolutely need one from the baseUrl
-        defaultDomain(httpComponents.httpCaches)
+        defaultDomain(httpProtocol)
       case _ =>
         // use a mock as requestDomain will be ignored in favor of cookie's one
         EmptyStringExpressionSuccess
@@ -55,16 +50,17 @@ class AddCookieBuilder(name: String, value: Expression[String], domain: Option[S
 
     val expression: Expression[Session] = session =>
       for {
-        value <- value(session)
+        resolvedName <- name(session)
+        resoledValue <- value(session)
         resolvedRequestDomain <- requestDomain(session)
       } yield {
-        val cookie = new DefaultCookie(name, value)
+        val cookie = new DefaultCookie(resolvedName, resoledValue)
         domain.foreach(cookie.setDomain)
         path.foreach(cookie.setPath)
         cookie.setSecure(secure)
         storeCookie(session, resolvedRequestDomain, DefaultPath, cookie, clock.nowMillis)
       }
 
-    new SessionHook(expression, genName("addCookie"), coreComponents.statsEngine, coreComponents.clock, next) with ExitableAction
+    new SessionHook(expression, genName("addCookie"), ctx.coreComponents.statsEngine, ctx.coreComponents.clock, next) with ExitableAction
   }
 }

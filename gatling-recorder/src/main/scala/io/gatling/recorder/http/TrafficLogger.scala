@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
 import io.gatling.http.client.uri.Uri
+import io.gatling.netty.util.ByteBufUtils
 import io.gatling.recorder.controller.RecorderController
 import io.gatling.recorder.http.flows.Remote
 import io.gatling.recorder.model._
-import io.gatling.netty.util.ByteBufUtils
 
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.channel.ChannelId
@@ -32,7 +32,6 @@ import io.netty.handler.codec.http.{ DefaultHttpHeaders, FullHttpRequest, FullHt
 final case class Key(channelId: ChannelId)
 
 class TrafficLogger(controller: RecorderController) extends StrictLogging {
-
   private val flyingRequests = new ConcurrentHashMap[ChannelId, HttpRequest]
 
   def logException(remote: Remote, throwable: Throwable): Unit =

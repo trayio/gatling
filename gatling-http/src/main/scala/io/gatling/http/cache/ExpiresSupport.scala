@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,31 @@
 package io.gatling.http.cache
 
 import io.gatling.commons.util.Clock
-import io.gatling.commons.util.NumberHelper._
-import io.gatling.http.{ HeaderNames, HeaderValues }
-import io.gatling.http.response.Response
 
 import io.netty.handler.codec.DateFormatter
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues, HttpHeaders }
+
+object ExpiresSupport {
+  private[cache] def extractLongValue(s: String, start: Int): Long = {
+    require(start >= 0 && start < s.length, s"Start=$start is not an acceptable starting index for the string=$s")
+
+    var value = 0L
+    var k = start
+    var c = ' '
+    while (
+      k < s.length && {
+        c = s.charAt(k)
+        c.isDigit
+      }
+    ) {
+      value = value * 10L + c.getNumericValue
+      k += 1
+    }
+    value
+  }
+}
 
 private[cache] trait ExpiresSupport {
-
   def clock: Clock
 
   private val MaxAgePrefix = "max-age="
@@ -33,19 +50,22 @@ private[cache] trait ExpiresSupport {
   def extractMaxAgeValue(s: String): Option[Long] = {
     val index = s.indexOf(MaxAgePrefix)
     val start = MaxAgePrefix.length + index
-    if (index >= 0 && start <= s.length)
+    if (index >= 0 && start <= s.length) {
       s.charAt(start) match {
         case '-'            => Some(-1)
-        case c if c.isDigit => Some(extractLongValue(s, start))
+        case c if c.isDigit => Some(ExpiresSupport.extractLongValue(s, start))
         case _              => None
-      } else
+      }
+    } else {
       None
+    }
   }
 
   def extractExpiresValue(timestring: String): Option[Long] = {
-
     def removeQuote(s: String) =
-      if (!s.isEmpty) {
+      if (s.isEmpty) {
+        s
+      } else {
         var start = 0
         var end = s.length
 
@@ -56,8 +76,7 @@ private[cache] trait ExpiresSupport {
           end -= 1
 
         s.substring(start, end)
-      } else
-        s
+      }
 
     // FIXME use offset instead of 2 substrings
     val trimmedTimeString = removeQuote(timestring.trim)
@@ -65,26 +84,50 @@ private[cache] trait ExpiresSupport {
     Option(DateFormatter.parseHttpDate(trimmedTimeString)).map(_.getTime)
   }
 
-  def getResponseExpires(response: Response): Option[Long] = {
-    def pragmaNoCache = response.header(HeaderNames.Pragma).exists(_.contains(HeaderValues.NoCache))
-    def cacheControlNoCache =
-      response
-        .header(HeaderNames.CacheControl)
-        .exists(h => h.contains(HeaderValues.NoCache) || h.contains(HeaderValues.NoStore) || h.contains(MaxAgeZero))
-    def maxAgeAsExpiresValue = response.header(HeaderNames.CacheControl).flatMap(extractMaxAgeValue).map { maxAge =>
-      if (maxAge < 0)
-        maxAge
-      else
-        maxAge * 1000 + clock.nowMillis
-    }
-    def expiresValue = response.header(HeaderNames.Expires).flatMap(extractExpiresValue).filter(_ > clock.nowMillis)
+  private def cacheControlNoCache(cacheControlHeader: String): Boolean =
+    cacheControlHeader.contains(HttpHeaderValues.NO_CACHE.toString) || cacheControlHeader.contains(HttpHeaderValues.NO_STORE.toString) || cacheControlHeader
+      .contains(MaxAgeZero)
 
-    if (pragmaNoCache || cacheControlNoCache) {
+  private def maxAgeAsExpiresValue(cacheControlHeader: String): Option[Long] =
+    extractMaxAgeValue(cacheControlHeader).flatMap { maxAge =>
+      if (maxAge < 0) {
+        None
+      } else {
+        val updatedMaxAge = maxAge * 1000 + clock.nowMillis
+        if (updatedMaxAge < 0) {
+          None
+        } else {
+          Some(maxAge * 1000 + clock.nowMillis)
+        }
+      }
+    }
+
+  private def expiresValue(responseHeaders: HttpHeaders): Option[Long] = {
+    val expiresHeader = responseHeaders.get(HttpHeaderNames.EXPIRES)
+    if (expiresHeader != null) {
+      extractExpiresValue(expiresHeader).filter(_ > clock.nowMillis)
+    } else {
+      None
+    }
+  }
+
+  def getResponseExpires(responseHeaders: HttpHeaders): Option[Long] = {
+    val pragmaHeader = responseHeaders.get(HttpHeaderNames.PRAGMA)
+    if (pragmaHeader != null && pragmaHeader.contains(HttpHeaderValues.NO_CACHE.toString)) {
       None
     } else {
-      // If a response includes both an Expires header and a max-age directive, the max-age directive overrides the Expires header,
-      // even if the Expires header is more restrictive. (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.3)
-      maxAgeAsExpiresValue.orElse(expiresValue).filter(_ > 0)
+      val cacheControlHeader = responseHeaders.get(HttpHeaderNames.CACHE_CONTROL)
+      if (cacheControlHeader != null && cacheControlNoCache(cacheControlHeader)) {
+        None
+      } else {
+        // If a response includes both an Expires header and a max-age directive, the max-age directive overrides the Expires header,
+        // even if the Expires header is more restrictive. (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.3)
+        if (cacheControlHeader != null) {
+          maxAgeAsExpiresValue(cacheControlHeader)
+        } else {
+          expiresValue(responseHeaders)
+        }
+      }
     }
   }
 }

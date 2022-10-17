@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,12 @@ package io.gatling.http.referer
 
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.http.client.Request
-import io.gatling.http.util.HttpHelper.{ isAjax, isHtml }
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.response.Response
+import io.gatling.http.util.HttpHelper.{ isAjax, isHtml }
 
 private[http] object RefererHandling {
-
-  private val RefererAttributeName = SessionPrivateAttributes.PrivateAttributePrefix + "http.referer"
+  private val RefererAttributeName = SessionPrivateAttributes.generatePrivateAttribute("http.referer")
 
   def getStoredReferer(session: Session): Option[String] = session(RefererAttributeName).asOption[String]
 

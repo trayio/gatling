@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,12 @@ import io.gatling.core.feeder.Record
 import io.gatling.redis.Predef._
 
 import com.redis._
-import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers._
+import org.mockito.Mockito._
 
 class RedisFeederSpec extends BaseSpec {
-
   val KEY = "key"
+  val KEYDEST = "key2"
 
   // Generate list of maps Map(<redis-key> -> <expected-value>)
   def valsLst(key: String, s: String*): List[Record[String]] =
@@ -47,14 +47,14 @@ class RedisFeederSpec extends BaseSpec {
   "redis feeder" should "use lpop as default command" in {
     new MockContext {
       when(client.lpop(KEY)).thenReturn(Some("v1"), Some("v2"), Some("v3"), None)
-      redisFeeder(clientPool, KEY).apply.toList shouldBe valsLst(KEY, "v1", "v2", "v3")
+      redisFeeder(clientPool, KEY).apply().toList shouldBe valsLst(KEY, "v1", "v2", "v3")
     }
   }
 
   it should "use spop command" in {
     new MockContext {
       when(client.spop(KEY)).thenReturn(Some("v1"), Some("v2"), Some("v3"), None)
-      redisFeeder(clientPool, KEY).SPOP.apply.toList shouldBe valsLst(KEY, "v1", "v2", "v3")
+      redisFeeder(clientPool, KEY).SPOP.apply().toList shouldBe valsLst(KEY, "v1", "v2", "v3")
     }
   }
 
@@ -62,11 +62,19 @@ class RedisFeederSpec extends BaseSpec {
     new MockContext {
       when(client.srandmember(KEY)).thenReturn(Some("v1"), Some("v2"), Some("v3"))
 
-      val feeder = redisFeeder(clientPool, KEY).SRANDMEMBER.apply
+      val feeder = redisFeeder(clientPool, KEY).SRANDMEMBER.apply()
 
       feeder.next() shouldBe Map(KEY -> "v1")
       feeder.next() shouldBe Map(KEY -> "v2")
       feeder.next() shouldBe Map(KEY -> "v3")
+    }
+  }
+
+  it should "use rpoplpush command" in {
+    new MockContext {
+      when(client.rpoplpush(KEY, KEYDEST)).thenReturn(Some("v3"), Some("v2"), Some("v1"), None)
+
+      redisFeeder(clientPool, KEY, KEYDEST).RPOPLPUSH.apply().toList shouldBe valsLst(KEY, "v3", "v2", "v1")
     }
   }
 }

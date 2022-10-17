@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,10 @@ import scala.annotation.{ implicitNotFound, tailrec }
 
 import com.typesafe.scalalogging.StrictLogging
 
-trait LowPriorityGroupExtractorImplicits extends StrictLogging {
-
+sealed trait LowPriorityGroupExtractorImplicits extends StrictLogging {
   implicit val stringGroupExtractor: GroupExtractor[String] = matcher => {
-
     @tailrec
-    def extractFirstNonNullGroupRec(i: Int, max: Int): String = {
+    def extractFirstNonNullGroupRec(i: Int, max: Int): String =
       matcher.group(i) match {
         case null =>
           if (i < max)
@@ -36,7 +34,6 @@ trait LowPriorityGroupExtractorImplicits extends StrictLogging {
             "" // shouldn't happen, as the regex matched, we should have at least one non null group
         case value => value
       }
-    }
 
     matcher.groupCount match {
       case 0     => safeGetGroupValue(matcher, 0)

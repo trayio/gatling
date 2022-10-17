@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ import io.gatling.jsonpath.JsonPath
 
 import com.fasterxml.jackson.databind.JsonNode
 
-class JsonPaths(cacheMaxCapacity: Long) {
-
+final class JsonPaths(cacheMaxCapacity: Long) {
   private val jsonPathCache = {
     def compile(expression: String): Validation[JsonPath] = JsonPath.compile(expression) match {
       case Left(error) => error.reason.failure

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 package io.gatling.jms.client
 
 import java.util.concurrent.ConcurrentHashMap
-
 import javax.jms.ConnectionFactory
-import scala.collection.JavaConverters._
+
+import scala.jdk.CollectionConverters._
 
 import io.gatling.commons.model.Credentials
 import io.gatling.commons.util.Clock
@@ -29,7 +29,6 @@ import io.gatling.core.stats.StatsEngine
 import akka.actor.ActorSystem
 
 class JmsConnectionPool(system: ActorSystem, statsEngine: StatsEngine, clock: Clock, configuration: GatlingConfiguration) {
-
   private val connections = new ConcurrentHashMap[ConnectionFactory, JmsConnection]
 
   def jmsConnection(connectionFactory: ConnectionFactory, credentials: Option[Credentials]): JmsConnection = {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,35 +18,39 @@ package io.gatling.core.controller
 
 import scala.concurrent.duration.FiniteDuration
 
-import io.gatling.core.scenario.Scenarios
 import io.gatling.core.akka.BaseActor
+import io.gatling.core.controller.inject.ScenarioFlows
+import io.gatling.core.scenario.Scenario
 
 import akka.actor.{ ActorRef, FSM }
 
-private[controller] trait ControllerFSM extends BaseActor with FSM[ControllerState, ControllerData]
+private trait ControllerFSM extends BaseActor with FSM[ControllerState, ControllerData]
 
-private[controller] sealed trait ControllerState
-private[controller] object ControllerState {
+private sealed trait ControllerState
+private object ControllerState {
   case object WaitingToStart extends ControllerState
   case object Started extends ControllerState
   case object WaitingForResourcesToStop extends ControllerState
   case object Stopped extends ControllerState
 }
 
-private[controller] sealed trait ControllerData
-private[controller] object ControllerData {
+private sealed trait ControllerData
+private object ControllerData {
   case object NoData extends ControllerData
-  final case class InitData(launcher: ActorRef, scenarios: Scenarios)
+  final case class InitData(launcher: ActorRef, scenarioFlows: ScenarioFlows[String, Scenario])
   final case class StartedData(initData: InitData) extends ControllerData
   final case class EndData(initData: InitData, exception: Option[Exception]) extends ControllerData
 }
 
-sealed trait ControllerCommand
-object ControllerCommand {
-  final case class Start(scenarios: Scenarios) extends ControllerCommand
-  final case object InjectorStopped extends ControllerCommand
-  final case class Crash(exception: Exception) extends ControllerCommand
-  final case class MaxDurationReached(duration: FiniteDuration) extends ControllerCommand
-  final case object Kill extends ControllerCommand
-  final case object StatsEngineStopped extends ControllerCommand
+private[gatling] sealed trait ControllerCommand
+private[gatling] object ControllerCommand {
+  private[gatling] final case class Start(scenarioFlows: ScenarioFlows[String, Scenario]) extends ControllerCommand
+  private[gatling] final case object RunTerminated extends ControllerCommand
+  private[gatling] final case class Crash(exception: Exception) extends ControllerCommand
+  private[gatling] final case class MaxDurationReached(duration: FiniteDuration) extends ControllerCommand
+  private[gatling] final case object StopInjector extends ControllerCommand
+  private[gatling] final case object StatsEngineStopped extends ControllerCommand
+  // [e]
+  //
+  // [e]
 }

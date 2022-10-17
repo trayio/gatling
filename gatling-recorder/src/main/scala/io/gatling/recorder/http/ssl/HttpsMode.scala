@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +22,14 @@ import io.gatling.recorder.util.Labelled
 private[recorder] sealed abstract class HttpsMode(val label: String) extends Labelled with ClassSimpleNameToString with Product with Serializable
 
 private[recorder] case object HttpsMode {
-
-  case object SelfSignedCertificate extends HttpsMode("Self-signed Certificate")
-  case object ProvidedKeyStore extends HttpsMode("Provided Keystore")
   case object CertificateAuthority extends HttpsMode("Certificate Authority")
+  case object ProvidedKeyStore extends HttpsMode("Provided Keystore")
+  case object SelfSignedCertificate extends HttpsMode("Self-signed Certificate")
 
   val AllHttpsModes = List(
-    SelfSignedCertificate,
+    CertificateAuthority,
     ProvidedKeyStore,
-    CertificateAuthority
+    SelfSignedCertificate
   )
 
   def apply(s: String): HttpsMode =

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,10 @@ import io.gatling.core.action.Action
 import io.gatling.core.structure.ScenarioContext
 
 object WaitForMessagesBuilder {
-  val Default: WaitForMessagesBuilder = new WaitForMessagesBuilder(60 seconds)
+  val Default: WaitForMessagesBuilder = new WaitForMessagesBuilder(1.minute)
 }
 
 final case class WaitForMessagesBuilder(timeout: FiniteDuration) extends MqttActionBuilder {
-
   def timeout(duration: FiniteDuration): WaitForMessagesBuilder =
     copy(timeout = duration)
 

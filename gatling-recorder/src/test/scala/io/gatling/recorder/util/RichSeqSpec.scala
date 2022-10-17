@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.gatling.BaseSpec
 import io.gatling.recorder.util.collection._
 
 class RichSeqSpec extends BaseSpec {
-
   "groupAsLongAs()" should "group elements as long as the predicate applies" in {
     val reqs = Vector(200, 200, 304, 304, 200, 304, 200, 200).zipWithIndex.map(_.swap)
     val expectedReqs = List(

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,11 @@
 
 package io.gatling.charts.component
 
-import io.gatling.commons.stats.ErrorStats
-import io.gatling.commons.util.HtmlHelper.HtmlRichString
+import io.gatling.charts.util.HtmlHelper.HtmlRichString
+import io.gatling.commons.shared.unstable.model.stats.ErrorStats
 import io.gatling.commons.util.NumberHelper._
 
-private[charts] class ErrorsTableComponent(errors: Seq[ErrorStats]) extends Component {
-
+private[charts] final class ErrorsTableComponent(errors: Seq[ErrorStats]) extends Component {
   def js: String = s"""
 	    $$('#container_errors').sortable('#container_errors');
     """
@@ -32,7 +31,7 @@ private[charts] class ErrorsTableComponent(errors: Seq[ErrorStats]) extends Comp
     else
       s"""<div class="statistics extensible-geant collapsed">
     <div class="title">
-        <div class="title_collapsed" style="cursor: auto;">ERRORS</div>
+        Errors
     </div>
     <table id="container_errors" class="statistics-in extensible-geant">
         <thead>
@@ -43,14 +42,14 @@ private[charts] class ErrorsTableComponent(errors: Seq[ErrorStats]) extends Comp
             </tr>
         </thead>
 		<tbody>
-		    ${errors.zipWithIndex.map {
-        case (error, index) => s"""
+		    ${errors.zipWithIndex.map { case (error, index) =>
+          s"""
 		    <tr>
-		    	<td class="error-col-1 total">${error.message.htmlEscape}<span class="value" style="display:none">$index</span></td>
-		    	<td class="value error-col-2 total">${error.count}</td>
-		    	<td class="value error-col-3 total">${error.percentage.toPrintableString} %</td>
+		    	<td class="error-col-1 total ko">${error.message.htmlEscape}<span class="value" style="display:none">$index</span></td>
+		    	<td class="value error-col-2 total ko">${error.count}</td>
+		    	<td class="value error-col-3 total ko">${error.percentage.toPrintableString} %</td>
 		    </tr>"""
-      }.mkString}
+        }.mkString}
 		</tbody>
     </table>
 </div>

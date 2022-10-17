@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,13 @@ package io.gatling.core.stats.writer
 import io.gatling.BaseSpec
 
 class DataWriterMessageSerializerSpec extends BaseSpec {
-
   import DataWriterMessageSerializer._
 
   "sanitize" should "sanitize extra info so that simulation log format is preserved" in {
     DataWriterMessageSerializer.sanitize("\nnewlines \n are\nnot \n\n allowed\n") shouldBe " newlines   are not    allowed "
     DataWriterMessageSerializer.sanitize("\rcarriage returns \r are\rnot \r\r allowed\r") shouldBe " carriage returns   are not    allowed "
-    DataWriterMessageSerializer.sanitize(s"${Separator}tabs $Separator are${Separator}not $Separator$Separator allowed$Separator") shouldBe " tabs   are not    allowed "
+    DataWriterMessageSerializer.sanitize(
+      s"${Separator}tabs $Separator are${Separator}not $Separator$Separator allowed$Separator"
+    ) shouldBe " tabs   are not    allowed "
   }
 }

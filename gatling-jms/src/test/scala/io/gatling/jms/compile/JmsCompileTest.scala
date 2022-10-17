@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ object HeaderMatcher extends JmsMessageMatcher {
 }
 
 class JmsCompileTest extends Simulation {
-
   // create JmsProtocol from standard ConnectionFactory
   private val jmsProtocolWithNativeConnectionFactory = jms
     .connectionFactory(new org.apache.activemq.ActiveMQConnectionFactory("tcp://localhost:61616"))
@@ -47,14 +46,14 @@ class JmsCompileTest extends Simulation {
         .contextFactory("org.apache.activemq.jndi.ActiveMQInitialContextFactory")
     )
     .usePersistentDeliveryMode
-    .replyTimeout(1000)
+    .replyTimeout(1000.millis)
     .messageMatcher(HeaderMatcher)
     .matchByCorrelationId
     .matchByMessageId
 
   private val scn = scenario("scn")
-  // requestReply
-  // textMessage
+    // requestReply
+    // textMessage
     .exec(
       jms("req").requestReply
         .queue("queue")
@@ -107,19 +106,30 @@ class JmsCompileTest extends Simulation {
       jms("req").requestReply
         .queue("queue")
         .textMessage("hello")
-        .check(checkBodyTextCorrect)
+        .check(simpleCheck {
+          case tm: TextMessage => tm.getText == "hello"
+          case _               => false
+        })
         .check(xpath("//TEST").saveAs("name"))
         .check(jsonPath("$.foo"))
         .check(jmesPath("[].foo"))
         .check(substring("foo"))
+        .check(bodyLength.lte(50))
+        .check(bodyBytes.transform(_.length).lte(50))
         .check(bodyString)
         .check(
           bodyString.is("hello"),
           substring("he").count.is(1),
-          checkIf(bodyString.notNull.displayActualValue) {
-            jsonPath("$").is("hello")
+          checkIf("#{bool}") {
+            jsonPath("$..foo")
           }
         )
+        .checkIf("#{bool}") {
+          jsonPath("$..foo")
+        }
+        .checkIf(_ => true) {
+          jsonPath("$").is("hello")
+        }
     )
     // extra
     .exec(
@@ -127,7 +137,7 @@ class JmsCompileTest extends Simulation {
         .queue("queue")
         .textMessage("hello")
         .property("header", "value")
-        .property("header", "${value}")
+        .property("header", "#{value}")
         .property("header", _ => "value")
         .jmsType("foo")
     )
@@ -175,16 +185,11 @@ class JmsCompileTest extends Simulation {
         .queue("queue")
         .textMessage("hello")
         .property("header", "value")
-        .property("header", "${value}")
+        .property("header", "#{value}")
         .property("header", _ => "value")
         .jmsType("foo")
     )
 
-  setUp(scn.inject(rampUsersPerSec(10) to 1000 during (2 minutes)))
+  setUp(scn.inject(rampUsersPerSec(10) to 1000 during (2.minutes)))
     .protocols(jmsProtocolWithNativeConnectionFactory)
-
-  private def checkBodyTextCorrect = simpleCheck {
-    case tm: TextMessage => tm.getText == "hello"
-    case _               => false
-  }
 }

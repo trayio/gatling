@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,26 +20,25 @@ import java.util.{ HashMap => JHashMap }
 
 import io.gatling.{ BaseSpec, ValidationValues }
 import io.gatling.commons.validation._
-import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.CoreDsl
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.EmptySession
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.jms.{ JmsCheck, MockMessage }
 
-class JmsXPathCheckSpec extends BaseSpec with ValidationValues with MockMessage with CoreDsl with JmsCheckSupport {
-
+class JmsXPathCheckSpec extends BaseSpec with ValidationValues with MockMessage with CoreDsl with JmsCheckSupport with EmptySession {
   override val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   private val check: JmsCheck = xpath("/ok").find
 
   "xpath check" should "return success if condition is true" in {
-    check.check(textMessage("<ok></ok>"), EmptySession, new JHashMap[Any, Any]) shouldBe a[Success[_]]
+    check.check(textMessage("<ok></ok>"), emptySession, new JHashMap[Any, Any]) shouldBe a[Success[_]]
   }
 
   it should "return failure if condition is false" in {
-    check.check(textMessage("<ko></ko>"), EmptySession, new JHashMap[Any, Any]) shouldBe a[Failure]
+    check.check(textMessage("<ko></ko>"), emptySession, new JHashMap[Any, Any]) shouldBe a[Failure]
   }
 
   it should "return failure if message is not TextMessage" in {
-    check.check(message, EmptySession, new JHashMap[Any, Any]).failed.message should include("Unsupported message type")
+    check.check(message, emptySession, new JHashMap[Any, Any]).failed.message should include("Unsupported message type")
   }
 }

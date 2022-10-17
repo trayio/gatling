@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,11 @@ package io.gatling.charts.config
 
 import java.nio.file.{ Path, Paths }
 
-import io.gatling.commons.util.PathHelper._
+import io.gatling.charts.FileNamingConventions
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.config.GatlingFiles
-import io.gatling.charts.FileNamingConventions
 
 private[charts] object ChartsFiles {
-  private val MenuFile = "menu.js"
   private val AllSessionsFile = "all_sessions.js"
   private val StatsJsFile = "stats.js"
   private val StatsJsonFile = "stats.json"
@@ -32,13 +30,14 @@ private[charts] object ChartsFiles {
   private val AssertionsJsonFile = "assertions.json"
   private val AssertionsJUnitFile = "assertions.xml"
   val GlobalPageName: String = "Global Information"
+  val AllRequestLineTitle: String = "All Requests"
 
-  val CommonJsFiles = Seq(
-    "jquery-3.4.1.min.js",
+  val CommonJsFiles: Seq[String] = Seq(
+    "jquery-3.5.1.min.js",
     "bootstrap.min.js",
     "gatling.js",
-    "moment-2.24.0.min.js",
-    MenuFile,
+    "menu.js",
+    "ellipsis.js",
     AllSessionsFile,
     StatsJsFile
   )
@@ -46,39 +45,36 @@ private[charts] object ChartsFiles {
   private val GatlingJsFolder: Path = Paths.get("js")
   private val GatlingStyleFolder: Path = Paths.get("style")
   private val GatlingAssetsPackage: Path = Paths.get("io", "gatling", "charts", "assets")
-  val GatlingAssetsJsPackage: Path = GatlingAssetsPackage / GatlingJsFolder
-  val GatlingAssetsStylePackage: Path = GatlingAssetsPackage / GatlingStyleFolder
+  val GatlingAssetsJsPackage: Path = GatlingAssetsPackage.resolve(GatlingJsFolder)
+  val GatlingAssetsStylePackage: Path = GatlingAssetsPackage.resolve(GatlingStyleFolder)
 }
 
 private[charts] class ChartsFiles(runUuid: String, configuration: GatlingConfiguration) {
-
   import ChartsFiles._
 
   private val resultDirectory = GatlingFiles.resultDirectory(runUuid, configuration)
 
-  val jsDirectory: Path = resultDirectory / GatlingJsFolder
+  val jsDirectory: Path = resultDirectory.resolve(GatlingJsFolder)
 
-  val styleDirectory: Path = resultDirectory / GatlingStyleFolder
+  val styleDirectory: Path = resultDirectory.resolve(GatlingStyleFolder)
 
-  val menuFile: Path = jsDirectory / MenuFile
+  val allSessionsFile: Path = jsDirectory.resolve(AllSessionsFile)
 
-  val allSessionsFile: Path = jsDirectory / AllSessionsFile
-
-  val globalFile: Path = resultDirectory / "index.html"
+  val globalFile: Path = resultDirectory.resolve("index.html")
 
   def requestFile(requestName: String): Path =
-    resultDirectory / (requestName.toRequestFileName(configuration.core.charset) + ".html")
+    resultDirectory.resolve(requestName.toRequestFileName(configuration.core.charset) + ".html")
 
   def groupFile(requestName: String): Path =
-    resultDirectory / (requestName.toGroupFileName(configuration.core.charset) + ".html")
+    resultDirectory.resolve(requestName.toGroupFileName(configuration.core.charset) + ".html")
 
-  val statsJsFile: Path = jsDirectory / StatsJsFile
+  val statsJsFile: Path = jsDirectory.resolve(StatsJsFile)
 
-  val statsJsonFile: Path = jsDirectory / StatsJsonFile
+  val statsJsonFile: Path = jsDirectory.resolve(StatsJsonFile)
 
-  val globalStatsJsonFile: Path = jsDirectory / GlobalStatsJsonFile
+  val globalStatsJsonFile: Path = jsDirectory.resolve(GlobalStatsJsonFile)
 
-  val assertionsJsonFile: Path = jsDirectory / AssertionsJsonFile
+  val assertionsJsonFile: Path = jsDirectory.resolve(AssertionsJsonFile)
 
-  val assertionsJUnitFile: Path = jsDirectory / AssertionsJUnitFile
+  val assertionsJUnitFile: Path = jsDirectory.resolve(AssertionsJUnitFile)
 }

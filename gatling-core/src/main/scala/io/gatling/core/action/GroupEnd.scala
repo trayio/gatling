@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,13 @@ import io.gatling.core.session.{ GroupBlock, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
-class GroupEnd(statsEngine: StatsEngine, clock: Clock, val next: Action) extends ChainableAction with NameGen {
-
+private final class GroupEnd(statsEngine: StatsEngine, clock: Clock, val next: Action) extends ChainableAction with NameGen {
   val name: String = genName("groupEnd")
 
   def execute(session: Session): Unit =
     session.blockStack match {
-      case (group: GroupBlock) :: tail =>
-        statsEngine.logGroupEnd(session, group, clock.nowMillis)
+      case (block: GroupBlock) :: tail =>
+        statsEngine.logGroupEnd(session.scenario, block, clock.nowMillis)
         next ! session.exitGroup(tail)
 
       case _ =>

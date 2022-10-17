@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,34 +16,55 @@
 
 package io.gatling.http.request.builder.sse
 
-import io.gatling.core.config.GatlingConfiguration
+import io.gatling.core.action.Action
 import io.gatling.core.session._
-import io.gatling.http.{ HeaderNames, HeaderValues }
-import io.gatling.http.action.sse.SseConnectBuilder
-import io.gatling.http.client.Request
-import io.gatling.http.protocol.HttpComponents
+import io.gatling.core.structure.ScenarioContext
+import io.gatling.http.action.HttpActionBuilder
+import io.gatling.http.action.sse.{ SseAwaitActionBuilder, SseConnect, SseMessageCheckSequenceBuilder }
 import io.gatling.http.request.builder.{ CommonAttributes, RequestBuilder }
 
-import io.netty.handler.codec.http.HttpMethod
+import com.softwaremill.quicklens._
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues, HttpMethod }
 
 object SseConnectRequestBuilder {
+  private val SseHeaderValueExpression = HttpHeaderValues.TEXT_EVENT_STREAM.toString.expressionSuccess
+  private val CacheControlNoCacheValueExpression = HttpHeaderValues.NO_CACHE.toString.expressionSuccess
 
-  private val SseHeaderValueExpression = HeaderValues.TextEventStream.expressionSuccess
-  private val CacheControlNoCacheValueExpression = HeaderValues.NoCache.expressionSuccess
-
-  def apply(requestName: Expression[String], url: Expression[String], sseName: String): SseConnectRequestBuilder =
-    new SseConnectRequestBuilder(CommonAttributes(requestName, HttpMethod.GET, Left(url)), sseName)
-      .header(HeaderNames.Accept, SseHeaderValueExpression)
-      .header(HeaderNames.CacheControl, CacheControlNoCacheValueExpression)
-
-  implicit def toActionBuilder(requestBuilder: SseConnectRequestBuilder): SseConnectBuilder =
-    SseConnectBuilder(requestBuilder.commonAttributes.requestName, requestBuilder, Nil)
+  def apply(requestName: Expression[String], url: Expression[String], sseName: Expression[String]): SseConnectRequestBuilder =
+    new SseConnectRequestBuilder(CommonAttributes(requestName, HttpMethod.GET, Left(url)), sseName, Nil)
+      .header(HttpHeaderNames.ACCEPT, SseHeaderValueExpression)
+      .header(HttpHeaderNames.CACHE_CONTROL, CacheControlNoCacheValueExpression)
 }
 
-final class SseConnectRequestBuilder(val commonAttributes: CommonAttributes, val sseName: String) extends RequestBuilder[SseConnectRequestBuilder] {
+final case class SseConnectRequestBuilder(
+    commonAttributes: CommonAttributes,
+    sseName: Expression[String],
+    checkSequences: List[SseMessageCheckSequenceBuilder]
+) extends RequestBuilder[SseConnectRequestBuilder]
+    with HttpActionBuilder
+    with SseAwaitActionBuilder[SseConnectRequestBuilder] {
+  override private[http] def newInstance(commonAttributes: CommonAttributes) = new SseConnectRequestBuilder(commonAttributes, sseName, checkSequences)
 
-  override private[http] def newInstance(commonAttributes: CommonAttributes) = new SseConnectRequestBuilder(commonAttributes, sseName)
+  override def build(ctx: ScenarioContext, next: Action): Action = {
+    val httpComponents = lookUpHttpComponents(ctx.protocolComponentsRegistry)
+    val request = new SseRequestExpressionBuilder(
+      commonAttributes,
+      httpComponents.httpCaches,
+      httpComponents.httpProtocol,
+      ctx.coreComponents.configuration
+    ).build
+    new SseConnect(
+      commonAttributes.requestName,
+      sseName,
+      request,
+      checkSequences,
+      ctx.coreComponents,
+      httpComponents,
+      next
+    )
+  }
 
-  def build(httpComponents: HttpComponents, configuration: GatlingConfiguration): Expression[Request] =
-    new SseRequestExpressionBuilder(commonAttributes, httpComponents.httpCaches, httpComponents.httpProtocol, configuration).build
+  @SuppressWarnings(Array("org.wartremover.warts.ListAppend"))
+  override protected def appendCheckSequence(checkSequence: SseMessageCheckSequenceBuilder): SseConnectRequestBuilder =
+    this.modify(_.checkSequences)(_ :+ checkSequence)
 }

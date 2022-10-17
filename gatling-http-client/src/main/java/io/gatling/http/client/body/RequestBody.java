@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,30 +17,30 @@
 package io.gatling.http.client.body;
 
 import io.netty.buffer.ByteBufAllocator;
-
 import java.io.IOException;
 
-public abstract class RequestBody<T> {
+public interface RequestBody {
 
-  protected final T content;
-  protected final String contentType;
+  WritableContent build(ByteBufAllocator alloc) throws IOException;
 
-  public RequestBody(T content, String contentType) {
-    this.content = content;
-    this.contentType = contentType;
+  RequestBodyBuilder newBuilder();
+
+  byte[] getBytes();
+
+  default CharSequence getPatchedContentType() {
+    return null;
   }
 
-  public T getContent() {
-    return content;
+  abstract class Base<T> implements RequestBody {
+
+    protected final T content;
+
+    public Base(T content) {
+      this.content = content;
+    }
+
+    public T getContent() {
+      return content;
+    }
   }
-
-  public String getContentType() {
-    return contentType;
-  }
-
-  public abstract WritableContent build(ByteBufAllocator alloc) throws IOException;
-
-  public abstract RequestBodyBuilder<T> newBuilder();
-
-  public abstract byte[] getBytes();
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,15 +24,14 @@ import io.gatling.http.response.Response
 
 trait HttpHeaderCheckType
 
-class HttpHeaderCheckBuilder(headerName: Expression[String])
-    extends DefaultMultipleFindCheckBuilder[HttpHeaderCheckType, Response, String](displayActualValue = true) {
-  override def findExtractor(occurrence: Int): Expression[Extractor[Response, String]] = headerName.map(HttpHeaderExtractors.find(_, occurrence))
-  override def findAllExtractor: Expression[Extractor[Response, Seq[String]]] = headerName.map(HttpHeaderExtractors.findAll)
-  override def countExtractor: Expression[Extractor[Response, Int]] = headerName.map(HttpHeaderExtractors.count)
+class HttpHeaderCheckBuilder(headerName: Expression[CharSequence])
+    extends CheckBuilder.MultipleFind.Default[HttpHeaderCheckType, Response, String](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[Response, String]] = headerName.map(HttpHeaderExtractors.find(_, occurrence))
+  override protected def findAllExtractor: Expression[Extractor[Response, Seq[String]]] = headerName.map(HttpHeaderExtractors.findAll)
+  override protected def countExtractor: Expression[Extractor[Response, Int]] = headerName.map(HttpHeaderExtractors.count)
 }
 
 object HttpHeaderCheckMaterializer {
-
   val Instance: CheckMaterializer[HttpHeaderCheckType, HttpCheck, Response, Response] =
     new HttpCheckMaterializer[HttpHeaderCheckType, Response](Header, identityPreparer)
 }

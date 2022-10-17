@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@ package io.gatling.charts.stats.buffers
 import scala.collection.mutable
 
 import io.gatling.charts.stats.{ GroupRecord, RequestRecord, UserRecord }
-import io.gatling.commons.stats.{ GroupStatsPath, RequestStatsPath, StatsPath }
+import io.gatling.commons.shared.unstable.model.stats.{ GroupStatsPath, RequestStatsPath, StatsPath }
+import io.gatling.core.stats.message.MessageEvent
 
 private[stats] trait NamesBuffers {
-
   class NameBuffer[A] {
-
     val map: mutable.Map[A, Long] = mutable.Map.empty
 
     def update(name: A, time: Long): Unit =
@@ -35,7 +34,9 @@ private[stats] trait NamesBuffers {
   val scenarioNameBuffer: NameBuffer[String] = new NameBuffer[String]
 
   def addScenarioName(record: UserRecord): Unit =
-    scenarioNameBuffer.update(record.scenario, record.start)
+    if (record.event == MessageEvent.Start) {
+      scenarioNameBuffer.update(record.scenario, record.timestamp)
+    }
 
   def addRequestName(record: RequestRecord): Unit =
     groupAndRequestsNameBuffer.update(RequestStatsPath(record.name, record.group), record.start)

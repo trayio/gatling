@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,19 @@
 
 package io.gatling.core.check.css
 
-import io.gatling.core.check.{ Extractor, _ }
+import io.gatling.core.check._
 import io.gatling.core.session._
 
 import jodd.lagarto.dom.NodeSelector
 
-trait CssCheckType
+sealed trait CssCheckType
 
-trait CssOfType { self: CssCheckBuilder[String] =>
+sealed trait CssOfType { self: CssCheckBuilder[String] =>
 
-  def ofType[X: NodeConverter]: CssCheckBuilder[X] = new CssCheckBuilder[X](expression, nodeAttribute, selectors)
+  def ofType[X: NodeConverter]: CheckBuilder.MultipleFind[CssCheckType, NodeSelector, X] = new CssCheckBuilder[X](expression, nodeAttribute, selectors)
 }
 
 object CssCheckBuilder {
-
   def css(expression: Expression[String], nodeAttribute: Option[String], selectors: CssSelectors): CssCheckBuilder[String] with CssOfType =
     new CssCheckBuilder[String](expression, nodeAttribute, selectors) with CssOfType
 }
@@ -38,10 +37,9 @@ class CssCheckBuilder[X: NodeConverter](
     private[css] val expression: Expression[String],
     private[css] val nodeAttribute: Option[String],
     private[css] val selectors: CssSelectors
-) extends DefaultMultipleFindCheckBuilder[CssCheckType, NodeSelector, X](displayActualValue = true) {
-
-  override def findExtractor(occurrence: Int): Expression[Extractor[NodeSelector, X]] =
+) extends CheckBuilder.MultipleFind.Default[CssCheckType, NodeSelector, X](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[NodeSelector, X]] =
     expression.map(CssExtractors.find(_, nodeAttribute, occurrence, selectors))
-  override def findAllExtractor: Expression[Extractor[NodeSelector, Seq[X]]] = expression.map(CssExtractors.findAll(_, nodeAttribute, selectors))
-  override def countExtractor: Expression[Extractor[NodeSelector, Int]] = expression.map(CssExtractors.count(_, nodeAttribute, selectors))
+  override protected def findAllExtractor: Expression[Extractor[NodeSelector, Seq[X]]] = expression.map(CssExtractors.findAll(_, nodeAttribute, selectors))
+  override protected def countExtractor: Expression[Extractor[NodeSelector, Int]] = expression.map(CssExtractors.count(_, nodeAttribute, selectors))
 }

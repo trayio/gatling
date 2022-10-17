@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import java.io.InputStream
 
 import scala.annotation.implicitNotFound
 
-import io.gatling.commons.validation.Validation
 import io.gatling.core.check._
 import io.gatling.core.check.bytes._
 import io.gatling.core.check.checksum._
@@ -34,7 +33,7 @@ import io.gatling.core.check.substring._
 import io.gatling.core.check.time._
 import io.gatling.core.check.xpath._
 import io.gatling.core.json.JsonParsers
-import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.session.Expression
 import io.gatling.core.stats.message._
 import io.gatling.http.check.body._
 import io.gatling.http.check.checksum._
@@ -49,50 +48,50 @@ import jodd.lagarto.dom.NodeSelector
 import net.sf.saxon.s9api.XdmNode
 
 trait HttpCheckSupport {
-
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
-  implicit def checkBuilder2HttpCheck[A, P, X](
-      checkBuilder: CheckBuilder[A, P, X]
-  )(implicit materializer: CheckMaterializer[A, HttpCheck, Response, P]): HttpCheck =
+  implicit def checkBuilder2HttpCheck[T, P](
+      checkBuilder: CheckBuilder[T, P]
+  )(implicit materializer: CheckMaterializer[T, HttpCheck, Response, P]): HttpCheck =
     checkBuilder.build(materializer)
 
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
-  implicit def validatorCheckBuilder2HttpCheck[A, P, X](
-      validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]
-  )(implicit CheckMaterializer: CheckMaterializer[A, HttpCheck, Response, P]): HttpCheck =
-    validatorCheckBuilder.exists
+  implicit def validate2HttpCheck[T, P, X](
+      validate: CheckBuilder.Validate[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, HttpCheck, Response, P]): HttpCheck =
+    validate.exists
 
   @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
-  implicit def findCheckBuilder2HttpCheck[A, P, X](
-      findCheckBuilder: FindCheckBuilder[A, P, X]
-  )(implicit CheckMaterializer: CheckMaterializer[A, HttpCheck, Response, P]): HttpCheck =
-    findCheckBuilder.find.exists
+  implicit def find2HttpCheck[T, P, X](
+      find: CheckBuilder.Find[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, HttpCheck, Response, P]): HttpCheck =
+    find.find.exists
 
-  val currentLocation: FindCheckBuilder[CurrentLocationCheckType, String, String] = CurrentLocationCheckBuilder
+  val currentLocation: CheckBuilder.Find[CurrentLocationCheckType, String, String] = CurrentLocationCheckBuilder
   implicit val currentLocationCheckMaterializer: CheckMaterializer[CurrentLocationCheckType, HttpCheck, Response, String] =
     CurrentLocationCheckMaterializer.Instance
 
   def currentLocationRegex(
       pattern: Expression[String]
-  )(implicit patterns: Patterns): MultipleFindCheckBuilder[CurrentLocationRegexCheckType, String, String] with CurrentLocationRegexOfType =
+  )(implicit patterns: Patterns): CheckBuilder.MultipleFind[CurrentLocationRegexCheckType, String, String] with CurrentLocationRegexOfType =
     CurrentLocationRegexCheckBuilder.currentLocationRegex(pattern, patterns)
   implicit val currentLocationRegexCheckMaterializer: CheckMaterializer[CurrentLocationRegexCheckType, HttpCheck, Response, String] =
     CurrentLocationRegexCheckMaterializer.Instance
 
-  val status: FindCheckBuilder[HttpStatusCheckType, Response, Int] = HttpStatusCheckBuilder
+  val status: CheckBuilder.Find[HttpStatusCheckType, Response, Int] = HttpStatusCheckBuilder
   implicit val httpStatusCheckMaterializer: CheckMaterializer[HttpStatusCheckType, HttpCheck, Response, Response] = HttpStatusCheckMaterializer.Instance
 
-  val header: Expression[String] => MultipleFindCheckBuilder[HttpHeaderCheckType, Response, String] = new HttpHeaderCheckBuilder(_)
+  def header(headerName: Expression[CharSequence]): CheckBuilder.MultipleFind[HttpHeaderCheckType, Response, String] = new HttpHeaderCheckBuilder(headerName)
   implicit val httpHeaderCheckMaterializer: CheckMaterializer[HttpHeaderCheckType, HttpCheck, Response, Response] = HttpHeaderCheckMaterializer.Instance
 
-  def headerRegex(headerName: Expression[String], pattern: Expression[String])(
-      implicit patterns: Patterns
-  ): MultipleFindCheckBuilder[HttpHeaderRegexCheckType, Response, String] with HttpHeaderRegexOfType =
+  def headerRegex(headerName: Expression[CharSequence], pattern: Expression[String])(implicit
+      patterns: Patterns
+  ): CheckBuilder.MultipleFind[HttpHeaderRegexCheckType, Response, String] with HttpHeaderRegexOfType =
     HttpHeaderRegexCheckBuilder.headerRegex(headerName, pattern, patterns)
   implicit val httpHeaderRegexCheckMaterializer: CheckMaterializer[HttpHeaderRegexCheckType, HttpCheck, Response, Response] =
     HttpHeaderRegexCheckMaterializer.Instance
 
   implicit val httpBodyBytesCheckMaterializer: CheckMaterializer[BodyBytesCheckType, HttpCheck, Response, Array[Byte]] = HttpBodyBytesCheckMaterializer.Instance
+  implicit val httpBodyLengthCheckMaterializer: CheckMaterializer[BodyBytesCheckType, HttpCheck, Response, Int] = HttpBodyLengthCheckMaterializer.Instance
   implicit val httpBodyStringCheckMaterializer: CheckMaterializer[BodyStringCheckType, HttpCheck, Response, String] = HttpBodyStringCheckMaterializer.Instance
   implicit val httpBodyStreamCheckMaterializer: CheckMaterializer[BodyStreamCheckType, HttpCheck, Response, () => InputStream] =
     HttpBodyStreamCheckMaterializer.Instance
@@ -100,19 +99,19 @@ trait HttpCheckSupport {
   implicit val httpBodyRegexCheckMaterializer: CheckMaterializer[RegexCheckType, HttpCheck, Response, String] = HttpBodyRegexCheckMaterializer.Instance
   implicit val httpBodySubstringCheckMaterializer: CheckMaterializer[SubstringCheckType, HttpCheck, Response, String] =
     HttpBodySubstringCheckMaterializer.Instance
-  implicit def httpBodyXPathCheckMaterializer(implicit xmlParsers: XmlParsers): CheckMaterializer[XPathCheckType, HttpCheck, Response, Option[XdmNode]] =
-    HttpBodyXPathCheckMaterializer.instance(xmlParsers)
+  implicit val httpBodyXPathCheckMaterializer: CheckMaterializer[XPathCheckType, HttpCheck, Response, XdmNode] =
+    HttpBodyXPathCheckMaterializer.Instance
   implicit def httpBodyCssCheckMaterializer(implicit selectors: CssSelectors): CheckMaterializer[CssCheckType, HttpCheck, Response, NodeSelector] =
     HttpBodyCssCheckMaterializer.instance(selectors)
   implicit def httpBodyJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JsonPathCheckType, HttpCheck, Response, JsonNode] =
     HttpBodyJsonPathCheckMaterializer.instance(jsonParsers)
-  implicit def httpBodyJsonpJsonPathCheckMaterializer(
-      implicit jsonParsers: JsonParsers
+  implicit def httpBodyJsonpJsonPathCheckMaterializer(implicit
+      jsonParsers: JsonParsers
   ): CheckMaterializer[JsonpJsonPathCheckType, HttpCheck, Response, JsonNode] = HttpBodyJsonpCheckMaterializer.instance(jsonParsers)
   implicit def httpBodyJmesPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JmesPathCheckType, HttpCheck, Response, JsonNode] =
     HttpBodyJmesPathCheckMaterializer.instance(jsonParsers)
-  implicit def httpBodyJsonpJmesPathCheckMaterializer(
-      implicit jsonParsers: JsonParsers
+  implicit def httpBodyJsonpJmesPathCheckMaterializer(implicit
+      jsonParsers: JsonParsers
   ): CheckMaterializer[JsonpJmesPathCheckType, HttpCheck, Response, JsonNode] = HttpBodyJsonpCheckMaterializer.instance(jsonParsers)
 
   implicit val httpMd5CheckMaterializer: CheckMaterializer[Md5CheckType, HttpCheck, Response, String] = HttpChecksumCheckMaterializer.Md5
@@ -121,15 +120,7 @@ trait HttpCheckSupport {
   implicit val httpResponseTimeCheckMaterializer: CheckMaterializer[ResponseTimeCheckType, HttpCheck, Response, ResponseTimings] =
     HttpResponseTimeCheckMaterializer.Instance
 
-  implicit object HttpTypedConditionalCheckWrapper extends TypedConditionalCheckWrapper[Response, HttpCheck] {
-    override def wrap(condition: (Response, Session) => Validation[Boolean], thenCheck: HttpCheck): HttpCheck =
-      HttpCheck(ConditionalCheck(condition, thenCheck), thenCheck.scope)
-  }
+  implicit val httpUntypedCheckIfMaker: UntypedCheckIfMaker[HttpCheck] = _.checkIf(_)
 
-  implicit object HttpUntypedConditionalCheckWrapper extends UntypedConditionalCheckWrapper[HttpCheck] {
-    override def wrap(condition: Expression[Boolean], thenCheck: HttpCheck): HttpCheck = {
-      val typedCondition = (_: Response, session: Session) => condition(session)
-      HttpCheck(ConditionalCheck(typedCondition, thenCheck), thenCheck.scope)
-    }
-  }
+  implicit val httpTypedCheckIfMaker: TypedCheckIfMaker[Response, HttpCheck] = _.checkIf(_)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 
 package io.gatling.http.protocol
 
+import java.{ util => ju }
 import java.net.InetAddress
 import java.util.regex.Pattern
+import javax.net.ssl.KeyManagerFactory
 
+import io.gatling.commons.validation.Validation
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.filter.Filters
@@ -27,7 +30,7 @@ import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.check.HttpCheck
-import io.gatling.http.client.SignatureCalculator
+import io.gatling.http.client.Request
 import io.gatling.http.client.proxy.ProxyServer
 import io.gatling.http.client.realm.Realm
 import io.gatling.http.client.uri.Uri
@@ -37,12 +40,9 @@ import io.gatling.http.engine.tx.HttpTxExecutor
 import io.gatling.http.fetch.InferredResourceNaming
 
 import com.typesafe.scalalogging.StrictLogging
-import javax.net.ssl.KeyManagerFactory
 
 object HttpProtocol extends StrictLogging {
-
   val HttpProtocolKey: ProtocolKey[HttpProtocol, HttpComponents] = new ProtocolKey[HttpProtocol, HttpComponents] {
-
     override def protocolClass: Class[Protocol] = classOf[HttpProtocol].asInstanceOf[Class[Protocol]]
 
     override def defaultProtocolValue(configuration: GatlingConfiguration): HttpProtocol = HttpProtocol(configuration)
@@ -51,7 +51,7 @@ object HttpProtocol extends StrictLogging {
       val httpEngine = HttpEngine(coreComponents)
       coreComponents.actorSystem.registerOnTermination(httpEngine.close())
       val httpCaches = new HttpCaches(coreComponents)
-      val defaultStatsProcessor = new DefaultStatsProcessor(coreComponents.configuration.core.charset, coreComponents.statsEngine)
+      val defaultStatsProcessor = new DefaultStatsProcessor(coreComponents.statsEngine)
 
       httpProtocol => {
         val httpComponents = new HttpComponents(
@@ -75,7 +75,8 @@ object HttpProtocol extends StrictLogging {
         shareConnections = false,
         maxConnectionsPerHost = 6,
         virtualHost = None,
-        localAddresses = Nil,
+        localIpV4Addresses = Nil,
+        localIpV6Addresses = Nil,
         enableHttp2 = false,
         http2PriorKnowledge = Map.empty,
         perUserKeyManagerFactory = None
@@ -84,6 +85,7 @@ object HttpProtocol extends StrictLogging {
         headers = Map.empty,
         realm = None,
         autoReferer = true,
+        autoOrigin = true,
         cache = true,
         disableUrlEncoding = false,
         silentResources = false,
@@ -94,6 +96,7 @@ object HttpProtocol extends StrictLogging {
         followRedirect = true,
         maxRedirects = 20,
         strict302Handling = false,
+        redirectNamingStrategy = (_, requestName, redirectCount) => s"$requestName Redirect $redirectCount",
         responseTransformer = None,
         checks = Nil,
         inferHtmlResources = false,
@@ -102,14 +105,14 @@ object HttpProtocol extends StrictLogging {
       ),
       wsPart = HttpProtocolWsPart(
         wsBaseUrls = Nil,
-        reconnect = false,
-        maxReconnects = None
+        maxReconnects = 0,
+        autoReplyTextFrames = PartialFunction.empty
       ),
       proxyPart = HttpProtocolProxyPart(
         proxy = None,
         proxyExceptions = Nil
       ),
-      dnsPart = DnsPart(
+      dnsPart = HttpProtocolDnsPart(
         dnsNameResolution = JavaDnsNameResolution,
         hostNameAliases = Map.empty,
         perUserNameResolution = false
@@ -120,14 +123,22 @@ object HttpProtocol extends StrictLogging {
 /**
  * Class containing the configuration for the HTTP protocol
  *
- * @param baseUrls the radixes of all the URLs that will be used (eg: http://mywebsite.tld)
- * @param warmUpUrl the url used to load the TCP stack
- * @param enginePart the HTTP engine related configuration
- * @param requestPart the request related configuration
- * @param responsePart the response related configuration
- * @param wsPart the WebSocket related configuration
- * @param proxyPart the Proxy related configuration
- * @param dnsPart the DNS related configuration
+ * @param baseUrls
+ *   the radixes of all the URLs that will be used (eg: http://mywebsite.tld)
+ * @param warmUpUrl
+ *   the url used to load the TCP stack
+ * @param enginePart
+ *   the HTTP engine related configuration
+ * @param requestPart
+ *   the request related configuration
+ * @param responsePart
+ *   the response related configuration
+ * @param wsPart
+ *   the WebSocket related configuration
+ * @param proxyPart
+ *   the Proxy related configuration
+ * @param dnsPart
+ *   the DNS related configuration
  */
 final case class HttpProtocol(
     baseUrls: List[String],
@@ -137,9 +148,8 @@ final case class HttpProtocol(
     responsePart: HttpProtocolResponsePart,
     wsPart: HttpProtocolWsPart,
     proxyPart: HttpProtocolProxyPart,
-    dnsPart: DnsPart
+    dnsPart: HttpProtocolDnsPart
 ) extends Protocol {
-
   type Components = HttpComponents
 }
 
@@ -147,27 +157,30 @@ final case class HttpProtocolEnginePart(
     shareConnections: Boolean,
     maxConnectionsPerHost: Int,
     virtualHost: Option[Expression[String]],
-    localAddresses: List[InetAddress],
+    localIpV4Addresses: List[InetAddress],
+    localIpV6Addresses: List[InetAddress],
     enableHttp2: Boolean,
     http2PriorKnowledge: Map[Remote, Boolean],
     perUserKeyManagerFactory: Option[Long => KeyManagerFactory]
 )
 
 final case class HttpProtocolRequestPart(
-    headers: Map[String, Expression[String]],
+    headers: Map[CharSequence, Expression[String]],
     realm: Option[Expression[Realm]],
     autoReferer: Boolean,
+    autoOrigin: Boolean,
     cache: Boolean,
     disableUrlEncoding: Boolean,
     silentUri: Option[Pattern],
     silentResources: Boolean,
-    signatureCalculator: Option[Expression[SignatureCalculator]]
+    signatureCalculator: Option[(Request, Session) => Validation[_]]
 )
 
 final case class HttpProtocolResponsePart(
     followRedirect: Boolean,
     maxRedirects: Int,
     strict302Handling: Boolean,
+    redirectNamingStrategy: (Uri, String, Int) => String,
     responseTransformer: Option[ResponseTransformer],
     checks: List[HttpCheck],
     inferHtmlResources: Boolean,
@@ -177,8 +190,8 @@ final case class HttpProtocolResponsePart(
 
 final case class HttpProtocolWsPart(
     wsBaseUrls: List[String],
-    reconnect: Boolean,
-    maxReconnects: Option[Int]
+    maxReconnects: Int,
+    autoReplyTextFrames: PartialFunction[String, String]
 )
 
 final case class HttpProtocolProxyPart(
@@ -186,8 +199,8 @@ final case class HttpProtocolProxyPart(
     proxyExceptions: Seq[String]
 )
 
-final case class DnsPart(
+final case class HttpProtocolDnsPart(
     dnsNameResolution: DnsNameResolution,
-    hostNameAliases: Map[String, InetAddress],
+    hostNameAliases: Map[String, ju.List[InetAddress]],
     perUserNameResolution: Boolean
 )

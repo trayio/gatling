@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.gatling.http.client.HttpListener;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,7 +52,7 @@ public abstract class CompleteResponseListener implements HttpListener {
 
   private void releaseChunks() {
     if (chunks != null) {
-      for (ByteBuf chunk: chunks) {
+      for (ByteBuf chunk : chunks) {
         chunk.release();
       }
     }

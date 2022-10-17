@@ -20,10 +20,11 @@ import java.nio.charset.Charset
 
 import io.gatling.commons.util.Io._
 
-object Utils {
+import scala.util.Using
 
+object Utils {
   def resourceAsString(res: String, charset: Charset): String = {
-    withCloseable(Thread.currentThread().getContextClassLoader.getResourceAsStream(res)) { is =>
+    Using.resource(Thread.currentThread().getContextClassLoader.getResourceAsStream(res)) { is =>
       is.toString(charset)
     }
   }

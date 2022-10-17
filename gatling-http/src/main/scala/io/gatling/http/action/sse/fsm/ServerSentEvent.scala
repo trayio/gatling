@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.gatling.http.action.sse.fsm
 
 import io.gatling.core.json.Json
+import io.gatling.jdk.util.StringBuilderPool
 
 final case class ServerSentEvent(
     name: Option[String],
@@ -24,13 +25,21 @@ final case class ServerSentEvent(
     id: Option[String],
     retry: Option[Int]
 ) {
-
   def asJsonString: String = {
-
-    // BEWARE: assume Map4 is implemented as an Array, so order is kept
-    val map = Map("event" -> name, "id" -> id, "data" -> data, "retry" -> retry)
-      .collect({ case (key, Some(value)) => (key, value) })
-
-    Json.stringify(map, isRootObject = true)
+    val sb = StringBuilderPool.DEFAULT.get().append('{')
+    name.foreach { value =>
+      sb.append("\"event\":\"").append(value).append("\",")
+    }
+    id.foreach { value =>
+      sb.append("\"id\":\"").append(value).append("\",")
+    }
+    data.foreach { value =>
+      sb.append("\"data\":\"").append(Json.stringify(value, true)).append("\",")
+    }
+    retry.foreach { value =>
+      sb.append("\"retry\":").append(retry).append(",")
+    }
+    sb.setLength(sb.length - 1)
+    sb.append('}').toString
   }
 }

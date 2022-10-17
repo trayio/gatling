@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,93 +16,59 @@
 
 package io.gatling.http.cache
 
+import java.{ util => ju }
 import java.net.InetAddress
-import java.util.{ List => JList }
 
+import io.gatling.commons.validation._
 import io.gatling.core.CoreComponents
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
-import io.gatling.http.client.HttpListener
 import io.gatling.http.client.resolver.InetAddressNameResolver
 import io.gatling.http.engine.HttpEngine
-import io.gatling.http.protocol.{ AsyncDnsNameResolution, DnsNameResolution, HttpProtocol, JavaDnsNameResolution }
-import io.gatling.http.resolver.{ AliasesAwareNameResolver, ShuffleJdkNameResolver }
-import io.gatling.http.util.HttpTypeCaster
+import io.gatling.http.protocol.{ AsyncDnsNameResolution, HttpProtocolDnsPart, JavaDnsNameResolution }
+import io.gatling.http.resolver.{ AliasesAwareNameResolver, SharedAsyncDnsNameResolverFactory, ShufflingNameResolver }
 
-import io.netty.channel.EventLoop
-import io.netty.util.concurrent.{ Future, Promise }
+import io.netty.resolver.dns.DefaultDnsCache
 
-private object DnsCacheSupport {
-
-  val DnsNameResolverAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cache.dns"
-}
-
-private class NoopCloseNameResolver(wrapped: InetAddressNameResolver) extends InetAddressNameResolver {
-
-  override def resolveAll(inetHost: String, promise: Promise[JList[InetAddress]], listener: HttpListener): Future[JList[InetAddress]] =
-    wrapped.resolveAll(inetHost, promise, listener)
-
-  override def close(): Unit = {}
+private[http] object DnsCacheSupport {
+  val DnsNameResolverAttributeName: String = SessionPrivateAttributes.generatePrivateAttribute("http.cache.dns")
 }
 
 private[http] trait DnsCacheSupport {
-
   import DnsCacheSupport._
 
   def coreComponents: CoreComponents
 
-  private def newNameResolver(
-      eventLoop: => EventLoop,
-      dnsNameResolution: DnsNameResolution,
-      hostNameAliases: Map[String, InetAddress],
-      httpEngine: HttpEngine
-  ): InetAddressNameResolver = {
-    val resolver: InetAddressNameResolver =
-      coreComponents.configuration.resolve(
-        // [fl]
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        // [fl]
-        dnsNameResolution match {
-          case JavaDnsNameResolution              => ShuffleJdkNameResolver.Instance
-          case AsyncDnsNameResolution(dnsServers) => httpEngine.newAsyncDnsNameResolver(eventLoop, dnsServers)
+  private def setDecoratedResolver(
+      session: Session,
+      resolver: InetAddressNameResolver,
+      hostNameAliases: Map[String, ju.List[InetAddress]]
+  ): Session = {
+    val shufflingResolver = new ShufflingNameResolver(resolver, session.eventLoop)
+    val aliasAwareResolver = AliasesAwareNameResolver(hostNameAliases, shufflingResolver)
+    session.set(DnsNameResolverAttributeName, aliasAwareResolver)
+  }
+
+  def setNameResolver(dnsPart: HttpProtocolDnsPart, httpEngine: HttpEngine): Session => Session = {
+    import dnsPart._
+
+    dnsNameResolution match {
+      case JavaDnsNameResolution =>
+        val actualResolver = httpEngine.newJavaDnsNameResolver
+        setDecoratedResolver(_, actualResolver, hostNameAliases)
+      case AsyncDnsNameResolution(dnsServers) =>
+        if (perUserNameResolution) { session =>
+          val actualResolver = httpEngine.newAsyncDnsNameResolver(session.eventLoop, dnsServers, new DefaultDnsCache)
+          setDecoratedResolver(session, actualResolver, hostNameAliases)
+        } else {
+          val factory = SharedAsyncDnsNameResolverFactory(httpEngine, dnsServers, coreComponents.actorSystem)
+          session => {
+            val sharedResolver = factory(session.eventLoop)
+            setDecoratedResolver(session, sharedResolver, hostNameAliases)
+          }
         }
-      )
-
-    if (hostNameAliases.isEmpty) {
-      resolver
-    } else {
-      new AliasesAwareNameResolver(hostNameAliases, resolver)
     }
   }
 
-  def setNameResolver(httpProtocol: HttpProtocol, httpEngine: HttpEngine): Session => Session = {
-
-    import httpProtocol.dnsPart._
-
-    if (perUserNameResolution) { session =>
-      session.set(DnsNameResolverAttributeName, newNameResolver(session.eventLoop, dnsNameResolution, hostNameAliases, httpEngine))
-
-    } else {
-      // create shared name resolver for all the users with this protocol
-      val nameResolver = newNameResolver(coreComponents.eventLoopGroup.next(), dnsNameResolution, hostNameAliases, httpEngine)
-      coreComponents.actorSystem.registerOnTermination(() => nameResolver.close())
-
-      // perform close on system shutdown instead of virtual user termination as its shared
-      val noopCloseNameResolver = new NoopCloseNameResolver(nameResolver)
-
-      _.set(DnsNameResolverAttributeName, noopCloseNameResolver)
-    }
-  }
-
-  def nameResolver(session: Session): Option[InetAddressNameResolver] = {
-    // import optimized TypeCaster
-    import HttpTypeCaster._
-    session(DnsNameResolverAttributeName).asOption[InetAddressNameResolver]
-  }
+  def nameResolver(session: Session): Validation[InetAddressNameResolver] =
+    session.attributes.get(DnsNameResolverAttributeName).map(_.asInstanceOf[InetAddressNameResolver]).toValidation("DnsNameResolver missing from Session")
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,17 @@
 
 package io.gatling.core.check.regex
 
-import io.gatling.core.check.{ DefaultMultipleFindCheckBuilder, Extractor }
+import io.gatling.core.check.{ CheckBuilder, Extractor }
 import io.gatling.core.session.{ Expression, RichExpression }
 
-trait RegexCheckType
+sealed trait RegexCheckType
 
-trait RegexOfType { self: RegexCheckBuilder[String] =>
+sealed trait RegexOfType { self: RegexCheckBuilder[String] =>
 
-  def ofType[X: GroupExtractor]: RegexCheckBuilder[X] = new RegexCheckBuilder[X](pattern, patterns)
+  def ofType[X: GroupExtractor]: CheckBuilder.MultipleFind[RegexCheckType, String, X] = new RegexCheckBuilder[X](pattern, patterns)
 }
 
 object RegexCheckBuilder {
-
   def regex(pattern: Expression[String], patterns: Patterns): RegexCheckBuilder[String] with RegexOfType =
     new RegexCheckBuilder[String](pattern, patterns) with RegexOfType
 }
@@ -35,9 +34,9 @@ object RegexCheckBuilder {
 class RegexCheckBuilder[X: GroupExtractor](
     private[regex] val pattern: Expression[String],
     private[regex] val patterns: Patterns
-) extends DefaultMultipleFindCheckBuilder[RegexCheckType, String, X](displayActualValue = true) {
-
-  override def findExtractor(occurrence: Int): Expression[Extractor[String, X]] = pattern.map(RegexExtractors.find[X]("regex", _, occurrence, patterns))
-  override def findAllExtractor: Expression[Extractor[String, Seq[X]]] = pattern.map(RegexExtractors.findAll[X]("regex", _, patterns))
-  override def countExtractor: Expression[Extractor[String, Int]] = pattern.map(RegexExtractors.count("regex", _, patterns))
+) extends CheckBuilder.MultipleFind.Default[RegexCheckType, String, X](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[String, X]] =
+    pattern.map(RegexExtractors.find[X]("regex", _, occurrence, patterns))
+  override protected def findAllExtractor: Expression[Extractor[String, Seq[X]]] = pattern.map(RegexExtractors.findAll[X]("regex", _, patterns))
+  override protected def countExtractor: Expression[Extractor[String, Int]] = pattern.map(RegexExtractors.count("regex", _, patterns))
 }

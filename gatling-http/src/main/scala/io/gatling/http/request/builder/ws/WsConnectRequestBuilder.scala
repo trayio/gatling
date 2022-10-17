@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,32 +16,58 @@
 
 package io.gatling.http.request.builder.ws
 
-import io.gatling.core.config.GatlingConfiguration
+import io.gatling.core.action.Action
 import io.gatling.core.session.Expression
-import io.gatling.http.action.ws.WsConnectBuilder
-import io.gatling.http.client.Request
-import io.gatling.http.protocol.HttpComponents
+import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
+import io.gatling.http.action.HttpActionBuilder
+import io.gatling.http.action.ws.{ OnConnectedChainEndActionBuilder, WsAwaitActionBuilder, WsConnect, WsFrameCheckSequenceBuilder }
+import io.gatling.http.check.ws.WsFrameCheck
 import io.gatling.http.request.builder.{ CommonAttributes, RequestBuilder }
 
-object WsConnectRequestBuilder {
+import com.softwaremill.quicklens._
 
-  implicit def toActionBuilder(requestBuilder: WsConnectRequestBuilder): WsConnectBuilder =
-    WsConnectBuilder(requestBuilder, Nil, None)
-}
+final case class WsConnectRequestBuilder(
+    commonAttributes: CommonAttributes,
+    wsName: Expression[String],
+    subprotocol: Option[Expression[String]],
+    onConnectedChain: Option[ChainBuilder],
+    checkSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]]
+) extends RequestBuilder[WsConnectRequestBuilder]
+    with HttpActionBuilder
+    with WsAwaitActionBuilder[WsConnectRequestBuilder] {
+  def subprotocol(sub: Expression[String]): WsConnectRequestBuilder = copy(subprotocol = Some(sub))
 
-final class WsConnectRequestBuilder(val commonAttributes: CommonAttributes, val wsName: String, val subprotocol: Option[String])
-    extends RequestBuilder[WsConnectRequestBuilder] {
+  def onConnected(chain: ChainBuilder): WsConnectRequestBuilder = copy(onConnectedChain = Some(chain))
 
-  def subprotocol(sub: String): WsConnectRequestBuilder = new WsConnectRequestBuilder(commonAttributes, wsName, Some(sub))
+  private[http] def newInstance(commonAttributes: CommonAttributes) = copy(commonAttributes = commonAttributes)
 
-  private[http] def newInstance(commonAttributes: CommonAttributes) = new WsConnectRequestBuilder(commonAttributes, wsName, subprotocol)
+  @SuppressWarnings(Array("org.wartremover.warts.ListAppend"))
+  override protected def appendCheckSequence(checkSequence: WsFrameCheckSequenceBuilder[WsFrameCheck]): WsConnectRequestBuilder =
+    this.modify(_.checkSequences)(_ :+ checkSequence)
 
-  def build(httpComponents: HttpComponents, configuration: GatlingConfiguration): Expression[Request] =
-    new WsRequestExpressionBuilder(
+  override def build(ctx: ScenarioContext, next: Action): Action = {
+    val httpComponents = lookUpHttpComponents(ctx.protocolComponentsRegistry)
+    val request = new WsRequestExpressionBuilder(
       commonAttributes,
       httpComponents.httpCaches,
       httpComponents.httpProtocol,
-      configuration,
+      ctx.coreComponents.configuration,
       subprotocol
     ).build
+
+    val onConnected = onConnectedChain.map { chain =>
+      chain.exec(OnConnectedChainEndActionBuilder).build(ctx, next)
+    }
+
+    new WsConnect(
+      commonAttributes.requestName,
+      wsName,
+      request,
+      checkSequences,
+      onConnected,
+      ctx.coreComponents,
+      httpComponents,
+      next
+    )
+  }
 }

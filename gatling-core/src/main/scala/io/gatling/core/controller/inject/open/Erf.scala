@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@ package io.gatling.core.controller.inject.open
 
 import scala.math.{ abs, log, sqrt }
 
-private[inject] object Erf {
-
+private object Erf {
   private val invP1 = Vector(
     0.160304955844066229311e2,
     -0.90784959262960326650e2,
@@ -89,7 +88,6 @@ private[inject] object Erf {
   )
 
   def erfinv(n: Double): Double = {
-
     def evalPolynom(p: Seq[Double], x: Double) = p.reduceRight((c, v) => v * x + c)
 
     def positiveErfinv(u: Double) =

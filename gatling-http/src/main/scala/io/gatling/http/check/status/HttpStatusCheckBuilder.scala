@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,13 +26,12 @@ import io.gatling.http.response.Response
 trait HttpStatusCheckType
 
 object HttpStatusCheckBuilder
-    extends DefaultFindCheckBuilder[HttpStatusCheckType, Response, Int](
+    extends CheckBuilder.Find.Default[HttpStatusCheckType, Response, Int](
       extractor = new FindExtractor[Response, Int]("status", response => Some(response.status.code).success).expressionSuccess,
       displayActualValue = true
     )
 
 object HttpStatusCheckMaterializer {
-
   val Instance: CheckMaterializer[HttpStatusCheckType, HttpCheck, Response, Response] =
     new HttpCheckMaterializer[HttpStatusCheckType, Response](Status, identityPreparer)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package io.gatling.charts.report
 
-import java.nio.file.Path
+import java.nio.file.{ Files, Path }
 
-import io.gatling.commons.util.Io._
-import io.gatling.commons.util.PathHelper._
+import scala.util.Using
+
 import io.gatling.core.config.GatlingConfiguration
 
 private[charts] class TemplateWriter(path: Path) {
-
   def writeToFile(output: String)(implicit configuration: GatlingConfiguration): Unit =
-    withCloseable(path.writer(configuration.core.charset)) { _.write(output) }
+    Using.resource(Files.newBufferedWriter(path, configuration.core.charset))(_.write(output))
 }

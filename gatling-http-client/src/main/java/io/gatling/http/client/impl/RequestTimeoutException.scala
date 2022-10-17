@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package io.gatling.http.client.impl
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeoutException
 
-import io.gatling.netty.util.StringBuilderPool
+import io.gatling.jdk.util.StringBuilderPool
 
 object RequestTimeoutException {
   private def message(timeout: Long, remoteAddress: InetSocketAddress) = {

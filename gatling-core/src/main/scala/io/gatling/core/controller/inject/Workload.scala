@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,59 +21,66 @@ import java.util.concurrent.atomic.AtomicLong
 
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 
-import io.gatling.commons.util.Clock
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.writer.UserEndMessage
 
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.channel.{ EventLoop, EventLoopGroup }
 
-abstract class Workload(
+private abstract class Workload(
     scenario: Scenario,
     userIdGen: AtomicLong,
     eventLoopGroup: EventLoopGroup,
-    statsEngine: StatsEngine,
-    clock: Clock
+    statsEngine: StatsEngine
 ) extends StrictLogging {
-
   private var scheduled = 0
   private var stopped = 0
   private var allScheduled = false
 
   private def incrementScheduledUsers(): Unit = scheduled += 1
 
-  protected def setAllScheduled(): Unit = allScheduled = true
+  protected def setAllScheduled(): Unit = {
+    logger.info(s"Scenario $scenario has finished injecting")
+    allScheduled = true
+  }
 
   protected def incrementStoppedUsers(): Unit = stopped += 1
 
   private def startUser(userId: Long, eventLoop: EventLoop): Unit = {
-    val rawSession = Session(scenario.name, userId, clock.nowMillis, scenario.onExit, eventLoop)
+    val rawSession = Session(scenario.name, userId, scenario.onExit, eventLoop)
     val session = scenario.onStart(rawSession)
     scenario.entry ! session
     logger.debug(s"Start user #${session.userId}")
-    statsEngine.logUserStart(session)
+    statsEngine.logUserStart(scenario.name)
   }
 
   protected def injectUser(delay: FiniteDuration): Unit = {
     incrementScheduledUsers()
     val userId = userIdGen.incrementAndGet()
     val eventLoop = eventLoopGroup.next()
-    if (delay <= Duration.Zero) {
-      eventLoop.execute(() => startUser(userId, eventLoop))
-    } else {
-      eventLoop.schedule((() => startUser(userId, eventLoop)): Runnable, delay.toMillis, TimeUnit.MILLISECONDS)
+    if (!eventLoop.isShutdown) {
+      if (delay <= Duration.Zero) {
+        eventLoop.execute(() => startUser(userId, eventLoop))
+      } else {
+        eventLoop.schedule((() => startUser(userId, eventLoop)): Runnable, delay.toMillis, TimeUnit.MILLISECONDS)
+      }
     }
   }
 
   protected def getConcurrentUsers: Int = scheduled - stopped
 
+  def scenarioName: String = scenario.name
+
   def injectBatch(batchWindow: FiniteDuration): Unit
 
-  def endUser(userMessage: UserEndMessage): Unit
+  def endUser(): Unit
 
   def isAllUsersScheduled: Boolean = allScheduled
 
   def isAllUsersStopped: Boolean = allScheduled && scheduled == stopped
+
+  def duration: FiniteDuration
+
+  def isEmpty: Boolean
 }

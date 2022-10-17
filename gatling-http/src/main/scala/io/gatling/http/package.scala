@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,5 @@ import io.gatling.core.session.Session
 import io.gatling.http.response.Response
 
 package object http {
-
-  type ResponseTransformer = (Session, Response) => Validation[Response]
+  type ResponseTransformer = (Response, Session) => Validation[Response]
 }

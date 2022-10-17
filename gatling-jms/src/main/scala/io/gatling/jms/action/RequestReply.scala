@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package io.gatling.jms.action
 
+import javax.jms.Message
+
 import io.gatling.commons.stats.KO
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.Validation
@@ -27,13 +29,10 @@ import io.gatling.jms.client.JmsConnectionPool
 import io.gatling.jms.protocol.JmsProtocol
 import io.gatling.jms.request._
 
-import javax.jms.Message
-
 /**
  * Core JMS Action to handle Request-Reply semantics
  *
- * This handles the core "send"ing of messages. Gatling calls the execute method to trigger a send.
- * This implementation then forwards it on to a tracking actor.
+ * This handles the core "send"ing of messages. Gatling calls the execute method to trigger a send. This implementation then forwards it on to a tracking actor.
  */
 class RequestReply(
     attributes: JmsAttributes,
@@ -45,15 +44,13 @@ class RequestReply(
     val statsEngine: StatsEngine,
     val clock: Clock,
     val next: Action,
-    throttler: Throttler,
-    throttled: Boolean
-) extends JmsAction(attributes, protocol, jmsConnectionPool, throttler, throttled) {
-
+    throttler: Option[Throttler]
+) extends JmsAction(attributes, protocol, jmsConnectionPool, throttler) {
   override val name: String = genName("jmsRequestReply")
 
   private val jmsReplyDestination = jmsConnection.destination(replyDestination)
   private val messageMatcher = protocol.messageMatcher
-  private val replyTimeout = protocol.replyTimeout.getOrElse(0L)
+  private val replyTimeoutInMs = protocol.replyTimeout.fold(0L)(_.toMillis)
   private val jmsTrackerDestination = trackerDestination.map(dest => jmsConnection.destination(dest)).getOrElse(jmsReplyDestination)
 
   override protected def aroundSend(requestName: String, session: Session, message: Message): Validation[Around] =
@@ -78,12 +75,12 @@ class RequestReply(
             logMessage(s"Message sent matchId=$matchId", message)
           }
 
-          // [fl]
+          // [e]
           //
-          // [/fl]
+          // [e]
 
           if (matchId != null) {
-            tracker.track(matchId, clock.nowMillis, replyTimeout, attributes.checks, session, next, requestName)
+            tracker.track(matchId, clock.nowMillis, replyTimeoutInMs, attributes.checks, session, next, requestName)
           }
         },
         after = () =>
@@ -91,10 +88,10 @@ class RequestReply(
             val updatedMatchId = messageMatcher.requestMatchId(message)
 
             if (updatedMatchId != null) {
-              tracker.track(updatedMatchId, clock.nowMillis, replyTimeout, attributes.checks, session, next, requestName)
+              tracker.track(updatedMatchId, clock.nowMillis, replyTimeoutInMs, attributes.checks, session, next, requestName)
             } else {
               val now = clock.nowMillis
-              statsEngine.logResponse(session, requestName, now, now, KO, None, Some("Failed to get a matchId to track"))
+              statsEngine.logResponse(session.scenario, session.groups, requestName, now, now, KO, None, Some("Failed to get a matchId to track"))
               next ! session.markAsFailed
             }
           }

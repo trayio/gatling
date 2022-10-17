@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.gatling.mqtt.protocol
 
 import java.net.InetSocketAddress
+import javax.net.ssl.KeyManagerFactory
 
 import scala.concurrent.duration._
 
@@ -29,7 +30,6 @@ import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.mqtt.{ MqttQoS, MqttVersion }
 
 object MqttProtocol extends StrictLogging {
-
   private val DefaultBrokerAddress = new InetSocketAddress("localhost", 1883)
 
   val Default: MqttProtocol =
@@ -37,25 +37,26 @@ object MqttProtocol extends StrictLogging {
       version = MqttVersion.MQTT_3_1_1,
       brokerAddress = DefaultBrokerAddress,
       useTls = false,
+      perUserKeyManagerFactory = None,
       clientId = None,
       cleanSession = true,
       credentials = None,
       lastWill = None,
-      connectTimeout = 5 seconds,
-      keepAlive = 5 seconds,
+      connectTimeout = 5.seconds,
+      keepAlive = 5.seconds,
       qos = MqttQoS.AT_MOST_ONCE,
       retain = false,
       reconnect = MqttProtocolReconnectPart(
         reconnectAttemptsMax = 3,
-        reconnectDelay = 100,
+        reconnectDelay = 100.millis,
         reconnectBackOffMultiplier = 1.5f
       ),
       resend = MqttProtocolResendPart(
-        resendDelay = 5000,
+        resendDelay = 5000.millis,
         resendBackoffMultiplier = 1f
       ),
       correlator = None,
-      timeoutCheckInterval = 1 second
+      timeoutCheckInterval = 1.second
     )
 }
 
@@ -63,6 +64,7 @@ final case class MqttProtocol(
     version: MqttVersion,
     brokerAddress: InetSocketAddress,
     useTls: Boolean,
+    perUserKeyManagerFactory: Option[Long => KeyManagerFactory],
     clientId: Option[Expression[String]],
     cleanSession: Boolean,
     credentials: Option[Expression[Credentials]],
@@ -79,11 +81,11 @@ final case class MqttProtocol(
 
 final case class MqttProtocolReconnectPart(
     reconnectAttemptsMax: Int,
-    reconnectDelay: Long,
+    reconnectDelay: FiniteDuration,
     reconnectBackOffMultiplier: Float
 )
 
 final case class MqttProtocolResendPart(
-    resendDelay: Long,
+    resendDelay: FiniteDuration,
     resendBackoffMultiplier: Float
 )

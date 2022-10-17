@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.recorder.ui.swing.frame
 
 import java.awt.Color
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.swing._
 import scala.swing.BorderPanel.Position._
 import scala.swing.ListView.IntervalMode.Single
@@ -27,26 +27,28 @@ import scala.swing.event.ListSelectionChanged
 
 import io.gatling.commons.util.StringHelper.Eol
 import io.gatling.recorder.model._
-
-import com.typesafe.scalalogging.StrictLogging
 import io.gatling.recorder.ui._
-import io.gatling.recorder.ui.swing.component.TextAreaPanel
 import io.gatling.recorder.ui.swing.Commons.IconList
+import io.gatling.recorder.ui.swing.component.TextAreaPanel
 import io.gatling.recorder.ui.swing.util.UIHelper._
 
+import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.http.HttpHeaders
 
 @SuppressWarnings(Array("org.wartremover.warts.LeakingSealed", "org.wartremover.warts.PublicInference"))
 // LeakingSealed error is in scala-swing
 private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame with StrictLogging {
-
-  /************************************/
-  /**           COMPONENTS           **/
-  /************************************/
+  //////////////////////////////////////
+  //           COMPONENTS
+  //////////////////////////////////////
   /* Top panel components */
   private val tagField = new TextField(15)
   private val tagButton = Button("Add")(addTag())
-  private val clearButton = Button("Clear") { clearState(); frontend.clearRecorderState() }
+  private val clearButton =
+    Button("Clear") {
+      clearState()
+      frontend.clearRecorderState()
+    }
   private val cancelButton = Button("Cancel")(frontend.stopRecording(save = false))
   private val stopButton = Button("Stop & Save")(frontend.stopRecording(save = true))
 
@@ -63,9 +65,9 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   /* Bottom panel components */
   private val hostsRequiringCertificates = new ListView[String] { foreground = Color.red }
 
-  /**********************************/
-  /**           UI SETUP           **/
-  /**********************************/
+  //////////////////////////////////////
+  //           UI SETUP
+  //////////////////////////////////////
   /* Frame setup */
   title = "Gatling Recorder - Running..."
   peer.setIconImages(IconList.asJava)
@@ -139,9 +141,9 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
 
   centerOnScreen()
 
-  /*****************************************/
-  /**           EVENTS HANDLING           **/
-  /*****************************************/
+  //////////////////////////////////////
+  //           EVENTS HANDLING
+  //////////////////////////////////////
   /* Reactions */
   listenTo(events.selection)
   reactions += {
@@ -157,12 +159,11 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   /**
    * Add a new tag to the list of scenario elements
    */
-  private def addTag(): Unit = {
+  private def addTag(): Unit =
     if (!tagField.text.isEmpty) {
       frontend.addTag(tagField.text)
       tagField.clear()
     }
-  }
 
   private def headersToString(headers: HttpHeaders): String =
     headers.entries.asScala
@@ -185,7 +186,8 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
 
   /**
    * Display request going through the Recorder
-   * @param requestInfo The outgoing request info
+   * @param requestInfo
+   *   The outgoing request info
    */
   private def showRequest(requestInfo: RequestFrontEndEvent): Unit = {
     requestHeaders.textArea.text = summary(requestInfo.request)
@@ -197,8 +199,7 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   }
 
   /**
-   * Clear all the panels showing info about scenarios elements
-   * or requests of their content
+   * Clear all the panels showing info about scenarios elements or requests of their content
    */
   def clearState(): Unit = {
     events.clear()
@@ -208,11 +209,11 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   }
 
   /**
-   * Handle Recorder Events sent by the controller,
-   * and display them accordingly
-   * @param event the event sent by the controller
+   * Handle Recorder Events sent by the controller, and display them accordingly
+   * @param event
+   *   the event sent by the controller
    */
-  def receiveEvent(event: FrontEndEvent): Unit = {
+  def receiveEvent(event: FrontEndEvent): Unit =
     event match {
       case pauseInfo: PauseFrontEndEvent                                               => events.add(pauseInfo)
       case requestInfo: RequestFrontEndEvent                                           => events.add(requestInfo)
@@ -220,5 +221,4 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
       case SslFrontEndEvent(uri) if !hostsRequiringCertificates.listData.contains(uri) => hostsRequiringCertificates.add(uri)
       case e                                                                           => logger.debug(s"dropping event $e")
     }
-  }
 }

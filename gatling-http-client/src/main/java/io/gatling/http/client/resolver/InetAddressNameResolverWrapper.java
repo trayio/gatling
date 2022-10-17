@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.gatling.http.client.HttpListener;
 import io.netty.resolver.NameResolver;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
-
 import java.net.InetAddress;
 import java.util.List;
 
@@ -33,7 +32,8 @@ public class InetAddressNameResolverWrapper implements InetAddressNameResolver {
   }
 
   @Override
-  public Future<List<InetAddress>> resolveAll(String inetHost, Promise<List<InetAddress>> promise, HttpListener listener) {
+  public Future<List<InetAddress>> resolveAll(
+      String inetHost, Promise<List<InetAddress>> promise, HttpListener listener) {
     return wrapped.resolveAll(inetHost, promise);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@ package io.gatling.jdbc
 
 import java.sql.DriverManager
 
-import io.gatling.commons.util.Io.withCloseable
+import scala.util.Using
 
 trait JdbcSpec {
-
   protected val Username: String = "sa"
   protected val Password: String = ""
 
@@ -29,7 +28,7 @@ trait JdbcSpec {
     val jdbcUrl = s"jdbc:h2:mem:$dbName"
     val fullUrl = s"$jdbcUrl;INIT=RUNSCRIPT FROM 'classpath:$initScriptName'"
     Class.forName("org.h2.Driver")
-    withCloseable(DriverManager.getConnection(fullUrl, Username, Password)) { conn => // Kept open, but unused
+    Using.resource(DriverManager.getConnection(fullUrl, Username, Password)) { conn => // Kept open, but unused
       block(jdbcUrl)
     }
   }

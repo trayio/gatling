@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,20 @@
 
 package io.gatling.http.cache
 
-import io.gatling.commons.util.Throwables._
-import io.gatling.core.session.{ Session, SessionPrivateAttributes }
-import io.gatling.http.engine.HttpEngine
-import io.gatling.http.protocol.HttpProtocol
-import io.gatling.http.util.{ HttpTypeCaster, SslContexts }
-
-import com.typesafe.scalalogging.StrictLogging
 import javax.net.ssl.KeyManagerFactory
 
 import scala.util.control.NonFatal
 
-private[cache] object SslContextSupport extends StrictLogging {
+import io.gatling.commons.util.Throwables._
+import io.gatling.core.session.{ Session, SessionPrivateAttributes }
+import io.gatling.http.engine.HttpEngine
+import io.gatling.http.protocol.HttpProtocol
+import io.gatling.http.util.SslContexts
 
-  private val HttpSslContextsAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.ssl.sslContexts"
+import com.typesafe.scalalogging.StrictLogging
+
+private[http] object SslContextSupport extends StrictLogging {
+  private val HttpSslContextsAttributeName: String = SessionPrivateAttributes.generatePrivateAttribute("http.ssl.sslContexts")
 
   private def resolvePerUserKeyManagerFactory(session: Session, perUserKeyManagerFactory: Option[Long => KeyManagerFactory]): Option[KeyManagerFactory] =
     perUserKeyManagerFactory match {
@@ -43,25 +43,16 @@ private[cache] object SslContextSupport extends StrictLogging {
         }
       case _ => None
     }
-}
-
-private[http] trait SslContextSupport {
-
-  import SslContextSupport._
 
   def setSslContexts(httpProtocol: HttpProtocol, httpEngine: HttpEngine): Session => Session =
     if (httpProtocol.enginePart.shareConnections) {
-      identity
+      Session.Identity
     } else { session =>
-      {
-        val kmf = resolvePerUserKeyManagerFactory(session, httpProtocol.enginePart.perUserKeyManagerFactory)
-        session.set(HttpSslContextsAttributeName, httpEngine.newSslContexts(httpProtocol.enginePart.enableHttp2, kmf))
-      }
+      val perUserKeyManagerFactory = resolvePerUserKeyManagerFactory(session, httpProtocol.enginePart.perUserKeyManagerFactory)
+      val sslContexts = httpEngine.newSslContexts(httpProtocol.enginePart.enableHttp2, perUserKeyManagerFactory)
+      session.set(HttpSslContextsAttributeName, sslContexts)
     }
 
-  def sslContexts(session: Session): Option[SslContexts] = {
-    // import optimized TypeCaster
-    import HttpTypeCaster._
-    session(HttpSslContextsAttributeName).asOption[SslContexts]
-  }
+  def sslContexts(session: Session): Option[SslContexts] =
+    session.attributes.get(HttpSslContextsAttributeName).map(_.asInstanceOf[SslContexts])
 }

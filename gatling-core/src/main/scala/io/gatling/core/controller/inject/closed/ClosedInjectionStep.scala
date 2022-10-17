@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,14 @@ import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 sealed trait ClosedInjectionStep extends Product with Serializable {
-
   private[inject] def valueAt(t: FiniteDuration): Int
 
   private[inject] def duration: FiniteDuration
+
+  private[inject] def isEmpty: Boolean
 }
 
-final case class ConstantConcurrentNumberInjection(number: Int, private[inject] val duration: FiniteDuration) extends ClosedInjectionStep {
-
+final case class ConstantConcurrentUsersInjection private[inject] (number: Int, private[inject] val duration: FiniteDuration) extends ClosedInjectionStep {
   require(number >= 0, s"Constant number of concurrent users $number must be >= 0")
   require(duration >= Duration.Zero, s"duration ($duration) must be > 0")
 
@@ -35,10 +35,11 @@ final case class ConstantConcurrentNumberInjection(number: Int, private[inject] 
     require(t <= duration, s"$t must be <= $duration")
     number
   }
+
+  override private[inject] def isEmpty: Boolean = number == 0
 }
 
-final case class RampConcurrentNumberInjection(from: Int, to: Int, private[inject] val duration: FiniteDuration) extends ClosedInjectionStep {
-
+final case class RampConcurrentUsersInjection private[inject] (from: Int, to: Int, private[inject] val duration: FiniteDuration) extends ClosedInjectionStep {
   private val slope = (to - from).toDouble / duration.toSeconds
 
   require(from >= 0, s"Concurrent users ramp from $from must be >= 0")
@@ -49,52 +50,64 @@ final case class RampConcurrentNumberInjection(from: Int, to: Int, private[injec
     require(t <= duration, s"$t must be <= $duration")
     from + (slope * t.toSeconds).toInt
   }
+
+  override private[inject] def isEmpty: Boolean = from == 0 && to == 0
 }
 
 sealed trait CompositeClosedInjectionStepLike extends ClosedInjectionStep {
   private[inject] def composite: CompositeClosedInjectionStep
 }
 
-final case class IncreasingConcurrentUsersCompositeStep(
-    concurrentUsers: Int,
-    nbOfSteps: Int,
+final case class StairsConcurrentUsersCompositeStep private[inject] (
+    usersIncrement: Int,
+    levels: Int,
     levelDuration: FiniteDuration,
     startingUsers: Int,
     rampDuration: FiniteDuration
 ) extends CompositeClosedInjectionStepLike {
+  def startingFrom(startingUsers: Int): StairsConcurrentUsersCompositeStep = this.copy(startingUsers = startingUsers)
 
-  def startingFrom(startingUsers: Int): IncreasingConcurrentUsersCompositeStep = this.copy(startingUsers = startingUsers)
-
-  def separatedByRampsLasting(duration: FiniteDuration): IncreasingConcurrentUsersCompositeStep = this.copy(rampDuration = duration)
+  def separatedByRampsLasting(duration: FiniteDuration): StairsConcurrentUsersCompositeStep = this.copy(rampDuration = duration)
 
   override private[inject] lazy val composite: CompositeClosedInjectionStep = {
-    val parts = (1 to nbOfSteps).foldLeft(List.empty[ClosedInjectionStep]) { (acc, currentStep) =>
-      val step = if (startingUsers > 0) currentStep - 1 else currentStep
-      val newConcurrentUsers = startingUsers + step * concurrentUsers
-      val newInjectionSteps: List[ClosedInjectionStep] =
-        if (currentStep < nbOfSteps && rampDuration > Duration.Zero) {
-          val nextConcurrentUsers = newConcurrentUsers + concurrentUsers
-          List(
-            ConstantConcurrentNumberInjection(newConcurrentUsers, levelDuration),
-            RampConcurrentNumberInjection(newConcurrentUsers, nextConcurrentUsers, rampDuration)
-          )
+    val injectionSteps =
+      List.range(0, levels).flatMap { stepIdx =>
+        if (rampDuration > Duration.Zero) {
+          if (startingUsers == 0) {
+            // (ramp, level)*
+            val rampStartRate = stepIdx * usersIncrement
+            val levelRate = (stepIdx + 1) * usersIncrement
+            RampConcurrentUsersInjection(rampStartRate, levelRate, rampDuration) :: ConstantConcurrentUsersInjection(levelRate, levelDuration) :: Nil
+          } else {
+            // (level, ramp)* + level
+            val levelRate = stepIdx * usersIncrement + startingUsers
+            val level = ConstantConcurrentUsersInjection(levelRate, levelDuration)
+            if (stepIdx == levels - 1) {
+              level :: Nil
+            } else {
+              val rampEndRate = (stepIdx + 1) * usersIncrement + startingUsers
+              level :: RampConcurrentUsersInjection(levelRate, rampEndRate, rampDuration) :: Nil
+            }
+          }
         } else {
-          List(ConstantConcurrentNumberInjection(newConcurrentUsers, levelDuration))
+          // only levels
+          val levelRate = stepIdx * usersIncrement + startingUsers
+          ConstantConcurrentUsersInjection(levelRate, levelDuration) :: Nil
         }
-      acc ++ newInjectionSteps
-    }
-    CompositeClosedInjectionStep(parts)
+      }
+
+    CompositeClosedInjectionStep(injectionSteps)
   }
 
   override private[inject] def valueAt(t: FiniteDuration): Int = composite.valueAt(t)
 
   override private[inject] def duration: FiniteDuration = composite.duration
+
+  override private[inject] def isEmpty: Boolean = usersIncrement == 0 && startingUsers == 0
 }
 
-private[inject] final case class CompositeClosedInjectionStep(injectionSteps: List[ClosedInjectionStep]) extends ClosedInjectionStep {
-
+private[inject] final case class CompositeClosedInjectionStep private[inject] (steps: List[ClosedInjectionStep]) extends ClosedInjectionStep {
   override private[inject] def valueAt(t: FiniteDuration): Int = {
-
     @tailrec
     def valueAtRec(time: FiniteDuration, steps: List[ClosedInjectionStep]): Int =
       steps match {
@@ -107,16 +120,20 @@ private[inject] final case class CompositeClosedInjectionStep(injectionSteps: Li
           }
       }
 
-    valueAtRec(t, injectionSteps)
+    valueAtRec(t, steps)
   }
 
-  override private[inject] def duration: FiniteDuration = injectionSteps.foldLeft(Duration.Zero) { case (acc, injectionStep) => acc + injectionStep.duration }
+  override private[inject] def duration: FiniteDuration = steps.foldLeft(Duration.Zero) { case (acc, injectionStep) => acc + injectionStep.duration }
+
+  override private[inject] def isEmpty: Boolean = steps.forall(_.isEmpty)
 }
 
-//[fl]
+//[e]
 //
 //
 //
 //
 //
-//[fl]
+//
+//
+//[e]

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,6 @@
 
 package io.gatling.http.action.sse.fsm
 
-import java.util.{ HashMap => JHashMap }
-
-import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.validation.{ Failure, Success }
 import io.gatling.core.action.Action
@@ -26,18 +23,18 @@ import io.gatling.core.check.Check
 import io.gatling.core.session.Session
 import io.gatling.http.check.sse.{ SseCheck, SseMessageCheck, SseMessageCheckSequence }
 
+import com.typesafe.scalalogging.StrictLogging
+
 final case class SsePerformingCheckState(
     fsm: SseFsm,
-    stream: SseStream,
     currentCheck: SseMessageCheck,
     remainingChecks: List[SseMessageCheck],
     checkSequenceStart: Long,
     remainingCheckSequences: List[SseMessageCheckSequence],
     session: Session,
-    next: Either[Action, SetCheck]
+    next: Action
 ) extends SseState(fsm)
     with StrictLogging {
-
   import fsm._
 
   override def onTimeout(): NextSseState = {
@@ -46,44 +43,36 @@ final case class SsePerformingCheckState(
     // fail check, send next and goto Idle
     val errorMessage = s"Check ${currentCheck.name} timeout"
     val newSession = logResponse(session, currentCheck.name, checkSequenceStart, clock.nowMillis, KO, None, Some(errorMessage))
-    val nextAction = next match {
-      case Left(n) =>
-        logger.debug("Check timeout, failing it and performing next action")
-        n
-      case Right(sendFrame) =>
-        // logging crash
-        logger.debug("Check timeout while trying to reconnect, failing pending send message and performing next action")
-        statsEngine.logCrash(newSession, sendFrame.actionName, s"Couldn't reconnect: $errorMessage")
-        sendFrame.next
-    }
+    logger.debug(s"$errorMessage, failing it and performing next action")
 
-    NextSseState(
-      new SseIdleState(fsm, newSession, stream),
-      () => nextAction ! newSession
-    )
+    NextSseState(new SseIdleState(fsm, newSession), () => next ! newSession)
+  }
+
+  override def onSseStreamConnected(timestamp: Long): NextSseState = {
+    logger.debug("SSE Stream reconnected while in PerformingChecks state")
+    NextSseState(this)
   }
 
   override def onSseReceived(message: String, timestamp: Long): NextSseState =
     tryApplyingChecks(message, timestamp, currentCheck.matchConditions, currentCheck.checks)
 
-  override def onSseStreamClosed(timestamp: Long): NextSseState = {
-    // unexpected close, fail check
-    logger.debug("WebSocket remotely closed while waiting for checks")
+  override def onSseEndOfStream(timestamp: Long): NextSseState = {
+    // unexpected end of stream, fail check
+    logger.debug(s"Server notified of end of stream while in PerformingChecks state")
     cancelTimeout()
-    handleSseCheckCrash(currentCheck.name, session, next, checkSequenceStart, None, "Socket closed")
+    handleSseCheckCrash(currentCheck.name, session, next, None, "End of stream")
   }
 
   override def onSseStreamCrashed(t: Throwable, timestamp: Long): NextSseState = {
     // crash, fail check
-    logger.debug("WebSocket crashed while waiting for checks")
+    logger.debug("SSE stream crashed while in PerformingChecks state", t)
     cancelTimeout()
-    handleSseCheckCrash(currentCheck.name, session, next, checkSequenceStart, None, t.getMessage)
+    handleSseCheckCrash(currentCheck.name, session, next, None, t.getMessage)
   }
 
   private def tryApplyingChecks(message: String, timestamp: Long, matchConditions: List[SseCheck], checks: List[SseCheck]): NextSseState = {
-
     // cache is used for both matching and checking
-    val preparedCache: JHashMap[Any, Any] = new JHashMap(2)
+    val preparedCache = Check.newPreparedCache
 
     // if matchConditions isEmpty, all messages are considered to be matching
     val messageMatches = matchConditions.forall {
@@ -100,24 +89,10 @@ final case class SsePerformingCheckState(
 
       checkError match {
         case Some(Failure(errorMessage)) =>
-          logger.debug("Check failure")
+          logger.debug("Check failed, performing next action")
           val newSession = logResponse(sessionWithCheckUpdate, currentCheck.name, checkSequenceStart, timestamp, KO, None, Some(errorMessage))
 
-          val nextAction = next match {
-            case Left(n) =>
-              logger.debug("Check failed, performing next action")
-              n
-            case Right(sendMessage) =>
-              // failed to reconnect, logging crash
-              logger.debug("Check failed while trying to reconnect, failing pending send message and performing next action")
-              statsEngine.logCrash(newSession, sendMessage.actionName, s"Couldn't reconnect: $errorMessage")
-              sendMessage.next
-          }
-
-          NextSseState(
-            new SseIdleState(fsm, newSession, stream),
-            () => nextAction ! newSession
-          )
+          NextSseState(new SseIdleState(fsm, newSession), () => next ! newSession)
 
         case _ =>
           logger.debug("Current check success")
@@ -127,9 +102,9 @@ final case class SsePerformingCheckState(
             case nextCheck :: nextRemainingChecks =>
               // perform next check
               logger.debug("Perform next check of current check sequence")
-              //[fl]
+              // [e]
               //
-              //[fl]
+              // [e]
               NextSseState(
                 this.copy(
                   currentCheck = nextCheck,
@@ -140,17 +115,17 @@ final case class SsePerformingCheckState(
 
             case _ =>
               remainingCheckSequences match {
-                case SseMessageCheckSequence(timeout, newCurrentCheck :: newRemainingChecks) :: nextRemainingCheckSequences =>
+                case SseMessageCheckSequence(timeout, nextCheck :: nextRemainingChecks) :: nextRemainingCheckSequences =>
                   logger.debug("Perform next check sequence")
                   // perform next CheckSequence
                   scheduleTimeout(timeout)
-                  //[fl]
+                  // [e]
                   //
-                  //[fl]
+                  // [e]
                   NextSseState(
                     this.copy(
-                      currentCheck = newCurrentCheck,
-                      remainingChecks = newRemainingChecks,
+                      currentCheck = nextCheck,
+                      remainingChecks = nextRemainingChecks,
                       checkSequenceStart = timestamp,
                       remainingCheckSequences = nextRemainingCheckSequences,
                       session = newSession
@@ -160,15 +135,7 @@ final case class SsePerformingCheckState(
                 case _ =>
                   // all check sequences complete
                   logger.debug("Check sequences completed successfully")
-                  val afterStateUpdate =
-                    next match {
-                      case Left(nextAction) => () => nextAction ! newSession
-                      case Right(setCheck)  => setCheckNextAction(newSession, setCheck)
-                    }
-                  NextSseState(
-                    new SseIdleState(fsm, newSession, stream),
-                    afterStateUpdate
-                  )
+                  NextSseState(new SseIdleState(fsm, newSession), () => next ! newSession)
               }
           }
       }
@@ -183,30 +150,15 @@ final case class SsePerformingCheckState(
   private def handleSseCheckCrash(
       checkName: String,
       session: Session,
-      next: Either[Action, SetCheck],
-      checkSequenceStart: Long,
+      next: Action,
       code: Option[String],
       errorMessage: String
   ): NextSseState = {
-    val fullMessage = s"WebSocket crashed while waiting for check: $errorMessage"
+    val fullMessage = s"SSE crashed while waiting for check: $errorMessage"
 
     val newSession = logResponse(session, checkName, checkSequenceStart, clock.nowMillis, KO, code, Some(fullMessage))
-    val nextAction = next match {
-      case Left(n) =>
-        // failed to connect
-        logger.debug("WebSocket crashed, performing next action")
-        n
+    logger.debug("SSE crashed, performing next action")
 
-      case Right(sendTextMessage) =>
-        // failed to reconnect, logging crash
-        logger.debug("WebSocket crashed while trying to reconnect, failing pending send message and performing next action")
-        statsEngine.logCrash(newSession, sendTextMessage.actionName, s"Couldn't reconnect: $errorMessage")
-        sendTextMessage.next
-    }
-
-    NextSseState(
-      new SseCrashedState(fsm, Some(errorMessage)),
-      () => nextAction ! newSession
-    )
+    NextSseState(new SseCrashedState(fsm, errorMessage), () => next ! newSession)
   }
 }

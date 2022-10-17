@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,35 +16,14 @@
 
 package io.gatling.http.action.sse
 
-import io.gatling.commons.util.TypeCaster
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 import io.gatling.http.action.sse.fsm.SseFsm
 
-object SseAction {
-  implicit val SseFsmTypeCaster: TypeCaster[SseFsm] = new TypeCaster[SseFsm] {
-    @throws[ClassCastException]
-    override def cast(value: Any): SseFsm =
-      value match {
-        case v: SseFsm => v
-        case _         => throw new ClassCastException(cceMessage(value, classOf[SseFsm]))
-      }
-
-    override def validate(value: Any): Validation[SseFsm] =
-      value match {
-        case v: SseFsm => v.success
-        case _         => cceMessage(value, classOf[SseFsm]).failure
-      }
-  }
-}
-
 trait SseAction {
-
-  // import optimized TypeCaster
-  import SseAction._
-
-  final def fetchFsm(actorName: String, session: Session): Validation[SseFsm] =
-    session(actorName)
-      .validate[SseFsm]
-      .mapError(m => s"Couldn't fetch open sse: $m")
+  final def fetchFsm(sseName: String, session: Session): Validation[SseFsm] =
+    session.attributes.get(sseName) match {
+      case Some(sseFsm) => sseFsm.asInstanceOf[SseFsm].success
+      case _            => "Couldn't fetch open sse".failure
+    }
 }

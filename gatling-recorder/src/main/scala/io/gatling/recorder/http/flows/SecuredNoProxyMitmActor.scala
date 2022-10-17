@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package io.gatling.recorder.http.flows
 
 import io.gatling.commons.util.Clock
 import io.gatling.recorder.http.{ ClientHandler, Mitm, TrafficLogger }
-import io.gatling.recorder.http.Netty._
-import io.gatling.recorder.http.ssl.{ SslClientContext, SslServerContext }
 import io.gatling.recorder.http.Mitm._
+import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM._
+import io.gatling.recorder.http.ssl.{ SslClientContext, SslServerContext }
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel
@@ -30,20 +30,17 @@ import io.netty.handler.ssl.SslHandler
 import io.netty.util.concurrent.Future
 
 /**
- * Standard flow:
- * <ul>
- * <li>received CONNECT request with absolute url</li>
- * <li>connect to remote host</li>
- * <li>if connect is successful, reply 200/OK</li>
- * <li>install SslHandler on serverChannel</li>
- * <li>received request with relative url<li>
- * <li>propagate request to clientChannel<li>
- * </ul>
+ * Standard flow: <ul> <li>received CONNECT request with absolute url</li> <li>connect to remote host</li> <li>if connect is successful, reply 200/OK</li>
+ * <li>install SslHandler on serverChannel</li> <li>received request with relative url<li> <li>propagate request to clientChannel<li> </ul>
  *
- * @param serverChannel    the server channel connected to the user agent
- * @param clientBootstrap  the bootstrap to establish client channels with the remote
- * @param sslServerContext factory for SSLContexts
- * @param trafficLogger log the traffic
+ * @param serverChannel
+ *   the server channel connected to the user agent
+ * @param clientBootstrap
+ *   the bootstrap to establish client channels with the remote
+ * @param sslServerContext
+ *   factory for SSLContexts
+ * @param trafficLogger
+ *   log the traffic
  */
 class SecuredNoProxyMitmActor(
     serverChannel: Channel,
@@ -52,7 +49,6 @@ class SecuredNoProxyMitmActor(
     trafficLogger: TrafficLogger,
     clock: Clock
 ) extends SecuredMitmActor(serverChannel, clientBootstrap, sslServerContext) {
-
   override protected def connectedRemote(requestRemote: Remote): Remote = requestRemote
 
   override protected def onClientChannelActive(clientChannel: Channel, pendingRequest: FullHttpRequest, remote: Remote): State = {
@@ -71,18 +67,17 @@ class SecuredNoProxyMitmActor(
 
       // reply 200/OK
       serverChannel.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK))
-
     } else {
       clientSslHandler
         .handshakeFuture()
-        .addListener((future: Future[Channel]) => {
+        .addListener { (future: Future[Channel]) =>
           if (future.isSuccess) {
             // propagate
             clientChannel.writeAndFlush(pendingRequest.filterSupportedEncodings)
           } else {
             throw future.cause
           }
-        })
+        }
     }
 
     goto(Connected) using ConnectedData(remote, clientChannel)

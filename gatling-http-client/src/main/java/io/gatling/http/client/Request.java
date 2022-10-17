@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,49 +20,57 @@ import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.proxy.ProxyServer;
 import io.gatling.http.client.realm.Realm;
 import io.gatling.http.client.resolver.InetAddressNameResolver;
+import io.gatling.http.client.uri.Uri;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-import io.gatling.http.client.uri.Uri;
 import io.netty.handler.codec.http.cookie.Cookie;
-
 import java.net.InetAddress;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class Request {
 
+  private final String name;
   private final HttpMethod method;
   private final Uri uri;
   private final HttpHeaders headers;
   private final List<Cookie> cookies;
-  private final RequestBody<?> body;
+  private final RequestBody body;
   private final long requestTimeout;
   private final String virtualHost;
-  private final InetAddress localAddress;
+  private final boolean autoOrigin;
+  private final InetAddress localIpV4Address;
+  private final InetAddress localIpV6Address;
   private final Realm realm;
   private final ProxyServer proxyServer;
-  private final SignatureCalculator signatureCalculator;
+  private final Consumer<Request> signatureCalculator;
   private final InetAddressNameResolver nameResolver;
   private final boolean http2Enabled;
   private final boolean alpnRequired;
   private final boolean http2PriorKnowledge;
   private final String wsSubprotocol;
 
-  public Request(HttpMethod method,
-                 Uri uri,
-                 HttpHeaders headers,
-                 List<Cookie> cookies,
-                 RequestBody<?> body,
-                 long requestTimeout,
-                 String virtualHost,
-                 InetAddress localAddress,
-                 Realm realm,
-                 ProxyServer proxyServer,
-                 SignatureCalculator signatureCalculator,
-                 InetAddressNameResolver nameResolver,
-                 boolean http2Enabled,
-                 boolean alpnRequired,
-                 boolean http2PriorKnowledge,
-                 String wsSubprotocol) {
+  public Request(
+      String name,
+      HttpMethod method,
+      Uri uri,
+      HttpHeaders headers,
+      List<Cookie> cookies,
+      RequestBody body,
+      long requestTimeout,
+      String virtualHost,
+      boolean autoOrigin,
+      InetAddress localIpV4Address,
+      InetAddress localIpV6Address,
+      Realm realm,
+      ProxyServer proxyServer,
+      Consumer<Request> signatureCalculator,
+      InetAddressNameResolver nameResolver,
+      boolean http2Enabled,
+      boolean alpnRequired,
+      boolean http2PriorKnowledge,
+      String wsSubprotocol) {
+    this.name = name;
     this.method = method;
     this.uri = uri;
     this.headers = headers;
@@ -70,7 +78,9 @@ public class Request {
     this.body = body;
     this.requestTimeout = requestTimeout;
     this.virtualHost = virtualHost;
-    this.localAddress = localAddress;
+    this.autoOrigin = autoOrigin;
+    this.localIpV4Address = localIpV4Address;
+    this.localIpV6Address = localIpV6Address;
     this.realm = realm;
     this.proxyServer = proxyServer;
     this.signatureCalculator = signatureCalculator;
@@ -81,24 +91,32 @@ public class Request {
     this.wsSubprotocol = wsSubprotocol;
   }
 
-  public Request copyWithAlpnRequiredAndPriorKnowledge(boolean isAlpnRequired, boolean isHttp2PriorKnowledge) {
+  public Request copyWithAlpnRequiredAndPriorKnowledge(
+      boolean isAlpnRequired, boolean isHttp2PriorKnowledge) {
     return new Request(
-      this.method,
-      this.uri,
-      this.headers,
-      this.cookies,
-      this.body,
-      this.requestTimeout,
-      this.virtualHost,
-      this.localAddress,
-      this.realm,
-      this.proxyServer,
-      this.signatureCalculator,
-      this.nameResolver,
-      this.http2Enabled,
-      isAlpnRequired,
-      isHttp2PriorKnowledge,
-      this.wsSubprotocol);
+        this.name,
+        this.method,
+        this.uri,
+        this.headers,
+        this.cookies,
+        this.body,
+        this.requestTimeout,
+        this.virtualHost,
+        this.autoOrigin,
+        this.localIpV4Address,
+        this.localIpV6Address,
+        this.realm,
+        this.proxyServer,
+        this.signatureCalculator,
+        this.nameResolver,
+        this.http2Enabled,
+        isAlpnRequired,
+        isHttp2PriorKnowledge,
+        this.wsSubprotocol);
+  }
+
+  public String getName() {
+    return name;
   }
 
   public HttpMethod getMethod() {
@@ -117,7 +135,7 @@ public class Request {
     return cookies;
   }
 
-  public RequestBody<?> getBody() {
+  public RequestBody getBody() {
     return body;
   }
 
@@ -129,8 +147,16 @@ public class Request {
     return virtualHost;
   }
 
-  public InetAddress getLocalAddress() {
-    return localAddress;
+  public boolean isAutoOrigin() {
+    return autoOrigin;
+  }
+
+  public InetAddress getLocalIpV4Address() {
+    return localIpV4Address;
+  }
+
+  public InetAddress getLocalIpV6Address() {
+    return localIpV6Address;
   }
 
   public Realm getRealm() {
@@ -141,7 +167,7 @@ public class Request {
     return proxyServer;
   }
 
-  public SignatureCalculator getSignatureCalculator() {
+  public Consumer<Request> getSignatureCalculator() {
     return signatureCalculator;
   }
 
@@ -167,23 +193,42 @@ public class Request {
 
   @Override
   public String toString() {
-    return "Request{" +
-      "method=" + method +
-      ", uri=" + uri +
-      ", headers=" + headers +
-      ", cookies=" + cookies +
-      ", body=" + body +
-      ", requestTimeout=" + requestTimeout +
-      ", virtualHost='" + virtualHost + '\'' +
-      ", localAddress=" + localAddress +
-      ", realm=" + realm +
-      ", proxyServer=" + proxyServer +
-      ", signatureCalculator=" + signatureCalculator +
-      ", nameResolver=" + nameResolver +
-      ", http2Enabled=" + http2Enabled +
-      ", alpnRequired=" + alpnRequired +
-      ", http2PriorKnowledge=" + http2PriorKnowledge +
-      ", wsSubprotocol=" + wsSubprotocol +
-      '}';
+    return "Request{"
+        + "method="
+        + method
+        + ", uri="
+        + uri
+        + ", headers="
+        + headers
+        + ", cookies="
+        + cookies
+        + ", body="
+        + body
+        + ", requestTimeout="
+        + requestTimeout
+        + ", virtualHost='"
+        + virtualHost
+        + '\''
+        + ", localIpV4Address="
+        + localIpV4Address
+        + ", localIpV6Address="
+        + localIpV6Address
+        + ", realm="
+        + realm
+        + ", proxyServer="
+        + proxyServer
+        + ", signatureCalculator="
+        + signatureCalculator
+        + ", nameResolver="
+        + nameResolver
+        + ", http2Enabled="
+        + http2Enabled
+        + ", alpnRequired="
+        + alpnRequired
+        + ", http2PriorKnowledge="
+        + http2PriorKnowledge
+        + ", wsSubprotocol="
+        + wsSubprotocol
+        + '}';
   }
 }

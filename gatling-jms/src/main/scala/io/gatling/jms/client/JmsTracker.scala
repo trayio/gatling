@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@ import io.gatling.jms._
 import akka.actor.ActorRef
 
 class JmsTracker(actor: ActorRef) {
-
   def track(
       matchId: String,
       sent: Long,
-      replyTimeout: Long,
+      replyTimeoutInMs: Long,
       checks: List[JmsCheck],
       session: Session,
       next: Action,
@@ -36,7 +35,7 @@ class JmsTracker(actor: ActorRef) {
     actor ! MessageSent(
       matchId,
       sent,
-      replyTimeout,
+      replyTimeoutInMs,
       checks,
       session,
       next,

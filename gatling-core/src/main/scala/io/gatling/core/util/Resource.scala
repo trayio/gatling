@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,45 @@
 
 package io.gatling.core.util
 
-import java.io.{ File, FileInputStream, FileOutputStream, InputStream }
-import java.net.URL
+import java.io._
+import java.net.{ URISyntaxException, URL }
 import java.nio.charset.Charset
 import java.nio.file.{ Files, Path, Paths }
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.util.Using
+
 import io.gatling.commons.util.Io._
-import io.gatling.commons.util.PathHelper._
 import io.gatling.commons.validation._
 
+import com.typesafe.scalalogging.LazyLogging
+
 object Resource {
+  private final case class Location(customDirectory: Option[Path], path: String)
 
-  private final case class Location(directory: Path, path: String)
+  private object ClasspathResource extends LazyLogging {
+    private def urlToFile(url: URL): File =
+      try {
+        new File(url.toURI)
+      } catch {
+        case _: URISyntaxException => new File(url.getPath)
+      }
 
-  private object ClasspathResource {
     def unapply(location: Location): Option[Validation[Resource]] = {
-      val cleanPath = location.path.replace('\\', '/')
+      val nixPath = location.path.replace('\\', '/')
+      val cleanPath = cleanResourcePath(nixPath)
+
       Option(getClass.getClassLoader.getResource(cleanPath)).map { url =>
+        if (cleanPath != nixPath) {
+          logger.warn(s"""Your resource's path ${location.path} is incorrect.
+                         |It should not be relative to your project root on the filesystem.
+                         |Instead, it should be relative to your classpath root.
+                         |We've clean it up into $cleanPath for you but please fix it.
+                         |""".stripMargin)
+        }
+
         url.getProtocol match {
-          case "file" => ClasspathFileResource(cleanPath, url.file).success
+          case "file" => ClasspathFileResource(cleanPath, urlToFile(url)).success
           case "jar"  => ClasspathPackagedResource(cleanPath, url).success
           case _      => s"$url is neither a file nor a jar".failure
         }
@@ -45,33 +64,59 @@ object Resource {
 
   private object DirectoryChildResource {
     def unapply(location: Location): Option[Validation[Resource]] =
-      (location.directory / location.path).ifFile { f =>
-        if (f.canRead)
-          FilesystemResource(f).success
-        else
-          s"File $f can't be read".failure
+      location.customDirectory.flatMap { customDirectory =>
+        val path = customDirectory.resolve(location.path)
+        if (Files.isRegularFile(path)) {
+          val file = path.toFile
+          if (file.canRead)
+            Some(FilesystemResource(file).success)
+          else
+            Some(s"File $file can't be read".failure)
+        } else {
+          None
+        }
       }
   }
 
   private object AbsoluteFileResource {
-    def unapply(location: Location): Option[Validation[Resource]] =
-      Paths.get(location.path).ifFile(FilesystemResource(_).success)
+    def unapply(location: Location): Option[Validation[Resource]] = {
+      val path = Paths.get(location.path)
+      if (Files.isRegularFile(path)) {
+        Some(FilesystemResource(path.toFile).success)
+      } else {
+        None
+      }
+    }
   }
 
-  private[gatling] def resolveResource(directory: Path, path: String): Validation[Resource] =
-    Location(directory, path) match {
-      case ClasspathResource(res)      => res
+  private[gatling] def resolveResource(customDirectory: Option[Path], path: String): Validation[Resource] =
+    Location(customDirectory, path) match {
       case DirectoryChildResource(res) => res
+      case ClasspathResource(res)      => res
       case AbsoluteFileResource(res)   => res
       case _                           => s"Resource $path not found".failure
     }
+
+  private implicit final class StringDropUntil(val source: String) extends AnyVal {
+    def dropUntil(pattern: String): String =
+      source.indexOf(pattern) match {
+        case i if i != -1 => source.substring(i + pattern.length, source.length)
+        case _            => source
+      }
+  }
+
+  private[util] def cleanResourcePath(nixPath: String): String =
+    nixPath
+      .dropUntil("src/test/resources/")
+      .dropUntil("src/main/resources/")
+      .dropUntil("src/gatling/resources/")
 }
 
 sealed trait Resource {
   def name: String
   def file: File
-  def inputStream: InputStream = new FileInputStream(file)
-  def string(charset: Charset): String = withCloseable(inputStream) { _.toString(charset) }
+  def inputStream: InputStream = new BufferedInputStream(new FileInputStream(file))
+  def string(charset: Charset): String = Using.resource(inputStream)(_.toString(charset))
   def bytes: Array[Byte] = Files.readAllBytes(file.toPath)
 }
 
@@ -88,10 +133,8 @@ final case class ClasspathPackagedResource(path: String, url: URL) extends Resou
     val tempFile = File.createTempFile("gatling-" + name, null)
     tempFile.deleteOnExit()
 
-    withCloseable(url.openStream()) { is =>
-      withCloseable(new FileOutputStream(tempFile, false)) { os =>
-        is.copyTo(os)
-      }
+    Using.resources(url.openStream(), new BufferedOutputStream(new FileOutputStream(tempFile, false))) { (is, os) =>
+      is.copyTo(os)
     }
     tempFile
   }
@@ -108,6 +151,6 @@ final case class FilesystemResource(file: File) extends Resource {
 trait ResourceCache {
   private val resourceCache = new ConcurrentHashMap[String, Validation[Resource]]()
 
-  protected def cachedResource(resourcesDirectory: Path, path: String): Validation[Resource] =
-    resourceCache.computeIfAbsent(path, Resource.resolveResource(resourcesDirectory, _))
+  protected def cachedResource(customResourcesDirectory: Option[Path], path: String): Validation[Resource] =
+    resourceCache.computeIfAbsent(path, Resource.resolveResource(customResourcesDirectory, _))
 }

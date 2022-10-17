@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,28 +24,16 @@ import io.gatling.http.check.HttpCheckScope.Body
 import io.gatling.http.response.Response
 
 import net.sf.saxon.s9api.XdmNode
-import org.xml.sax.InputSource
 
 object HttpBodyXPathCheckMaterializer {
-
   private val ErrorMapper: String => String = "Could not parse response into a DOM Document: " + _
 
-  def instance(xmlParsers: XmlParsers): CheckMaterializer[XPathCheckType, HttpCheck, Response, Option[XdmNode]] = {
-
-    val preparer: Preparer[Response, Option[XdmNode]] = response =>
+  val Instance: CheckMaterializer[XPathCheckType, HttpCheck, Response, XdmNode] = {
+    val preparer: Preparer[Response, XdmNode] = response =>
       safely(ErrorMapper) {
-        val root =
-          if (response.hasResponseBody) {
-            val inputSource = new InputSource(response.body.stream)
-            inputSource.setEncoding(response.charset.name)
-            Some(xmlParsers.parse(inputSource))
-
-          } else {
-            None
-          }
-        root.success
+        XmlParsers.parse(response.body.stream, response.body.charset).success
       }
 
-    new HttpCheckMaterializer[XPathCheckType, Option[XdmNode]](Body, preparer)
+    new HttpCheckMaterializer[XPathCheckType, XdmNode](Body, preparer)
   }
 }

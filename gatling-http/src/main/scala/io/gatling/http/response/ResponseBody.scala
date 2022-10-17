@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,36 +18,38 @@ package io.gatling.http.response
 
 import java.io.{ InputStream, SequenceInputStream }
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets.UTF_8
 
-import scala.annotation.switch
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
-import scala.collection.JavaConverters._
 
 import io.gatling.commons.util.FastByteArrayInputStream
-import io.gatling.commons.util.ByteBufs._
 import io.gatling.netty.util.ByteBufUtils._
 
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.buffer.{ ByteBuf, ByteBufInputStream }
 
 object ResponseBody {
-  def apply(chunks: Seq[ByteBuf], charset: Charset): ResponseBody =
-    (chunks.size: @switch) match {
-      case 0 => NoResponseBody
-      case 1 => new ByteBufResponseBody(chunks.head, charset)
-      case _ => new ByteBufsResponseBody(chunks, charset)
+  def apply(bodyLength: Int, chunks: List[ByteBuf], charset: Charset): ResponseBody =
+    chunks match {
+      case Nil          => NoResponseBody(bodyLength)
+      case chunk :: Nil => new ByteBufResponseBody(bodyLength, chunk, charset)
+      case _            => new ByteBufsResponseBody(bodyLength, chunks, charset)
     }
 }
 
 sealed trait ResponseBody {
+  def length: Int
+  def charset: Charset
   def string: String
   def chars: Array[Char]
   def bytes: Array[Byte]
   def stream: InputStream
 }
 
-private[gatling] final class ByteBufResponseBody(chunk: ByteBuf, charset: Charset) extends ResponseBody with LazyLogging {
-
+private[gatling] final class ByteBufResponseBody(override val length: Int, chunk: ByteBuf, override val charset: Charset)
+    extends ResponseBody
+    with LazyLogging {
   override lazy val string: String =
     try {
       byteBuf2String(charset, chunk.duplicate)
@@ -67,8 +69,9 @@ private[gatling] final class ByteBufResponseBody(chunk: ByteBuf, charset: Charse
     new ByteBufInputStream(chunk.duplicate)
 }
 
-private[gatling] final class ByteBufsResponseBody(chunks: Seq[ByteBuf], charset: Charset) extends ResponseBody with LazyLogging {
-
+private[gatling] final class ByteBufsResponseBody(override val length: Int, chunks: Seq[ByteBuf], override val charset: Charset)
+    extends ResponseBody
+    with LazyLogging {
   override lazy val string: String =
     try {
       byteBuf2String(charset, chunks.map(_.duplicate): _*)
@@ -82,13 +85,21 @@ private[gatling] final class ByteBufsResponseBody(chunks: Seq[ByteBuf], charset:
     byteBuf2Chars(charset, chunks.map(_.duplicate): _*)
 
   override lazy val bytes: Array[Byte] =
-    byteBufsToByteArray(chunks.map(_.duplicate))
+    byteBufs2Bytes(chunks.map(_.duplicate): _*)
 
   override def stream: InputStream =
     new SequenceInputStream(chunks.map(chunk => new ByteBufInputStream(chunk.duplicate)).iterator.asJavaEnumeration)
 }
 
-case object NoResponseBody extends ResponseBody {
+object NoResponseBody {
+  val Empty: NoResponseBody = new NoResponseBody(0)
+
+  def apply(length: Int): NoResponseBody =
+    if (length == 0) Empty else new NoResponseBody(length)
+}
+
+final class NoResponseBody(val length: Int) extends ResponseBody {
+  override val charset: Charset = UTF_8
   override val string: String = ""
   override val chars: Array[Char] = Array.emptyCharArray
   override val bytes: Array[Byte] = Array.emptyByteArray
@@ -96,7 +107,8 @@ case object NoResponseBody extends ResponseBody {
 }
 
 // for ResponseTransformer
-final class StringResponseBody(val string: String, charset: Charset) extends ResponseBody {
+final class StringResponseBody(val string: String, override val charset: Charset) extends ResponseBody {
+  override def length: Int = bytes.length
 
   override lazy val chars: Array[Char] = string.toCharArray
 
@@ -106,7 +118,8 @@ final class StringResponseBody(val string: String, charset: Charset) extends Res
 }
 
 // for ResponseTransformer and PollerActor
-final class ByteArrayResponseBody(val bytes: Array[Byte], charset: Charset) extends ResponseBody {
+final class ByteArrayResponseBody(val bytes: Array[Byte], override val charset: Charset) extends ResponseBody {
+  override def length: Int = bytes.length
 
   override lazy val string: String = new String(bytes, charset)
 

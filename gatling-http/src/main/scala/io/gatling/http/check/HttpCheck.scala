@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,19 @@
 
 package io.gatling.http.check
 
-import java.util.{ Map => JMap }
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check.{ Check, CheckMaterializer, CheckResult, Preparer }
-import io.gatling.core.session.Session
+import io.gatling.core.check.Check.PreparedCache
+import io.gatling.core.session.{ Expression, Session }
 import io.gatling.http.response.Response
 
-/**
- * This class serves as model for the HTTP-specific checks
- *
- * @param wrapped the underlying check
- * @param scope the part of the response this check targets
- */
 final case class HttpCheck(wrapped: Check[Response], scope: HttpCheckScope) extends Check[Response] {
-  override def check(response: Response, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
+  override def check(response: Response, session: Session, preparedCache: PreparedCache): Validation[CheckResult] =
     wrapped.check(response, session, preparedCache)
+
+  override def checkIf(condition: (Response, Session) => Validation[Boolean]): HttpCheck = copy(wrapped.checkIf(condition))
+
+  override def checkIf(condition: Expression[Boolean]): HttpCheck = copy(wrapped.checkIf(condition))
 }
 
 class HttpCheckMaterializer[T, P](scope: HttpCheckScope, override val preparer: Preparer[Response, P])

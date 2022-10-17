@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 package io.gatling.core
 
-import io.gatling.core.config.GatlingConfiguration
 import scala.concurrent.duration._
 
-object Predef extends CoreDsl {
+import io.gatling.core.config.GatlingConfiguration
 
+object Predef extends CoreDsl {
   private[gatling] var _configuration: GatlingConfiguration = _
   implicit def configuration: GatlingConfiguration = {
     if (_configuration == null) {
@@ -37,75 +37,75 @@ object Predef extends CoreDsl {
 
   /**
    * Offers the same implicits conversions as scala.concurrent.duration.DurationInt for java.lang.Integer.
-   * @param i the Java's integer that will converted to scala.concurrent.duration.FiniteDuration
+   * @param i
+   *   the Java's integer that will converted to scala.concurrent.duration.FiniteDuration
    */
   implicit class DurationInteger(val i: Integer) extends AnyVal {
+    def nanoseconds: FiniteDuration = i.intValue.nanoseconds
+    def nanos: FiniteDuration = i.intValue.nanos
+    def nanosecond: FiniteDuration = i.intValue.nanosecond
+    def nano: FiniteDuration = i.intValue.nano
 
-    def nanoseconds: FiniteDuration = i.toInt.nanoseconds
-    def nanos: FiniteDuration = i.toInt.nanos
-    def nanosecond: FiniteDuration = i.toInt.nanosecond
-    def nano: FiniteDuration = i.toInt.nano
+    def microseconds: FiniteDuration = i.intValue.microseconds
+    def micros: FiniteDuration = i.intValue.micros
+    def microsecond: FiniteDuration = i.intValue.microsecond
+    def micro: FiniteDuration = i.intValue.micro
 
-    def microseconds: FiniteDuration = i.toInt.microseconds
-    def micros: FiniteDuration = i.toInt.micros
-    def microsecond: FiniteDuration = i.toInt.microsecond
-    def micro: FiniteDuration = i.toInt.micro
+    def milliseconds: FiniteDuration = i.intValue.milliseconds
+    def millis: FiniteDuration = i.intValue.millis
+    def millisecond: FiniteDuration = i.intValue.millisecond
+    def milli: FiniteDuration = i.intValue.milli
 
-    def milliseconds: FiniteDuration = i.toInt.milliseconds
-    def millis: FiniteDuration = i.toInt.millis
-    def millisecond: FiniteDuration = i.toInt.millisecond
-    def milli: FiniteDuration = i.toInt.milli
+    def seconds: FiniteDuration = i.intValue.seconds
+    def second: FiniteDuration = i.intValue.second
 
-    def seconds: FiniteDuration = i.toInt.seconds
-    def second: FiniteDuration = i.toInt.second
+    def minutes: FiniteDuration = i.intValue.minutes
+    def minute: FiniteDuration = i.intValue.minute
 
-    def minutes: FiniteDuration = i.toInt.minutes
-    def minute: FiniteDuration = i.toInt.minute
+    def hours: FiniteDuration = i.intValue.hours
+    def hour: FiniteDuration = i.intValue.hour
 
-    def hours: FiniteDuration = i.toInt.hours
-    def hour: FiniteDuration = i.toInt.hour
-
-    def days: FiniteDuration = i.toInt.days
-    def day: FiniteDuration = i.toInt.day
+    def days: FiniteDuration = i.intValue.days
+    def day: FiniteDuration = i.intValue.day
   }
 
   /**
    * Offers the same implicits conversions as scala.concurrent.duration.DurationInt for java.lang.Long.
-   * @param l the Java's Long that will converted to scala.concurrent.duration.FiniteDuration
+   * @param l
+   *   the Java's Long that will converted to scala.concurrent.duration.FiniteDuration
    */
   implicit class DurationJLong(val l: java.lang.Long) extends AnyVal {
+    def nanoseconds: FiniteDuration = l.longValue.nanoseconds
+    def nanos: FiniteDuration = l.longValue.nanos
+    def nanosecond: FiniteDuration = l.longValue.nanosecond
+    def nano: FiniteDuration = l.longValue.nano
 
-    def nanoseconds: FiniteDuration = l.toLong.nanoseconds
-    def nanos: FiniteDuration = l.toLong.nanos
-    def nanosecond: FiniteDuration = l.toLong.nanosecond
-    def nano: FiniteDuration = l.toLong.nano
+    def microseconds: FiniteDuration = l.longValue.microseconds
+    def micros: FiniteDuration = l.longValue.micros
+    def microsecond: FiniteDuration = l.longValue.microsecond
+    def micro: FiniteDuration = l.longValue.micro
 
-    def microseconds: FiniteDuration = l.toLong.microseconds
-    def micros: FiniteDuration = l.toLong.micros
-    def microsecond: FiniteDuration = l.toLong.microsecond
-    def micro: FiniteDuration = l.toLong.micro
+    def milliseconds: FiniteDuration = l.longValue.milliseconds
+    def millis: FiniteDuration = l.longValue.millis
+    def millisecond: FiniteDuration = l.longValue.millisecond
+    def milli: FiniteDuration = l.longValue.milli
 
-    def milliseconds: FiniteDuration = l.toLong.milliseconds
-    def millis: FiniteDuration = l.toLong.millis
-    def millisecond: FiniteDuration = l.toLong.millisecond
-    def milli: FiniteDuration = l.toLong.milli
+    def seconds: FiniteDuration = l.longValue.seconds
+    def second: FiniteDuration = l.longValue.second
 
-    def seconds: FiniteDuration = l.toLong.seconds
-    def second: FiniteDuration = l.toLong.second
+    def minutes: FiniteDuration = l.longValue.minutes
+    def minute: FiniteDuration = l.longValue.minute
 
-    def minutes: FiniteDuration = l.toLong.minutes
-    def minute: FiniteDuration = l.toLong.minute
+    def hours: FiniteDuration = l.longValue.hours
+    def hour: FiniteDuration = l.longValue.hour
 
-    def hours: FiniteDuration = l.toLong.hours
-    def hour: FiniteDuration = l.toLong.hour
-
-    def days: FiniteDuration = l.toLong.days
-    def day: FiniteDuration = l.toLong.day
+    def days: FiniteDuration = l.longValue.days
+    def day: FiniteDuration = l.longValue.day
   }
 
-  implicit def integerToFiniteDuration(i: Integer): FiniteDuration = intToFiniteDuration(i.toInt)
+  implicit def integerToFiniteDuration(i: Integer): FiniteDuration = intToFiniteDuration(i.intValue)
 
   implicit def intToFiniteDuration(i: Int): FiniteDuration = i.seconds
 
-  implicit def jlongToFiniteDuration(i: java.lang.Long): FiniteDuration = i.toLong.seconds
+  implicit def jlongToFiniteDuration(i: java.lang.Long): FiniteDuration = i.longValue.seconds
 }

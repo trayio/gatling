@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,9 @@ import io.gatling.core.session.Expression
 
 sealed trait JmsDestination
 
-final case class JmsQueue(name: Expression[String]) extends JmsDestination
-
-final case class JmsTopic(name: Expression[String]) extends JmsDestination
-
-case object JmsTemporaryQueue extends JmsDestination
-
-case object JmsTemporaryTopic extends JmsDestination
+object JmsDestination {
+  final case class Queue(name: Expression[String]) extends JmsDestination
+  final case class Topic(name: Expression[String]) extends JmsDestination
+  case object TemporaryQueue extends JmsDestination
+  case object TemporaryTopic extends JmsDestination
+}

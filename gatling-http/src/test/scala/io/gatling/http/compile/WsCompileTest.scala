@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,38 +16,49 @@
 
 package io.gatling.http.compile
 
+import java.nio.charset.StandardCharsets.UTF_8
+
 import scala.concurrent.duration._
 
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
 class WsCompileTest extends Simulation {
-
   private val httpProtocol = http
     .wsBaseUrl("ws://localhost:9000")
     .wsReconnect
     .wsMaxReconnects(3)
+    .wsAutoReplyTextFrame { case "ping" => "pong"; case "1" => "2" }
+    .wsAutoReplySocketIo4
 
   private val scn = scenario("WebSocket")
     .exec(http("Home").get("/"))
     .pause(1)
     .exec(session => session.set("id", s"Steph ${session.userId}"))
-    .exec(http("Login").get("/room?username=${id}"))
+    .exec(http("Login").get("/room?username=#{id}"))
     .pause(1)
     .exec(
       ws("Connect WS")
-        .connect("/room/chat?username=${id}")
+        .connect("/room/chat?username=#{id}")
         .subprotocol("FOO")
-        .await(1 second) {
-          ws.checkTextMessage("checkName")
-            .matching(jsonPath("$.uuid").is("${correlation}"))
+        .await(1.second)(
+          ws.checkTextMessage("checkText")
+            .matching(jsonPath("$.uuid").is("#{correlation}"))
             .check(
               jsonPath("$.code").ofType[Int].is(1),
               jmesPath("code").ofType[Int].is(1),
               bodyString.is("echo")
-            )
-        }
+            ),
+          ws.checkBinaryMessage("checkBinary")
+            .check(bodyBytes)
+        )
         .await(1) { // simple int
+          ws.checkTextMessage("checkName")
+        }
+        .await("#{someLongOrFiniteDurationAttribute}") { // EL string
+          ws.checkTextMessage("checkName")
+        }
+        .await(_ => 1.second) { // expression
           ws.checkTextMessage("checkName")
         }
         .onConnected(
@@ -61,52 +72,86 @@ class WsCompileTest extends Simulation {
     .repeat(2, "i") {
       exec(
         ws("Say Hello WS")
-          .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+          .sendText("""{"text": "Hello, I'm #{id} and this is message #{i}!"}""")
       ).pause(1)
     }
     .exec(
       ws("Message1")
         .wsName("foo")
-        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-        .await(30 seconds)(
+        .sendText("""{"text": "Hello, I'm #{id} and this is message #{i}!"}""")
+        .await(30.seconds)(
           ws.checkTextMessage("checkName1").check(jsonPath("$.message").findAll.saveAs("message1"))
         )
-        .await(30 seconds)(
+        .await(30)( // simple int
+          ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
+        )
+        .await("#{someLongOrFiniteDurationAttribute}") { // EL string
+          ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
+        }
+        .await(_ => 30.seconds)( // expression
           ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
         )
     )
     .exec(
       ws("Message2")
-        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-        .await(30 seconds)(
+        .sendText("""{"text": "Hello, I'm #{id} and this is message #{i}!"}""")
+        .await(30.seconds)(
           ws.checkTextMessage("checkName1")
             .check(
               regex("somePattern1").saveAs("message1"),
-              regex("somePattern2").saveAs("message2")
+              regex("somePattern2").saveAs("message2"),
+              checkIf("#{cond}") {
+                regex("somePattern1")
+              }
             ),
           ws.checkTextMessage("checkName2").check(regex("somePattern2").saveAs("message2"))
         )
     )
     .exec(
       ws("Message3")
-        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-        .await(30 seconds)(
+        .sendText("""{"text": "Hello, I'm #{id} and this is message #{i}!"}""")
+        .await(30.seconds)(
           // match first message
           ws.checkTextMessage("checkName")
         )
     )
     .exec(
       ws("BinaryMessage")
-        .sendBytes("hello".getBytes())
-        .await(30 seconds)(
+        .sendBytes("hello".getBytes(UTF_8))
+        .await(30.seconds)(
           // match first message
-          ws.checkBinaryMessage("checkName").check(bodyBytes.transform(_.length).saveAs("bytesLength"))
+          ws.checkBinaryMessage("checkName")
+            .check(
+              bodyLength.lte(50),
+              bodyBytes.transform(_.length).saveAs("bytesLength"),
+              checkIf("#{cond}") {
+                bodyLength.lte(10)
+              }
+            )
+            .silent
         )
     )
     .exec(ws("Close WS").close)
+    .exec(ws("Close WS").close(1000, "Bye"))
     .exec(ws("Open Named", "foo").connect("/bar"))
     .exec(
-      ws("Message1")
-        .sendText(ElFileBody("path"))
+      ws("SendTextMessageWithElFileBody")
+        .sendText(ElFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendTextMessageWithPebbleStringBody")
+        .sendText(PebbleStringBody("somePebbleString"))
+    )
+    .exec(
+      ws("SendTextMessageWithPebbleFileBody")
+        .sendText(PebbleFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendBytesMessageWithRawFileBody")
+        .sendBytes(RawFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendBytesMessageWithByteArrayBody")
+        .sendBytes(ByteArrayBody("#{someByteArray}"))
     )
 }

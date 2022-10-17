@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,18 @@ import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.stream.ChunkedFile;
-
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 
-public final class FileRequestBody extends RequestBody<File> {
+public final class FileRequestBody extends RequestBody.Base<File> {
 
-  public FileRequestBody(File content, String contentType) {
-    super(content, contentType);
+  private final Charset charset;
+
+  public FileRequestBody(File content, Charset charset) {
+    super(content);
+    this.charset = charset;
   }
 
   @Override
@@ -41,7 +46,7 @@ public final class FileRequestBody extends RequestBody<File> {
   }
 
   @Override
-  public RequestBodyBuilder<File> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new FileRequestBodyBuilder(content);
   }
 
@@ -49,7 +54,7 @@ public final class FileRequestBody extends RequestBody<File> {
   @SuppressWarnings("ResultOfMethodCallIgnored")
   public byte[] getBytes() {
     byte[] bytes = new byte[(int) content.length()];
-    try (InputStream is = new FileInputStream(content)) {
+    try (InputStream is = Files.newInputStream(content.toPath(), StandardOpenOption.READ)) {
       is.read(bytes);
     } catch (IOException e) {
       throw new IllegalArgumentException("Can't read file", e);
@@ -58,11 +63,12 @@ public final class FileRequestBody extends RequestBody<File> {
     return bytes;
   }
 
+  public Charset getCharset() {
+    return charset;
+  }
+
   @Override
   public String toString() {
-    return "FileRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
-      '}';
+    return "FileRequestBody{" + "charset=" + charset + ", content=" + content + '}';
   }
 }

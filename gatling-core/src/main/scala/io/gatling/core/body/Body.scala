@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,18 +19,19 @@ package io.gatling.core.body
 import java.io.InputStream
 import java.nio.charset.Charset
 
-import io.gatling.commons.validation._
 import io.gatling.commons.util.CompositeByteArrayInputStream
+import io.gatling.commons.validation._
 import io.gatling.core.session._
 import io.gatling.core.session.el.{ ElCompiler, ElParserException, StaticPart }
-import io.gatling.netty.util.{ StringBuilderPool, StringWithCachedBytes }
-
-import com.mitchellbosecke.pebble.template.PebbleTemplate
+import io.gatling.jdk.util.StringBuilderPool
+import io.gatling.netty.util.StringWithCachedBytes
 
 sealed trait Body
 
-final case class StringBody(string: Expression[String], charset: Charset) extends Body with Expression[String] {
+sealed trait BodyWithStringExpression extends Body with Expression[String]
+sealed trait BodyWithBytesExpression extends Body with Expression[Array[Byte]]
 
+final case class StringBody(string: Expression[String], charset: Charset) extends BodyWithStringExpression {
   override def apply(session: Session): Validation[String] = string(session)
 }
 
@@ -39,12 +40,12 @@ object RawFileBody {
     new RawFileBody(rawFileBodies.asResourceAndCachedBytes(filePath))
 }
 
-final case class RawFileBody(resourceAndCachedBytes: Expression[ResourceAndCachedBytes]) extends Body with Expression[Array[Byte]] {
+final case class RawFileBody(resourceAndCachedBytes: Expression[ResourceAndCachedBytes]) extends BodyWithBytesExpression {
   override def apply(session: Session): Validation[Array[Byte]] =
-    resourceAndCachedBytes(session).map(resourceAndCachedBytes => resourceAndCachedBytes.cachedBytes.getOrElse(resourceAndCachedBytes.resource.bytes))
+    resourceAndCachedBytes(session).map { case ResourceAndCachedBytes(resource, cachedBytes) => cachedBytes.getOrElse(resource.bytes) }
 }
 
-final case class ByteArrayBody(bytes: Expression[Array[Byte]]) extends Body with Expression[Array[Byte]] {
+final case class ByteArrayBody(bytes: Expression[Array[Byte]]) extends BodyWithBytesExpression {
   override def apply(session: Session): Validation[Array[Byte]] =
     bytes(session)
 }
@@ -61,12 +62,11 @@ object ElBody {
       case part               => DynamicElBodyPart(part.map(_.toString), charset)
     }
 
-  def apply(string: String, charset: Charset): ElBody =
+  def apply(string: String, charset: Charset): BodyWithStringExpression =
     ElBody(toParts(string, charset).expressionSuccess)
 }
 
-final case class ElBody(partsE: Expression[List[ElBody.ElBodyPart]]) extends Body with Expression[String] {
-
+final case class ElBody(partsE: Expression[List[ElBody.ElBodyPart]]) extends BodyWithStringExpression {
   override def apply(session: Session): Validation[String] =
     for {
       parts <- partsE(session)
@@ -105,18 +105,15 @@ final case class ElBody(partsE: Expression[List[ElBody.ElBodyPart]]) extends Bod
 final case class InputStreamBody(is: Expression[InputStream]) extends Body
 
 object PebbleStringBody {
-  def apply(string: String): PebbleBody = {
+  def apply(string: String, charset: Charset): BodyWithStringExpression = {
     val template = Pebble.getStringTemplate(string)
-    PebbleBody(_ => template)
+    StringBody(session => template.flatMap(Pebble.evaluateTemplate(_, session)), charset)
   }
 }
 
 object PebbleFileBody {
-  def apply(filePath: Expression[String], pebbleFileBodies: PebbleFileBodies): PebbleBody =
-    PebbleBody(pebbleFileBodies.asTemplate(filePath))
-}
-
-final case class PebbleBody(template: Expression[PebbleTemplate]) extends Body with Expression[String] {
-  override def apply(session: Session): Validation[String] =
-    template(session).flatMap(Pebble.evaluateTemplate(_, session))
+  def apply(filePath: Expression[String], pebbleFileBodies: PebbleFileBodies, charset: Charset): BodyWithStringExpression = {
+    val template = pebbleFileBodies.asTemplate(filePath)
+    StringBody(session => template(session).flatMap(Pebble.evaluateTemplate(_, session)), charset)
+  }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 import io.gatling.charts.component.RequestStatistics
-import io.gatling.commons.stats.Group
+import io.gatling.commons.shared.unstable.model.stats.Group
 
 private[gatling] object Container {
   val Group = "GROUP"
@@ -32,7 +32,7 @@ private[charts] trait Container
 private[charts] final class RequestContainer(val name: String, val stats: RequestStatistics) extends Container
 
 private[charts] object GroupContainer {
-  def root(requestStats: RequestStatistics) = GroupContainer("ROOT", requestStats)
+  def root(requestStats: RequestStatistics): GroupContainer = GroupContainer("ROOT", requestStats)
 
   def apply(name: String, stats: RequestStatistics): GroupContainer =
     new GroupContainer(name, stats, mutable.LinkedHashMap.empty, mutable.LinkedHashMap.empty)
@@ -44,9 +44,7 @@ private[charts] final class GroupContainer(
     val requests: mutable.Map[String, RequestContainer],
     val groups: mutable.Map[String, GroupContainer]
 ) extends Container {
-
   private def findGroup(path: List[String]) = {
-
     @tailrec
     def getGroupRec(g: GroupContainer, path: List[String]): GroupContainer = path match {
       case head :: tail => getGroupRec(g.groups(head), tail)

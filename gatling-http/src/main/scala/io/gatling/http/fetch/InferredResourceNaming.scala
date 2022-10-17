@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.http.fetch
 import io.gatling.http.client.uri.Uri
 
 private[http] object InferredResourceNaming {
-
   val AbsoluteUrlInferredResourceNaming: Uri => String = _.toString
 
   val RelativeUrlInferredResourceNaming: Uri => String = _.toRelativeUrl

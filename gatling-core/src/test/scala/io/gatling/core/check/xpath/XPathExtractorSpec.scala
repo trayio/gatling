@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,22 @@
 
 package io.gatling.core.check.xpath
 
+import java.nio.charset.StandardCharsets.UTF_8
+
+import scala.util.Using
+
 import io.gatling.{ BaseSpec, ValidationValues }
-import io.gatling.commons.util.Io._
 
 import net.sf.saxon.s9api.XdmNode
-import org.xml.sax.InputSource
 
 class XPathExtractorSpec extends BaseSpec with ValidationValues {
-
   private val namespaces = Map("foo" -> "http://foo/foo")
 
   private val xmlParsers = new XmlParsers(Long.MaxValue)
 
-  private def dom(file: String): Option[XdmNode] =
-    withCloseable(getClass.getResourceAsStream(file)) { is =>
-      Some(xmlParsers.parse(new InputSource(is)))
+  private def dom(file: String): XdmNode =
+    Using.resource(getClass.getResourceAsStream(file)) { is =>
+      XmlParsers.parse(is, UTF_8)
     }
 
   private def testCount(expression: String, file: String, expected: Int): Unit = {

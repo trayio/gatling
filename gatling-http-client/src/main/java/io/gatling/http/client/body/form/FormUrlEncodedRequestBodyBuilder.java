@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,26 @@
 
 package io.gatling.http.client.body.form;
 
+import static io.gatling.http.client.util.MiscUtils.withDefault;
+
 import io.gatling.http.client.Param;
 import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.RequestBodyBuilder;
 import io.netty.handler.codec.http.HttpHeaderValues;
-
 import java.nio.charset.Charset;
 import java.util.List;
 
-import static io.gatling.http.client.util.MiscUtils.withDefault;
-
-public class FormUrlEncodedRequestBodyBuilder extends RequestBodyBuilder<List<Param>> {
+public class FormUrlEncodedRequestBodyBuilder extends RequestBodyBuilder.Base<List<Param>> {
 
   public FormUrlEncodedRequestBodyBuilder(List<Param> content) {
     super(content);
   }
 
   @Override
-  public RequestBody<List<Param>> build(String contentType, Charset charset, Charset defaultCharset) {
-    return new FormUrlEncodedRequestBody(content, contentType != null ? contentType : HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED.toString(), withDefault(charset, defaultCharset));
+  public RequestBody build(String contentType, Charset charset, Charset defaultCharset) {
+    return new FormUrlEncodedRequestBody(
+        content,
+        contentType == null ? HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED : null,
+        withDefault(charset, defaultCharset));
   }
 }

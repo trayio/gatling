@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,5 +24,10 @@ public final class ChannelPoolKey {
   public ChannelPoolKey(long clientId, RemoteKey remoteKey) {
     this.clientId = clientId;
     this.remoteKey = remoteKey;
+  }
+
+  @Override
+  public String toString() {
+    return "ChannelPoolKey{" + "clientId=" + clientId + ", remoteKey=" + remoteKey + '}';
   }
 }

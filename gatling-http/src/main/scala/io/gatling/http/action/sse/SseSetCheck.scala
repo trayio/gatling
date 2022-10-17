@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,28 +22,29 @@ import io.gatling.core.action.{ Action, RequestAction }
 import io.gatling.core.session._
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.check.sse.SseMessageCheckSequence
 
 class SseSetCheck(
     val requestName: Expression[String],
-    checkSequences: List[SseMessageCheckSequence],
-    sseName: String,
+    checkSequences: List[SseMessageCheckSequenceBuilder],
+    sseName: Expression[String],
     val statsEngine: StatsEngine,
     val clock: Clock,
     val next: Action
 ) extends RequestAction
     with SseAction
     with NameGen {
-
   override val name: String = genName("sseSetCheck")
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
+  override def sendRequest(session: Session): Validation[Unit] =
     for {
-      fsm <- fetchFsm(sseName, session)
+      reqName <- requestName(session)
+      fsmName <- sseName(session)
+      fsm <- fetchFsm(fsmName, session)
+      resolvedCheckSequences <- SseMessageCheckSequenceBuilder.resolve(checkSequences, session)
     } yield {
-      // [fl]
+      // [e]
       //
-      // [fl]
-      fsm.onSetCheck(requestName, checkSequences, session, next)
+      // [e]
+      fsm.onSetCheck(reqName, resolvedCheckSequences, session, next)
     }
 }

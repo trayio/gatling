@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,17 @@
 package io.gatling.http.cache
 
 import scala.annotation.tailrec
+import scala.jdk.CollectionConverters._
 
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.cache.SessionCacheHandler
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
-import io.gatling.http.client.uri.Uri
+import io.gatling.core.util.cache.SessionCacheHandler
 import io.gatling.http.client.{ Request, RequestBuilder }
+import io.gatling.http.client.uri.Uri
+import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.engine.tx.HttpTx
+
+import io.netty.handler.codec.http.HttpHeaderNames
 
 private[cache] object PermanentRedirectCacheKey {
   def apply(request: Request): PermanentRedirectCacheKey =
@@ -33,11 +37,10 @@ private[cache] object PermanentRedirectCacheKey {
 private[cache] final case class PermanentRedirectCacheKey(uri: Uri, cookies: Cookies)
 
 private[cache] object PermanentRedirectCacheSupport {
-  val HttpPermanentRedirectCacheAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cache.redirects"
+  val HttpPermanentRedirectCacheAttributeName: String = SessionPrivateAttributes.generatePrivateAttribute("http.cache.redirects")
 }
 
 private[cache] trait PermanentRedirectCacheSupport {
-
   import PermanentRedirectCacheSupport._
 
   def configuration: GatlingConfiguration
@@ -52,14 +55,13 @@ private[cache] trait PermanentRedirectCacheSupport {
       session
     }
 
-  private[this] def permanentRedirect(session: Session, request: Request): Option[(Uri, Int)] = {
-
+  private[this] def permanentRedirect(session: Session, request: Request, maxRedirects: Int): Option[(Uri, Int)] = {
     @tailrec
     def permanentRedirectRec(from: PermanentRedirectCacheKey, redirectCount: Int): Option[(Uri, Int)] =
       httpPermanentRedirectCacheHandler.getEntry(session, from) match {
-        case Some(toUri) => permanentRedirectRec(new PermanentRedirectCacheKey(toUri, from.cookies), redirectCount + 1)
+        case Some(toUri) if redirectCount < maxRedirects => permanentRedirectRec(new PermanentRedirectCacheKey(toUri, from.cookies), redirectCount + 1)
 
-        case None =>
+        case _ =>
           redirectCount match {
             case 0 => None
             case _ => Some((from.uri, redirectCount))
@@ -69,18 +71,51 @@ private[cache] trait PermanentRedirectCacheSupport {
     permanentRedirectRec(PermanentRedirectCacheKey(request), redirectCount = 0)
   }
 
-  private[this] def redirectRequest(request: Request, toUri: Uri): Request =
-    new RequestBuilder(request, toUri).setFixUrlEncoding(false).setDefaultCharset(configuration.core.charset).build
+  private[this] def redirectRequest(
+      requestName: String,
+      request: Request,
+      redirectUri: Uri,
+      session: Session,
+      redirectCount: Int,
+      namingStrategy: (Uri, String, Int) => String
+  ): Request =
+    new RequestBuilder(namingStrategy(redirectUri, requestName, redirectCount), request.getMethod, redirectUri, request.getNameResolver)
+      .setHeaders(request.getHeaders.remove(HttpHeaderNames.COOKIE))
+      .setCookies(CookieSupport.getStoredCookies(session, redirectUri).asJava)
+      .setBodyBuilder(if (request.getBody != null) request.getBody.newBuilder else null)
+      .setRequestTimeout(request.getRequestTimeout)
+      .setVirtualHost(request.getVirtualHost)
+      .setAutoOrigin(request.isAutoOrigin)
+      .setLocalIpV4Address(request.getLocalIpV4Address)
+      .setLocalIpV6Address(request.getLocalIpV6Address)
+      .setRealm(request.getRealm)
+      .setProxyServer(request.getProxyServer)
+      .setSignatureCalculator(request.getSignatureCalculator)
+      .setHttp2Enabled(request.isHttp2Enabled)
+      .setAlpnRequired(request.isAlpnRequired)
+      .setHttp2PriorKnowledge(request.isHttp2PriorKnowledge)
+      .setWsSubprotocol(request.getWsSubprotocol)
+      .setDefaultCharset(configuration.core.charset)
+      .build
 
-  def applyPermanentRedirect(origTx: HttpTx): HttpTx =
-    if (origTx.request.requestConfig.httpProtocol.requestPart.cache && httpPermanentRedirectCacheHandler.enabled) {
-      permanentRedirect(origTx.session, origTx.request.clientRequest) match {
+  def applyPermanentRedirect(origTx: HttpTx): HttpTx = {
+    val httpProtocol = origTx.request.requestConfig.httpProtocol
+    if (httpProtocol.requestPart.cache && httpPermanentRedirectCacheHandler.enabled) {
+      permanentRedirect(origTx.session, origTx.request.clientRequest, httpProtocol.responsePart.maxRedirects) match {
         case Some((targetUri, redirectCount)) =>
-          val newClientRequest = redirectRequest(origTx.request.clientRequest, targetUri)
+          val newRedirectCount = origTx.redirectCount + redirectCount
+          val newClientRequest = redirectRequest(
+            origTx.request.requestName,
+            origTx.request.clientRequest,
+            targetUri,
+            origTx.session,
+            newRedirectCount,
+            httpProtocol.responsePart.redirectNamingStrategy
+          )
 
           origTx.copy(
             request = origTx.request.copy(clientRequest = newClientRequest),
-            redirectCount = origTx.redirectCount + redirectCount
+            redirectCount = newRedirectCount
           )
 
         case _ => origTx
@@ -88,4 +123,5 @@ private[cache] trait PermanentRedirectCacheSupport {
     } else {
       origTx
     }
+  }
 }

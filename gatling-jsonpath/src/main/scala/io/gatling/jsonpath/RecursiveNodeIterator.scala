@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,19 @@
 
 package io.gatling.jsonpath
 
-import java.util.{ Iterator => JIterator }
+import java.{ util => ju }
 
 import com.fasterxml.jackson.databind.JsonNode
 
 /**
  * Collect all nodes
- * @param root the tree root
+ * @param root
+ *   the tree root
  *
- *  Originally contributed by Nicolas Rémond.
+ * Originally contributed by Nicolas Rémond.
  */
-class RecursiveNodeIterator(root: JsonNode) extends RecursiveIterator[JIterator[JsonNode]](root) {
-
-  override protected def visit(it: JIterator[JsonNode]): Unit = {
+final class RecursiveNodeIterator(root: JsonNode) extends RecursiveIterator[ju.Iterator[JsonNode]](root) {
+  override protected def visit(it: ju.Iterator[JsonNode]): Unit = {
     while (it.hasNext && !pause) {
       visitNode(it.next())
     }

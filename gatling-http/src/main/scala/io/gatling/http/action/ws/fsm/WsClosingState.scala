@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,13 @@ import io.gatling.core.session.Session
 import com.typesafe.scalalogging.StrictLogging
 
 final class WsClosingState(fsm: WsFsm, actionName: String, session: Session, next: Action, closeStart: Long) extends WsState(fsm) with StrictLogging {
+  override def onTimeout(): NextWsState = {
+    logger.debug("WebSocket timed out while waiting for close ack")
+    val newSession =
+      logResponse(session, actionName, closeStart, fsm.clock.nowMillis, KO, None, Some("WebSocket timed out while waiting for close ack")).markAsFailed
+        .remove(fsm.wsName)
+    NextWsState(new WsClosedState(fsm), () => next ! newSession)
+  }
 
   override def onTextFrameReceived(message: String, timestamp: Long): NextWsState = {
     logUnmatchedServerMessage(session)
@@ -36,15 +43,19 @@ final class WsClosingState(fsm: WsFsm, actionName: String, session: Session, nex
 
   override def onWebSocketClosed(code: Int, reason: String, closeEnd: Long): NextWsState = {
     // server has acked closing
-    logger.info("Server has acked closing")
+    fsm.cancelTimeout()
+    logger.debug(s"Server has acked closing: $code/$reason")
     val newSession = logResponse(session, actionName, closeStart, closeEnd, OK, None, None).remove(fsm.wsName)
     NextWsState(new WsClosedState(fsm), () => next ! newSession)
   }
 
   override def onWebSocketCrashed(t: Throwable, timestamp: Long): NextWsState = {
-    logger.info("WebSocket crashed while waiting for close ack")
+    logger.debug("WebSocket crashed while waiting for close ack")
+    fsm.cancelTimeout()
     // crash, close anyway
     val newSession = logResponse(session, actionName, closeStart, timestamp, KO, None, Some(t.getMessage)).markAsFailed.remove(fsm.wsName)
     NextWsState(new WsClosedState(fsm), () => next ! newSession)
   }
+
+  override protected def remainingReconnects: Int = 0
 }

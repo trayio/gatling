@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,23 +16,30 @@
 
 package io.gatling.http.client.impl;
 
-import io.netty.channel.ChannelHandler;
+import static io.netty.handler.codec.http.websocketx.extensions.compression.PerMessageDeflateServerExtensionHandshaker.MAX_WINDOW_SIZE;
+
 import io.netty.handler.codec.compression.ZlibCodecFactory;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketClientExtensionHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.DeflateFrameClientExtensionHandshaker;
 import io.netty.handler.codec.http.websocketx.extensions.compression.PerMessageDeflateClientExtensionHandshaker;
 
-import static io.netty.handler.codec.http.websocketx.extensions.compression.PerMessageDeflateServerExtensionHandshaker.MAX_WINDOW_SIZE;
-
-@ChannelHandler.Sharable
 // fork of WebSocketClientCompressionHandler that enables allowClientNoContext
-public class AllowClientNoContextWebSocketClientCompressionHandler extends WebSocketClientExtensionHandler {
+public class AllowClientNoContextWebSocketClientCompressionHandler
+    extends WebSocketClientExtensionHandler {
 
-  public static final AllowClientNoContextWebSocketClientCompressionHandler INSTANCE = new AllowClientNoContextWebSocketClientCompressionHandler();
+  public static final AllowClientNoContextWebSocketClientCompressionHandler INSTANCE =
+      new AllowClientNoContextWebSocketClientCompressionHandler();
+
+  @Override
+  public boolean isSharable() {
+    return true;
+  }
 
   private AllowClientNoContextWebSocketClientCompressionHandler() {
-    super(new PerMessageDeflateClientExtensionHandshaker(6, ZlibCodecFactory.isSupportingWindowSizeAndMemLevel(), MAX_WINDOW_SIZE, true, false),
-      new DeflateFrameClientExtensionHandshaker(false),
-      new DeflateFrameClientExtensionHandshaker(true));
+    super(
+        new PerMessageDeflateClientExtensionHandshaker(
+            6, ZlibCodecFactory.isSupportingWindowSizeAndMemLevel(), MAX_WINDOW_SIZE, true, false),
+        new DeflateFrameClientExtensionHandshaker(false),
+        new DeflateFrameClientExtensionHandshaker(true));
   }
 }

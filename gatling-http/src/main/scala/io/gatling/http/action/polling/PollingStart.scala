@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.gatling.http.cache.HttpCaches
 import io.gatling.http.engine.tx.HttpTxExecutor
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request.HttpRequestDef
-import io.gatling.http.response.ResponseBuilder
 
 class PollingStart(
     pollerName: String,
@@ -42,33 +41,22 @@ class PollingStart(
     val next: Action
 ) extends ExitableAction
     with NameGen {
-
-  import httpRequestDef._
-
   override val name: String = genName(pollerName)
 
   override def clock: Clock = coreComponents.clock
 
   override def statsEngine: StatsEngine = coreComponents.statsEngine
 
-  private val responseBuilderFactory = ResponseBuilder.newResponseBuilderFactory(
-    requestConfig,
-    coreComponents.configuration
-  )
-
   private def startPoller(session: Session): Session = {
-    logger.info(s"Starting poller $pollerName")
+    logger.debug(s"Starting poller $pollerName")
     val poller = new Poller(
       pollerName,
       period,
       httpRequestDef,
-      responseBuilderFactory,
       httpTxExecutor,
       httpCaches,
       httpProtocol,
-      statsEngine,
-      clock,
-      coreComponents.configuration.core.charset
+      statsEngine
     )
 
     val newSession = session.set(pollerName, poller)

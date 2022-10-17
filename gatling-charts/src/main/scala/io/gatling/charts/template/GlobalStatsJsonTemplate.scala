@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,31 +17,30 @@
 package io.gatling.charts.template
 
 import io.gatling.charts.component.RequestStatistics
-import io.gatling.charts.component.Statistics.printable
-import io.gatling.commons.stats.GeneralStats
-import io.gatling.commons.util.StringHelper._
+import io.gatling.charts.component.Stats.printable
+import io.gatling.charts.util.JsHelper._
+import io.gatling.commons.shared.unstable.model.stats.GeneralStats
 
-private[charts] class GlobalStatsJsonTemplate(stats: RequestStatistics, raw: Boolean) {
-
+private[charts] final class GlobalStatsJsonTemplate(stats: RequestStatistics, raw: Boolean) {
   private def group(i: Int) =
     s""""group${i + 1}": {
-       |    "name": "${stats.groupedCounts(i).name}",
+       |    "name": "${stats.groupedCounts(i).textLabel}",
+       |    "htmlName": "${stats.groupedCounts(i).htmlLabel}",
        |    "count": ${stats.groupedCounts(i).count},
        |    "percentage": ${stats.groupedCounts(i).percentage}
        |}""".stripMargin
 
   def getOutput: String = {
-
     def style[T: Numeric](value: T) =
       if (raw) {
         // raw mode is used for JSON extract, non-raw for displaying in the reports
-        if (value == GeneralStats.NoPlotMagicValue) "0"
+        if (implicitly[Numeric[T]].toInt(value) == GeneralStats.NoPlotMagicValue) "0"
         else value.toString
       } else
         s""""${printable(value)}""""
 
     s"""{
-    "name": "${stats.name.escapeJsIllegalChars}",
+    "name": "${escapeJsIllegalChars(stats.name)}",
     "numberOfRequests": {
         "total": ${style(stats.numberOfRequestsStatistics.total)},
         "ok": ${style(stats.numberOfRequestsStatistics.success)},

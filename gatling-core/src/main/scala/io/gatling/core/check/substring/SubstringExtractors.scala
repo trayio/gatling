@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import io.gatling.core.check._
 
 object SubstringExtractors {
   private def extractAll(prepared: String, criterion: String): List[Int] = {
-
     @tailrec
     def loop(fromIndex: Int, is: List[Int]): List[Int] =
       if (fromIndex >= prepared.length)
@@ -37,45 +36,44 @@ object SubstringExtractors {
     loop(0, Nil)
   }
 
-  def find(substring: String, occurrence: Int): FindCriterionExtractor[String, String, Int] =
+  def find(pattern: String, occurrence: Int): FindCriterionExtractor[String, String, Int] =
     new FindCriterionExtractor[String, String, Int](
       "substring",
-      substring,
+      pattern,
       occurrence,
       text => {
-
         @tailrec
         def loop(fromIndex: Int, occ: Int): Validation[Option[Int]] =
-          if (fromIndex >= substring.length)
-            NoneSuccess
+          if (fromIndex >= pattern.length)
+            Validation.NoneSuccess
           else
-            text.indexOf(substring, fromIndex) match {
-              case -1 => NoneSuccess
+            text.indexOf(pattern, fromIndex) match {
+              case -1 => Validation.NoneSuccess
               case i =>
                 if (occ == occurrence)
                   Some(i).success
                 else
-                  loop(i + substring.length, occ + 1)
+                  loop(i + pattern.length, occ + 1)
             }
 
         loop(0, 0)
       }
     )
 
-  def findAll(substring: String): FindAllCriterionExtractor[String, String, Int] =
+  def findAll(pattern: String): FindAllCriterionExtractor[String, String, Int] =
     new FindAllCriterionExtractor[String, String, Int](
       "substring",
-      substring,
-      extractAll(_, substring) match {
-        case Nil => NoneSuccess
+      pattern,
+      extractAll(_, pattern) match {
+        case Nil => Validation.NoneSuccess
         case is  => Some(is.reverse).success
       }
     )
 
-  def count(substring: String): CountCriterionExtractor[String, String] =
+  def count(pattern: String): CountCriterionExtractor[String, String] =
     new CountCriterionExtractor[String, String](
       "substring",
-      substring,
-      text => Some(extractAll(text, substring).size).success
+      pattern,
+      text => Some(extractAll(text, pattern).size).success
     )
 }

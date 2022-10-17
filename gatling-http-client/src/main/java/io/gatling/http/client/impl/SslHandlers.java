@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,22 @@
 package io.gatling.http.client.impl;
 
 import io.gatling.http.client.HttpClientConfig;
-import io.gatling.http.client.uri.Uri;
 import io.gatling.http.client.ssl.Tls;
+import io.gatling.http.client.uri.Uri;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
-
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
 public class SslHandlers {
 
-  public static SslHandler newSslHandler(SslContext sslContext, ByteBufAllocator allocator, Uri uri, String virtualHost, HttpClientConfig config) {
+  public static SslHandler newSslHandler(
+      SslContext sslContext,
+      ByteBufAllocator allocator,
+      Uri uri,
+      String virtualHost,
+      HttpClientConfig config) {
     String peerHost;
     int peerPort;
 
@@ -39,7 +43,7 @@ public class SslHandlers {
         peerPort = uri.getSchemeDefaultPort();
       } else {
         peerHost = virtualHost.substring(0, i);
-        peerPort = Integer.valueOf(virtualHost.substring(i + 1));
+        peerPort = Integer.parseInt(virtualHost.substring(i + 1));
       }
 
     } else {
@@ -50,11 +54,17 @@ public class SslHandlers {
     return createSslHandler(sslContext, peerHost, peerPort, allocator, config);
   }
 
-  private static SslHandler createSslHandler(SslContext sslContext, String peerHost, int peerPort, ByteBufAllocator allocator, HttpClientConfig config) {
+  private static SslHandler createSslHandler(
+      SslContext sslContext,
+      String peerHost,
+      int peerPort,
+      ByteBufAllocator allocator,
+      HttpClientConfig config) {
 
-    SSLEngine sslEngine = config.isEnableSni() ?
-      sslContext.newEngine(allocator, Tls.domain(peerHost), peerPort) :
-      sslContext.newEngine(allocator);
+    SSLEngine sslEngine =
+        config.isEnableSni()
+            ? sslContext.newEngine(allocator, Tls.domain(peerHost), peerPort)
+            : sslContext.newEngine(allocator);
 
     sslEngine.setUseClientMode(true);
     if (config.isEnableHostnameVerification()) {

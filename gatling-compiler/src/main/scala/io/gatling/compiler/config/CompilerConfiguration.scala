@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.compiler.config
 
 import java.nio.file._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import io.gatling.compiler.config.ConfigUtils._
 import io.gatling.compiler.config.cli.{ ArgsParser, CommandLineOverrides }
@@ -29,16 +29,16 @@ private[compiler] final case class CompilerConfiguration(
     encoding: String,
     simulationsDirectory: Path,
     binariesDirectory: Path,
-    extraScalacOptions: Seq[String]
+    extraScalacOptions: Seq[String],
+    extraJavacOptions: Seq[String]
 )
 
 private[compiler] object CompilerConfiguration {
-
   private val encodingKey = "gatling.core.encoding"
   private val simulationsDirectoryKey = "gatling.core.directory.simulations"
   private val binariesDirectoryKey = "gatling.core.directory.binaries"
 
-  def configuration(args: Array[String]) = {
+  def configuration(args: Array[String]): CompilerConfiguration = {
     def buildConfigurationMap(overrides: CommandLineOverrides): Map[String, _ <: Any] = {
       val mapForSimulationFolder =
         string2option(overrides.simulationsDirectory)
@@ -62,11 +62,13 @@ private[compiler] object CompilerConfiguration {
     val config = cliConfig.withFallback(customConfig.withFallback(defaultConfig))
 
     val encoding = config.getString(encodingKey)
-    val simulationsDirectory = resolvePath(Paths.get(config.getString(simulationsDirectoryKey)))
+    val simulationsDirectory = string2option(config.getString(simulationsDirectoryKey))
+      .fold(GatlingHome.resolve("user-files").resolve("simulations"))(path => resolvePath(Paths.get(path)))
     val binariesDirectory = string2option(config.getString(binariesDirectoryKey))
-      .fold(GatlingHome / "target" / "test-classes")(resolvePath(_))
-    val extraScalacOptions = commandLineOverrides.extraScalacOptions.split(",").toSeq
+      .fold(GatlingHome.resolve("target").resolve("test-classes"))(path => resolvePath(Paths.get(path)))
+    val extraScalacOptions = commandLineOverrides.extraScalacOptions.split(',').filter(_.nonEmpty).toSeq
+    val extraJavacOptions = commandLineOverrides.extraJavacOptions.split(',').filter(_.nonEmpty).toSeq
 
-    CompilerConfiguration(encoding, simulationsDirectory, binariesDirectory, extraScalacOptions)
+    CompilerConfiguration(encoding, simulationsDirectory, binariesDirectory, extraScalacOptions, extraJavacOptions)
   }
 }

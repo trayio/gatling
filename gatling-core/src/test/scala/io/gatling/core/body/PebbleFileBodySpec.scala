@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,18 @@
 
 package io.gatling.core.body
 
+import io.gatling.{ BaseSpec, ValidationValues }
+import io.gatling.core.EmptySession
 import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
 import io.gatling.core.session._
-import io.gatling.core.session.SessionSpec.EmptySession
-import io.gatling.{ BaseSpec, ValidationValues }
 
-class PebbleFileBodySpec extends BaseSpec with ValidationValues {
-
-  private val pebbleFileBodies: PebbleFileBodies = new PebbleFileBodies(GatlingFiles.resourcesDirectory(GatlingConfiguration.loadForTest()), Long.MaxValue)
+class PebbleFileBodySpec extends BaseSpec with ValidationValues with EmptySession {
+  private val configuration = GatlingConfiguration.loadForTest()
+  private val pebbleFileBodies: PebbleFileBodies = new PebbleFileBodies(GatlingFiles.customResourcesDirectory(configuration), Long.MaxValue)
 
   "PebbleFileBody" should "support templates inheritance" in {
-    val session = EmptySession.set("name", "Mitchell")
-    val body = PebbleFileBody("pebble/home.html".expressionSuccess, pebbleFileBodies)
+    val session = emptySession.set("name", "Mitchell")
+    val body = PebbleFileBody("pebble/home.html".expressionSuccess, pebbleFileBodies, configuration.core.charset)
     body(session).succeeded shouldBe """<html>
                                        |<head>
                                        |  <title>Home</title>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package io.gatling.sbt
 
-import sbt.testing.SubclassFingerprint
-
 import io.gatling.core.scenario.Simulation
 
+import sbt.testing.SubclassFingerprint
+
 /**
- * Gatling's specific fingerprint, which defines which classes are to be
- * picked up by the test framework from the test ClassLoader as test classes,
- * in this case Gatling simulations.
+ * Gatling's specific fingerprint, which defines which classes are to be picked up by the test framework from the test ClassLoader as test classes, in this case
+ * Gatling simulations.
  */
 class GatlingFingerprint extends SubclassFingerprint {
 

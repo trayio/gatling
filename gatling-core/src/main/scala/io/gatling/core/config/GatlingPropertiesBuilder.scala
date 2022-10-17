@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ import scala.collection.mutable
 
 import io.gatling.core.ConfigKeys._
 
-class GatlingPropertiesBuilder {
-
+final class GatlingPropertiesBuilder {
   private val props = mutable.Map.empty[String, Any]
 
   def noReports(): GatlingPropertiesBuilder = {
@@ -44,11 +43,6 @@ class GatlingPropertiesBuilder {
     this
   }
 
-  def simulationsDirectory(v: String): GatlingPropertiesBuilder = {
-    props += core.directory.Simulations -> v
-    this
-  }
-
   def binariesDirectory(v: String): GatlingPropertiesBuilder = {
     props += core.directory.Binaries -> v
     this
@@ -61,6 +55,16 @@ class GatlingPropertiesBuilder {
 
   def runDescription(v: String): GatlingPropertiesBuilder = {
     props += core.RunDescription -> v
+    this
+  }
+
+  def launcher(v: String): GatlingPropertiesBuilder = {
+    props += data.Launcher -> v
+    this
+  }
+
+  def buildToolVersion(v: String): GatlingPropertiesBuilder = {
+    props += data.BuildToolVersion -> v
     this
   }
 

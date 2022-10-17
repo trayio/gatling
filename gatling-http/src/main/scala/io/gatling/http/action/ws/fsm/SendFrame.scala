@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.gatling.http.action.ws.fsm
 
 import io.gatling.core.action.Action
-import io.gatling.http.check.ws.{ WsBinaryFrameCheck, WsFrameCheckSequence, WsTextFrameCheck }
+import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
 
 sealed trait SendFrame {
   def actionName: String
@@ -27,7 +27,7 @@ sealed trait SendFrame {
 final case class SendTextFrame(
     actionName: String,
     message: String,
-    checkSequences: List[WsFrameCheckSequence[WsTextFrameCheck]],
+    checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
     next: Action
 ) extends SendFrame
 
@@ -35,6 +35,6 @@ final case class SendTextFrame(
 final case class SendBinaryFrame(
     actionName: String,
     message: Array[Byte],
-    checkSequences: List[WsFrameCheckSequence[WsBinaryFrameCheck]],
+    checkSequences: List[WsFrameCheckSequence[WsFrameCheck]],
     next: Action
 ) extends SendFrame

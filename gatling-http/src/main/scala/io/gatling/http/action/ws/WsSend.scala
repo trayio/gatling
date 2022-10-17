@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ import io.gatling.core.action.{ Action, ExitableAction, RequestAction }
 import io.gatling.core.session._
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.check.ws.{ WsBinaryFrameCheck, WsFrameCheckSequence, WsTextFrameCheck }
+import io.gatling.http.check.ws.WsFrameCheck
 
 class WsSendTextFrame(
     override val requestName: Expression[String],
-    wsName: String,
+    wsName: Expression[String],
     message: Expression[String],
-    checkSequences: List[WsFrameCheckSequence[WsTextFrameCheck]],
+    checkSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]],
     override val statsEngine: StatsEngine,
     override val clock: Clock,
     override val next: Action
@@ -36,24 +36,26 @@ class WsSendTextFrame(
     with WsAction
     with ExitableAction
     with NameGen {
-
   override val name: String = genName("wsSendTextFrame")
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
+  override def sendRequest(session: Session): Validation[Unit] =
     for {
-      fsm <- fetchFsm(wsName, session)
+      reqName <- requestName(session)
+      fsmName <- wsName(session)
+      fsm <- fetchFsm(fsmName, session)
       message <- message(session)
+      resolvedCheckSequences <- WsFrameCheckSequenceBuilder.resolve(checkSequences, session)
     } yield {
-      logger.info(s"Sending text frame $message with websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
-      fsm.onSendTextFrame(requestName, message, checkSequences, session, next)
+      logger.debug(s"Sending text frame $message with WebSocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
+      fsm.onSendTextFrame(reqName, message, resolvedCheckSequences, session, next)
     }
 }
 
 class WsSendBinaryFrame(
     override val requestName: Expression[String],
-    wsName: String,
+    wsName: Expression[String],
     message: Expression[Array[Byte]],
-    checkSequences: List[WsFrameCheckSequence[WsBinaryFrameCheck]],
+    checkSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]],
     override val statsEngine: StatsEngine,
     override val clock: Clock,
     override val next: Action
@@ -61,15 +63,17 @@ class WsSendBinaryFrame(
     with WsAction
     with ExitableAction
     with NameGen {
-
   override val name: String = genName("wsSendBinaryFrame")
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
+  override def sendRequest(session: Session): Validation[Unit] =
     for {
-      fsm <- fetchFsm(wsName, session)
+      reqName <- requestName(session)
+      fsmName <- wsName(session)
+      fsm <- fetchFsm(fsmName, session)
       message <- message(session)
+      resolvedCheckSequences <- WsFrameCheckSequenceBuilder.resolve(checkSequences, session)
     } yield {
-      logger.info(s"Sending binary frame $message with websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
-      fsm.onSendBinaryFrame(requestName, message, checkSequences, session, next)
+      logger.debug(s"Sending binary frame of ${message.length} bytes with WebSocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
+      fsm.onSendBinaryFrame(reqName, message, resolvedCheckSequences, session, next)
     }
 }

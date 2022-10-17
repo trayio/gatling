@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,17 @@
 
 package io.gatling.http.engine.response
 
-import java.nio.charset.Charset
-
 import io.gatling.commons.stats.{ KO, Status }
 import io.gatling.commons.util.StringHelper.Eol
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import io.gatling.http.response.{ HttpResult, Response }
 import io.gatling.http.util._
-import io.gatling.netty.util.StringBuilderPool
+import io.gatling.jdk.util.StringBuilderPool
 
 import com.typesafe.scalalogging.StrictLogging
 
-sealed abstract class StatsProcessor(charset: Charset) extends StrictLogging {
+sealed abstract class StatsProcessor extends StrictLogging {
   def reportStats(
       fullRequestName: String,
       session: Session,
@@ -48,6 +46,7 @@ sealed abstract class StatsProcessor(charset: Charset) extends StrictLogging {
       errorMessage: Option[String]
   ): Unit
 
+  private val loggingStringBuilderPool = new StringBuilderPool
   private def logTx(
       fullRequestName: String,
       session: Session,
@@ -55,11 +54,8 @@ sealed abstract class StatsProcessor(charset: Charset) extends StrictLogging {
       result: HttpResult,
       errorMessage: Option[String]
   ): Unit = {
-    def dump = {
-      // hack: pre-cache url because it would reset StringBuilderPool.DEFAULT otherwise
-      // there's a good chance building the request only called toRelativeUrl
-      result.request.getUri.toUrl
-      StringBuilderPool.DEFAULT
+    def dump =
+      loggingStringBuilderPool
         .get()
         .append(Eol)
         .appendWithEol(">>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -67,20 +63,20 @@ sealed abstract class StatsProcessor(charset: Charset) extends StrictLogging {
         .appendWithEol(s"$fullRequestName: $status ${errorMessage.getOrElse("")}")
         .appendWithEol("=========================")
         .appendWithEol("Session:")
-        .appendWithEol(session)
+        .append(session)
+        .append(Eol)
         .appendWithEol("=========================")
         .appendWithEol("HTTP request:")
-        .appendRequest(result, charset)
+        .appendRequest(result.request)
         .appendWithEol("=========================")
         .appendWithEol("HTTP response:")
         .appendResponse(result)
         .append("<<<<<<<<<<<<<<<<<<<<<<<<<")
         .toString
-    }
 
     if (status == KO) {
-      logger.info(s"Request '$fullRequestName' failed for user ${session.userId}: ${errorMessage.getOrElse("")}")
-      if (!IsHttpTraceEnabled) {
+      logger.debug(s"Request '$fullRequestName' failed for user ${session.userId}: ${errorMessage.getOrElse("")}")
+      if (!HttpTracing.IS_HTTP_TRACE_ENABLED) {
         logger.debug(dump)
       }
     }
@@ -89,7 +85,7 @@ sealed abstract class StatsProcessor(charset: Charset) extends StrictLogging {
   }
 }
 
-final class NoopStatsProcessor(charset: Charset) extends StatsProcessor(charset) {
+object NoopStatsProcessor extends StatsProcessor {
   override protected def reportStats0(
       fullRequestName: String,
       session: Session,
@@ -100,11 +96,8 @@ final class NoopStatsProcessor(charset: Charset) extends StatsProcessor(charset)
 }
 
 final class DefaultStatsProcessor(
-    charset: Charset,
     statsEngine: StatsEngine
-) extends StatsProcessor(charset)
-    with StrictLogging {
-
+) extends StatsProcessor {
   override def reportStats0(
       fullRequestName: String,
       session: Session,
@@ -113,7 +106,8 @@ final class DefaultStatsProcessor(
       errorMessage: Option[String]
   ): Unit =
     statsEngine.logResponse(
-      session,
+      session.scenario,
+      session.groups,
       fullRequestName,
       result.startTimestamp,
       result.endTimestamp,

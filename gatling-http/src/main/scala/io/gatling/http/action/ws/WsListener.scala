@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,20 @@
 package io.gatling.http.action.ws
 
 import io.gatling.commons.util.Clock
+import io.gatling.http.action.ws.fsm.WsFsm
 import io.gatling.http.client.WebSocketListener
 import io.gatling.http.util.HttpHelper
 import io.gatling.netty.util.{ ByteBufUtils, Utf8ByteBufCharsetDecoder }
-import io.gatling.http.action.ws.fsm.WsFsm
 
 import com.typesafe.scalalogging.LazyLogging
+import io.netty.handler.codec.http.{ HttpHeaders, HttpResponseStatus }
 import io.netty.handler.codec.http.cookie.Cookie
 import io.netty.handler.codec.http.websocketx.{ BinaryWebSocketFrame, CloseWebSocketFrame, PongWebSocketFrame, TextWebSocketFrame }
-import io.netty.handler.codec.http.{ HttpHeaders, HttpResponseStatus }
 
 class WsListener(fsm: WsFsm, clock: Clock) extends WebSocketListener with LazyLogging {
-
   private var cookies: List[Cookie] = Nil
 
-  //[fl]
+  // [e]
   //
   //
   //
@@ -56,7 +55,10 @@ class WsListener(fsm: WsFsm, clock: Clock) extends WebSocketListener with LazyLo
   //
   //
   //
-  //[fl]
+  //
+  //
+  //
+  // [e]
 
   override def onHttpResponse(httpResponseStatus: HttpResponseStatus, httpHeaders: HttpHeaders): Unit = {
     logger.debug(s"Received response to WebSocket CONNECT: $httpResponseStatus $httpHeaders")

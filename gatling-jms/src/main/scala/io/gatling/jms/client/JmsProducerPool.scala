@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,11 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.jms.{ Destination, MessageProducer }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 private[client] final case class CachedProducerKey(destination: Destination, deliveryMode: Int)
 
 class JmsProducerPool(sessionPool: JmsSessionPool) {
-
   private val registeredProducers = Collections.newSetFromMap(new ConcurrentHashMap[MessageProducer, java.lang.Boolean])
   private val producers = new ConcurrentHashMap[CachedProducerKey, ThreadLocal[JmsProducer]]
 
@@ -34,13 +33,13 @@ class JmsProducerPool(sessionPool: JmsSessionPool) {
       .computeIfAbsent(
         CachedProducerKey(destination, deliveryMode),
         key =>
-          ThreadLocal.withInitial[JmsProducer](() => {
+          ThreadLocal.withInitial[JmsProducer] { () =>
             val jmsSession = sessionPool.jmsSession()
             val producer = jmsSession.createProducer(key.destination)
             producer.setDeliveryMode(key.deliveryMode)
             registeredProducers.add(producer)
             JmsProducer(jmsSession, producer)
-          })
+          }
       )
       .get()
 

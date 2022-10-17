@@ -1,9 +1,9 @@
-resolvers += Resolver.bintrayIvyRepo("gatling", "sbt-plugins")
-resolvers += Resolver.jcenterRepo
-
-addSbtPlugin("io.gatling"         % "gatling-build-plugin"  % "2.4.3")
-addSbtPlugin("com.typesafe.sbt"   % "sbt-native-packager"   % "1.3.11")
-addSbtPlugin("pl.project13.scala" % "sbt-jmh"               % "0.3.3")
-addSbtPlugin("net.aichler"        % "sbt-jupiter-interface" % "0.7.0")
-addSbtPlugin("com.typesafe.sbt"   % "sbt-site"              % "1.3.2")
-addSbtPlugin("org.wartremover"    % "sbt-wartremover"       % "2.4.3")
+addSbtPlugin("io.gatling"         % "gatling-build-plugin"  % "5.2.0")
+addSbtPlugin("com.github.sbt"     % "sbt-native-packager"   % "1.9.9")
+addSbtPlugin("pl.project13.scala" % "sbt-jmh"               % "0.4.3")
+addSbtPlugin("net.aichler"        % "sbt-jupiter-interface" % "0.11.1")
+addSbtPlugin("com.typesafe.sbt"   % "sbt-site"              % "1.4.1")
+addSbtPlugin("org.wartremover"    % "sbt-wartremover"       % "3.0.6")
+addSbtPlugin("ch.epfl.scala"      % "sbt-scalafix"          % "0.10.4")
+addSbtPlugin("com.hanhuy.sbt"     % "kotlin-plugin"         % "2.0.0")
+addSbtPlugin("net.moznion.sbt"    % "sbt-spotless"          % "0.1.3")

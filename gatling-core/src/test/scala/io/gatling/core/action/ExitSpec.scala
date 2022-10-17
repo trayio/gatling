@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +17,19 @@
 package io.gatling.core.action
 
 import io.gatling.AkkaSpec
-import io.gatling.commons.util.DefaultClock
-import io.gatling.core.session.SessionSpec.EmptySession
-import io.gatling.core.stats.writer.UserEndMessage
+import io.gatling.core.controller.inject.InjectorCommand
 
 class ExitSpec extends AkkaSpec {
-
-  private val clock = new DefaultClock
-
   "Exit" should "terminate the session and notify the Controller execution has ended" in {
-    val exit = new Exit(self, clock)
+    val exit = new Exit(self)
 
     var hasTerminated = false
 
-    val session = EmptySession.copy(onExit = _ => hasTerminated = true)
+    val session = emptySession.copy(onExit = _ => hasTerminated = true)
     exit ! session
 
     hasTerminated shouldBe true
-    val userMessage = expectMsgType[UserEndMessage]
-    userMessage.session shouldBe session
+    val userMessage = expectMsgType[InjectorCommand.UserEnd]
+    userMessage.scenario shouldBe session.scenario
   }
 }

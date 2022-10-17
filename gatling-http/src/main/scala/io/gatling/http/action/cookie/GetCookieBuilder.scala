@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,31 +24,28 @@ import io.gatling.http.action.HttpActionBuilder
 import io.gatling.http.cookie.CookieSupport.getCookieValue
 
 object GetCookieBuilder {
-
   def apply(cookie: GetCookieDsl): GetCookieBuilder =
     new GetCookieBuilder(cookie.name, cookie.domain, cookie.path, cookie.secure, cookie.saveAs)
 }
 
-class GetCookieBuilder(name: String, domain: Option[Expression[String]], path: Option[String], secure: Boolean, saveAs: Option[String])
+class GetCookieBuilder(name: Expression[String], domain: Option[Expression[String]], path: Option[String], secure: Boolean, saveAs: Option[String])
     extends HttpActionBuilder
     with NameGen {
-
   import CookieActionBuilder._
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
+    val httpProtocol = lookUpHttpComponents(ctx.protocolComponentsRegistry).httpProtocol
 
-    import ctx._
-
-    val resolvedDomain = domain.getOrElse(defaultDomain(lookUpHttpComponents(protocolComponentsRegistry).httpCaches))
+    val nonEmptyDomain = domain.getOrElse(defaultDomain(httpProtocol))
     val resolvedPath = path.getOrElse(DefaultPath)
-    val resolvedSaveAs = saveAs.getOrElse(name)
 
     val expression: Expression[Session] = session =>
       for {
-        domain <- resolvedDomain(session)
-        cookieValue <- getCookieValue(session, domain, resolvedPath, name, secure)
-      } yield session.set(resolvedSaveAs, cookieValue)
+        resolvedName <- name(session)
+        resolvedDomain <- nonEmptyDomain(session)
+        cookieValue <- getCookieValue(session, resolvedDomain, resolvedPath, resolvedName, secure)
+      } yield session.set(saveAs.getOrElse(resolvedName), cookieValue)
 
-    new SessionHook(expression, genName("getCookie"), coreComponents.statsEngine, coreComponents.clock, next) with ExitableAction
+    new SessionHook(expression, genName("getCookie"), ctx.coreComponents.statsEngine, ctx.coreComponents.clock, next) with ExitableAction
   }
 }

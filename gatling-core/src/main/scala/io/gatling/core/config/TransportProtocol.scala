@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.config
 
-object TransportProtocol {
+private[gatling] object TransportProtocol {
   def apply(name: String): TransportProtocol = name match {
     case Tcp.name => Tcp
     case Udp.name => Udp
@@ -24,6 +24,6 @@ object TransportProtocol {
   }
 }
 
-sealed abstract class TransportProtocol(val name: String)
-case object Tcp extends TransportProtocol("tcp")
-case object Udp extends TransportProtocol("udp")
+private[gatling] sealed abstract class TransportProtocol(val name: String)
+private[gatling] case object Tcp extends TransportProtocol("tcp")
+private[gatling] case object Udp extends TransportProtocol("udp")

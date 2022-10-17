@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,32 +14,17 @@
  * limitations under the License.
  */
 
-//
-// Copyright (c) 2018 AsyncHttpClient Project. All rights reserved.
-//
-// This program is licensed to you under the Apache License Version 2.0,
-// and you may not use this file except in compliance with the Apache License Version 2.0.
-// You may obtain a copy of the Apache License Version 2.0 at
-//     http://www.apache.org/licenses/LICENSE-2.0.
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the Apache License Version 2.0 is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
-//
-
 package io.gatling.netty.util;
 
+import static io.gatling.netty.util.ByteBufUtils.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import io.netty.buffer.ByteBuf;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
 import java.nio.charset.CodingErrorAction;
-
-import io.netty.buffer.ByteBuf;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static io.gatling.netty.util.ByteBufUtils.*;
 
 public class Utf8ByteBufCharsetDecoder {
 
@@ -47,10 +32,11 @@ public class Utf8ByteBufCharsetDecoder {
   private static final int UTF_8_MAX_BYTES_PER_CHAR = 4;
   private static final char INVALID_CHAR_REPLACEMENT = '\uFFFD';
 
-  private static final ThreadLocal<Utf8ByteBufCharsetDecoder> POOL = ThreadLocal.withInitial(Utf8ByteBufCharsetDecoder::new);
+  private static final ThreadLocal<Utf8ByteBufCharsetDecoder> POOL =
+      ThreadLocal.withInitial(Utf8ByteBufCharsetDecoder::new);
   private final CharsetDecoder decoder = configureReplaceCodingErrorActions(UTF_8.newDecoder());
+  private final ByteBuffer splitCharBuffer = ByteBuffer.allocate(UTF_8_MAX_BYTES_PER_CHAR);
   protected CharBuffer charBuffer = allocateCharBuffer(INITIAL_CHAR_BUFFER_SIZE);
-  private ByteBuffer splitCharBuffer = ByteBuffer.allocate(UTF_8_MAX_BYTES_PER_CHAR);
   private int totalSize = 0;
   private int totalNioBuffers = 0;
   private boolean withoutArray = false;
@@ -78,7 +64,9 @@ public class Utf8ByteBufCharsetDecoder {
   }
 
   private static CharsetDecoder configureReplaceCodingErrorActions(CharsetDecoder decoder) {
-    return decoder.onMalformedInput(CodingErrorAction.REPLACE).onUnmappableCharacter(CodingErrorAction.REPLACE);
+    return decoder
+        .onMalformedInput(CodingErrorAction.REPLACE)
+        .onUnmappableCharacter(CodingErrorAction.REPLACE);
   }
 
   private static int moreThanOneByteCharSize(byte firstByte) {

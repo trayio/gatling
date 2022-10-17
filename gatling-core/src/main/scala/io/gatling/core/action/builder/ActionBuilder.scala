@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +20,17 @@ import io.gatling.core.action.Action
 import io.gatling.core.structure.ScenarioContext
 
 /**
- * Top level abstraction for components in charge of building Actions.
- * ActionBuilder is what is passed to the DSL exec() method.
+ * Top level abstraction for components in charge of building Actions. ActionBuilder is what is passed to the DSL exec() method.
  */
 trait ActionBuilder {
 
   /**
-   * @param ctx the scenario context
-   * @param next the action that will be chained with the Action build by this builder
-   * @return the resulting action
+   * @param ctx
+   *   the scenario context
+   * @param next
+   *   the action that will be chained with the Action build by this builder
+   * @return
+   *   the resulting action
    */
   def build(ctx: ScenarioContext, next: Action): Action
 }

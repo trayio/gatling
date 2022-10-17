@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.mitchellbosecke.pebble.extension.AbstractExtension
 object TestExtension extends AbstractExtension
 
 class PebbleExtensionsSpec extends BaseSpec with ValidationValues {
-
   "PebbleExtensions" should "should allow registration" in {
     Try(PebbleExtensions.register(Seq(TestExtension))) shouldBe Success(())
   }

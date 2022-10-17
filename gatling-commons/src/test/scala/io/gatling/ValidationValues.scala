@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,20 +21,18 @@ import io.gatling.commons.validation._
 import org.scalatest.exceptions.TestFailedException
 
 trait ValidationValues {
-
   implicit def validation2ValidationValuable[T](validation: Validation[T]): ValidationValuable[T] = new ValidationValuable[T](validation)
 
   class ValidationValuable[T](validation: Validation[T]) {
-
     def succeeded: T = validation match {
       case Success(v) => v
       case Failure(msg) =>
-        throw new TestFailedException(s"Cannot call .value on $validation, was a Failure", 0)
+        throw new TestFailedException(s"Cannot call .value on $validation, was a Failure($msg)", 0)
     }
 
     def failed: String = validation match {
       case Success(v) =>
-        throw new TestFailedException(s"Cannot call .failMessage on $validation, was a Success", 0)
+        throw new TestFailedException(s"Cannot call .failMessage on $validation, was a Success($v)", 0)
       case Failure(msg) => msg
     }
   }

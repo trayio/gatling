@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import io.netty.handler.codec.http.cookie.ClientCookieDecoder.LAX.decode
 import io.netty.handler.codec.http.cookie.ClientCookieEncoder.LAX.encode
 
 class CookieJarSpec extends BaseSpec {
-
   "storeCookies" should "return nothing when it's empty" in {
     new CookieJar(Map.empty).get(Uri.create("http://docs.foo.com")) shouldBe empty
   }
@@ -208,7 +207,7 @@ class CookieJarSpec extends BaseSpec {
     cookieStore.get(Uri.create("https://y.x.foo.org/")) should have size 1
   }
 
-  it should "should serve the last cookie when they are definied twice" in {
+  it should "should serve the last cookie when they are defined twice" in {
     val cookie1 = decode("cookie1=VALUE1; Path=/")
     val cookie2 = decode("cookie1=VALUE2; Path=/")
     val cookie3 = decode("cookie1=VALUE3; Path=/")
@@ -254,7 +253,6 @@ class CookieJarSpec extends BaseSpec {
   }
 
   it should "properly deal with trailing slashes in paths" in {
-
     val cookie = decode("JSESSIONID=211D17F016132BCBD31D9ABB31D90960; Path=/app/consumer/; HttpOnly")
     val uri = Uri.create("https://vagrant.moolb.com/app/consumer/j_spring_cas_security_check?ticket=ST-5-Q7gzqPpvG3N3Bb02bm3q-llinder-vagrantmgr.moolb.com")
     val cookieStore = CookieJar(uri, List(cookie), System.currentTimeMillis())

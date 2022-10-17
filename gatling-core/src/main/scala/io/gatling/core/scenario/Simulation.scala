@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,146 +16,56 @@
 
 package io.gatling.core.scenario
 
-import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.duration.FiniteDuration
 
 import io.gatling.commons.stats.assertion.Assertion
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
+import io.gatling.core.controller.inject.ScenarioFlows
 import io.gatling.core.controller.throttle.{ ThrottleStep, Throttling, Throttlings }
 import io.gatling.core.pause._
 import io.gatling.core.protocol.{ Protocol, ProtocolComponentsRegistries, Protocols }
 import io.gatling.core.session.Expression
 import io.gatling.core.structure.PopulationBuilder
 
-abstract class Simulation {
+object Simulation {
+  private[gatling] def params(
+      name: String,
+      _populationBuilders: List[PopulationBuilder],
+      _globalProtocols: Protocols,
+      _assertions: Seq[Assertion],
+      _maxDuration: Option[FiniteDuration],
+      _globalPauseType: PauseType,
+      _globalThrottleSteps: Iterable[ThrottleStep],
+      _before: () => Unit,
+      _after: () => Unit,
+      configuration: GatlingConfiguration
+  ): SimulationParams = {
+    require(!_populationBuilders.contains(null), "Populations can't contain null elements. Forward reference issue?")
 
-  private var _populationBuilders: List[PopulationBuilder] = Nil
-  private var _globalProtocols: Protocols = Map.empty
-  private var _assertions = Seq.empty[Assertion]
-  private var _maxDuration: Option[FiniteDuration] = None
-  private var _globalPauseType: PauseType = Constant
-  private var _globalThrottleSteps: Iterable[ThrottleStep] = Nil
-  private var _beforeSteps: List[() => Unit] = Nil
-  private var _afterSteps: List[() => Unit] = Nil
-
-  def before(step: => Unit): Unit =
-    _beforeSteps = _beforeSteps ::: List(() => step)
-
-  def setUp(populationBuilders: PopulationBuilder*): SetUp = setUp(populationBuilders.toList)
-
-  def setUp(populationBuilders: List[PopulationBuilder]): SetUp = {
-    if (_populationBuilders.nonEmpty)
-      throw new UnsupportedOperationException("setUp can only be called once")
-    _populationBuilders = populationBuilders
-    new SetUp
-  }
-
-  def after(step: => Unit): Unit =
-    _afterSteps = _afterSteps ::: List(() => step)
-
-  class SetUp {
-
-    def protocols(ps: Protocol*): SetUp = protocols(ps.toIterable)
-
-    def protocols(ps: Iterable[Protocol]): SetUp = {
-      _globalProtocols = _globalProtocols ++ Protocol.indexByType(ps)
-      this
-    }
-
-    def assertions(asserts: Assertion*): SetUp = assertions(asserts.toIterable)
-
-    def assertions(asserts: Iterable[Assertion]): SetUp = {
-      _assertions = _assertions ++ asserts
-      this
-    }
-
-    def maxDuration(duration: FiniteDuration): SetUp = {
-      _maxDuration = Some(duration)
-      this
-    }
-
-    def throttle(throttleSteps: ThrottleStep*): SetUp = throttle(throttleSteps.toIterable)
-
-    def throttle(throttleSteps: Iterable[ThrottleStep]): SetUp = {
-      _globalThrottleSteps = throttleSteps
-      this
-    }
-
-    def disablePauses: SetUp = pauses(Disabled)
-    def constantPauses: SetUp = pauses(Constant)
-    def exponentialPauses: SetUp = pauses(Exponential)
-    def customPauses(custom: Expression[Long]): SetUp = pauses(new Custom(custom))
-    def uniformPauses(plusOrMinus: Double): SetUp = pauses(new UniformPercentage(plusOrMinus))
-    def uniformPauses(plusOrMinus: Duration): SetUp = pauses(new UniformDuration(plusOrMinus))
-    def pauses(pauseType: PauseType): SetUp = {
-      _globalPauseType = pauseType
-      this
-    }
-  }
-
-  private def resolvePopulationBuilders(populationBuilders: List[PopulationBuilder], configuration: GatlingConfiguration): List[PopulationBuilder] =
-    configuration.resolve(
-      // [fl]
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      // [fl]
-      _populationBuilders
-    )
-
-  private def resolveThrottleSteps(steps: Iterable[ThrottleStep], configuration: GatlingConfiguration): Iterable[ThrottleStep] =
-    configuration.resolve(
-      // [fl]
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      // [fl]
-      steps
-    )
-
-  private[gatling] def params(configuration: GatlingConfiguration): SimulationParams = {
-
-    val rootPopulationBuilders = resolvePopulationBuilders(_populationBuilders, configuration)
+    val rootPopulationBuilders = _populationBuilders
     require(rootPopulationBuilders.nonEmpty, "No scenario set up")
 
-    val childrenPopulationBuilders = PopulationBuilder.groupChildrenByParent(rootPopulationBuilders)
-    val allPopulationBuilders = childrenPopulationBuilders.values.flatten
+    val allPopulationBuilders = PopulationBuilder.flatten(rootPopulationBuilders)
 
     val duplicates =
       allPopulationBuilders
         .groupBy(_.scenarioBuilder.name)
-        .collect { case (name, scns) if scns.size > 1 => name }
+        .collect { case (name, scns) if scns.sizeIs > 1 => name }
     require(duplicates.isEmpty, s"Scenario names must be unique but found duplicates: $duplicates")
 
-    allPopulationBuilders.foreach(scn => require(scn.scenarioBuilder.actionBuilders.nonEmpty, s"Scenario ${scn.scenarioBuilder.name} is empty"))
+    allPopulationBuilders.foreach { scn =>
+      require(scn.scenarioBuilder.name.nonEmpty, "Scenario name cannot be empty")
+      require(scn.scenarioBuilder.actionBuilders.nonEmpty, s"Scenario ${scn.scenarioBuilder.name} is empty")
+    }
 
-    val scenarioThrottlings: Map[String, Throttling] = allPopulationBuilders.flatMap { scn =>
-      val steps = resolveThrottleSteps(scn.scenarioThrottleSteps, configuration)
+    val scenarioThrottlings: Map[String, Throttling] = allPopulationBuilders.flatMap { populationBuilder =>
+      val steps = populationBuilder.scenarioThrottleSteps
 
       if (steps.isEmpty) {
         Nil
       } else {
-        List(scn.scenarioBuilder.name -> Throttling(steps))
+        List(populationBuilder.scenarioBuilder.name -> Throttling(steps))
       }
     }.toMap
 
@@ -163,7 +73,7 @@ abstract class Simulation {
       if (_globalThrottleSteps.isEmpty) {
         None
       } else {
-        Some(Throttling(resolveThrottleSteps(_globalThrottleSteps, configuration)))
+        Some(Throttling(_globalThrottleSteps))
       }
 
     val maxDuration = {
@@ -177,40 +87,113 @@ abstract class Simulation {
     }
 
     new SimulationParams(
-      getClass.getName,
+      name,
       rootPopulationBuilders,
-      childrenPopulationBuilders,
       _globalProtocols,
       _globalPauseType,
       Throttlings(globalThrottling, scenarioThrottlings),
       maxDuration,
-      _assertions
+      _assertions,
+      _before,
+      _after
     )
   }
+}
 
-  private[gatling] def executeBefore(): Unit = _beforeSteps.foreach(_.apply())
-  private[gatling] def executeAfter(): Unit = _afterSteps.foreach(_.apply())
+abstract class Simulation {
+  private var _populationBuilders: List[PopulationBuilder] = Nil
+  private var _globalProtocols: Protocols = Map.empty
+  private var _assertions: Seq[Assertion] = Nil
+  private var _maxDuration: Option[FiniteDuration] = None
+  private var _globalPauseType: PauseType = Constant
+  private var _globalThrottleSteps: Iterable[ThrottleStep] = Nil
+  private var _beforeSteps: List[() => Unit] = Nil
+  private var _afterSteps: List[() => Unit] = Nil
+
+  def before(step: => Unit): Unit =
+    _beforeSteps +:= (() => step)
+
+  def after(step: => Unit): Unit =
+    _afterSteps +:= (() => step)
+
+  def setUp(populationBuilders: PopulationBuilder*): SetUp = setUp(populationBuilders.toList)
+
+  def setUp(populationBuilders: List[PopulationBuilder]): SetUp = {
+    require(_populationBuilders.isEmpty, "setUp can only be called once")
+    _populationBuilders = populationBuilders
+    new SetUp
+  }
+
+  class SetUp {
+    def protocols(ps: Protocol*): SetUp = protocols(ps.toList)
+
+    def protocols(ps: Iterable[Protocol]): SetUp = {
+      _globalProtocols = _globalProtocols ++ Protocol.indexByType(ps)
+      this
+    }
+
+    def assertions(asserts: Assertion*): SetUp = assertions(asserts.toList)
+
+    def assertions(asserts: Iterable[Assertion]): SetUp = {
+      _assertions = _assertions ++ asserts
+      this
+    }
+
+    def maxDuration(duration: FiniteDuration): SetUp = {
+      _maxDuration = Some(duration)
+      this
+    }
+
+    def throttle(throttleSteps: ThrottleStep*): SetUp = throttle(throttleSteps.toList)
+
+    def throttle(throttleSteps: Iterable[ThrottleStep]): SetUp = {
+      _globalThrottleSteps = throttleSteps
+      this
+    }
+
+    def disablePauses: SetUp = pauses(Disabled)
+    def constantPauses: SetUp = pauses(Constant)
+    def exponentialPauses: SetUp = pauses(Exponential)
+    def customPauses(custom: Expression[Long]): SetUp = pauses(new Custom(custom))
+    def uniformPauses(plusOrMinus: Double): SetUp = pauses(new UniformPercentage(plusOrMinus))
+    def uniformPauses(plusOrMinus: FiniteDuration): SetUp = pauses(new UniformDuration(plusOrMinus))
+    def pauses(pauseType: PauseType): SetUp = {
+      _globalPauseType = pauseType
+      this
+    }
+  }
+
+  private[gatling] def params(configuration: GatlingConfiguration): SimulationParams =
+    Simulation.params(
+      getClass.getName,
+      _populationBuilders,
+      _globalProtocols,
+      _assertions,
+      _maxDuration,
+      _globalPauseType,
+      _globalThrottleSteps,
+      () => _beforeSteps.reverse.foreach(_.apply()),
+      () => _afterSteps.reverse.foreach(_.apply()),
+      configuration
+    )
 }
 
 final class SimulationParams(
     val name: String,
     val rootPopulationBuilders: List[PopulationBuilder],
-    val childrenPopulationBuilders: Map[String, List[PopulationBuilder]],
     val globalProtocols: Protocols,
     val globalPauseType: PauseType,
     val throttlings: Throttlings,
     val maxDuration: Option[FiniteDuration],
-    val assertions: Seq[Assertion]
+    val assertions: Seq[Assertion],
+    val before: () => Unit,
+    val after: () => Unit
 ) {
-
   private def buildScenario(populationBuilder: PopulationBuilder, coreComponents: CoreComponents, protocolComponentsRegistries: ProtocolComponentsRegistries) =
     populationBuilder.build(coreComponents, protocolComponentsRegistries, globalPauseType, throttlings.global)
 
-  def scenarios(coreComponents: CoreComponents): Scenarios = {
+  def scenarioFlows(coreComponents: CoreComponents): ScenarioFlows[String, Scenario] = {
     val protocolComponentsRegistries = new ProtocolComponentsRegistries(coreComponents, globalProtocols)
-    val rootScenarios = rootPopulationBuilders.map(buildScenario(_, coreComponents, protocolComponentsRegistries))
-    val childrenScenarios = childrenPopulationBuilders.mapValues(_.map(buildScenario(_, coreComponents, protocolComponentsRegistries)))
-
-    new Scenarios(rootScenarios, childrenScenarios)
+    ScenarioFlows.fromNodes(rootPopulationBuilders.map(buildScenario(_, coreComponents, protocolComponentsRegistries)))
   }
 }

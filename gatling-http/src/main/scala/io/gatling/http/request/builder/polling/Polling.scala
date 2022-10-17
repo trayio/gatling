@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,12 @@ import io.gatling.http.action.polling.{ PollingStartBuilder, PollingStopBuilder 
 import io.gatling.http.request.builder.HttpRequestBuilder
 
 object Polling {
-  private val DefaultPollerName = SessionPrivateAttributes.PrivateAttributePrefix + "http.polling"
+  private val DefaultPollerName = SessionPrivateAttributes.generatePrivateAttribute("http.polling")
 
   val Default: Polling = new Polling(DefaultPollerName)
 }
 
 final class Polling(pollerName: String) {
-
   def pollerName(pollerName: String): Polling = new Polling(pollerName)
 
   def every(period: FiniteDuration): PollingEveryStep = new PollingEveryStep(pollerName, period)
@@ -39,7 +38,6 @@ final class Polling(pollerName: String) {
 }
 
 final class PollingEveryStep(pollerName: String, period: FiniteDuration) {
-
   def exec(requestBuilder: HttpRequestBuilder): HttpActionBuilder =
     new PollingStartBuilder(pollerName, period, requestBuilder)
 }

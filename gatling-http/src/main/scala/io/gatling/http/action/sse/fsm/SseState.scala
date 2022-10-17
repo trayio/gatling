@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,12 @@
 package io.gatling.http.action.sse.fsm
 
 import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.util.Throwables._
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.http.check.sse._
+
+import com.typesafe.scalalogging.StrictLogging
 
 object NextSseState {
   val DoNothing: () => Unit = () => {}
@@ -28,27 +31,45 @@ object NextSseState {
 @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
 final case class NextSseState(state: SseState, afterStateUpdate: () => Unit = NextSseState.DoNothing)
 
-abstract class SseState(fsm: SseFsm) {
+abstract class SseState(fsm: SseFsm) extends StrictLogging {
+  private val stateName = getClass.getSimpleName
 
-  import fsm._
+  def onSseStreamConnected(timestamp: Long): NextSseState =
+    onIllegalState(s"Can't call onSseStreamConnected in $stateName state", timestamp)
 
-  def onPerformInitialConnect(session: Session, initialConnectNext: Action): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
-  def onSseStreamConnected(stream: SseStream, timestamp: Long): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
   def onSetCheck(actionName: String, checkSequences: List[SseMessageCheckSequence], session: Session, next: Action): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
+    onIllegalState(s"Can't call onSetCheck in $stateName state", fsm.clock.nowMillis)
+
   def onSseReceived(message: String, timestamp: Long): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
-  def onSseStreamClosed(timestamp: Long): NextSseState = throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
-  def onSseStreamCrashed(t: Throwable, timestamp: Long): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
+    onIllegalState(s"Can't call onSseReceived in $stateName state", timestamp)
+
+  def onSseEndOfStream(timestamp: Long): NextSseState =
+    onIllegalState(s"Can't call onSseEndOfStream in $stateName state", timestamp)
+
+  def onSseStreamClosed(timestamp: Long): NextSseState =
+    onIllegalState(s"Can't call onSseStreamClosed in $stateName state", timestamp)
+
   def onClientCloseRequest(actionName: String, session: Session, next: Action): NextSseState =
-    throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
-  def onTimeout(): NextSseState = throw new IllegalStateException(s"Can't call onSendTextFrame in ${getClass.getSimpleName} state")
+    onIllegalState(s"Can't call onClientCloseRequest in $stateName state", fsm.clock.nowMillis)
+
+  def onTimeout(): NextSseState =
+    onIllegalState(s"Can't call onTimeout in $stateName state", fsm.clock.nowMillis)
+
+  private def onIllegalState(message: String, timestamp: Long): NextSseState = {
+    fsm.cancelTimeout()
+    val error = new IllegalStateException(message)
+    logger.error(error.getMessage, error)
+    onSseStreamCrashed(error, timestamp)
+  }
+
+  def onSseStreamCrashed(t: Throwable, timestamp: Long): NextSseState = {
+    fsm.cancelTimeout()
+    logger.debug(s"SSE crashed by the server while in $stateName state", t)
+    NextSseState(new SseCrashedState(fsm, t.rootMessage))
+  }
 
   protected def logUnmatchedServerMessage(session: Session): Unit =
-    statsEngine.logResponse(session, wsName, clock.nowMillis, Long.MinValue, OK, None, None)
+    fsm.statsEngine.logResponse(session.scenario, session.groups, fsm.sseName, fsm.clock.nowMillis, Long.MinValue, OK, None, None)
 
   protected def logResponse(
       session: Session,
@@ -61,14 +82,14 @@ abstract class SseState(fsm: SseFsm) {
   ): Session = {
     val newSession = session.logGroupRequestTimings(start, end)
     val newSessionWithMark = if (status == KO) newSession.markAsFailed else newSession
-    statsEngine.logResponse(newSessionWithMark, actionName, start, end, status, code, reason)
+    fsm.statsEngine.logResponse(session.scenario, session.groups, actionName, start, end, status, code, reason)
     newSessionWithMark
   }
 
-  //[fl]
+  // [e]
   //
   //
-  //[fl]
+  // [e]
 
   protected def setCheckNextAction(session: Session, setCheck: SetCheck): () => Unit =
     () => fsm.onSetCheck(setCheck.actionName, setCheck.checkSequences, session, setCheck.next)

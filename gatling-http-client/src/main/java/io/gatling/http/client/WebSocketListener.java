@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,5 @@ public abstract class WebSocketListener implements HttpListener, WebSocket {
   }
 
   @Override
-  public void onHttpResponseBodyChunk(ByteBuf chunk, boolean last) {
-  }
+  public void onHttpResponseBodyChunk(ByteBuf chunk, boolean last) {}
 }

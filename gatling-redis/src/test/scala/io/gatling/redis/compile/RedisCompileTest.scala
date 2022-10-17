@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,14 @@ package io.gatling.redis.compile
 import io.gatling.core.Predef._
 import io.gatling.redis.Predef._
 
-class JdbcCompileTest extends Simulation {
+import com.redis.RedisClientPool
 
-  redisFeeder(???, "key")
+class RedisCompileTest extends Simulation {
+  private val redisPool = new RedisClientPool("localhost", 6379)
+
+  redisFeeder(redisPool, "key")
+
+  after {
+    redisPool.close()
+  }
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2011-2016 GatlingCorp (http://gatling.io)
+# Copyright 2011-2022 GatlingCorp (http://gatling.io)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 if [ -n "$JAVA_HOME" ]; then
     JAVA="$JAVA_HOME"/bin/java
 else
     JAVA=java
 fi
 
-OLDDIR=`pwd`
-BIN_DIR=`dirname $0`
-cd "${BIN_DIR}/.." && DEFAULT_GATLING_HOME=`pwd` && cd "${OLDDIR}"
+OLDDIR=$(pwd)
+BIN_DIR=$(dirname "$0")
+cd "${BIN_DIR}/.." && DEFAULT_GATLING_HOME=$(pwd) && cd "${OLDDIR}"
 
 GATLING_HOME="${GATLING_HOME:=${DEFAULT_GATLING_HOME}}"
-GATLING_CONF="${GATLING_CONF:=$GATLING_HOME/conf}"
 
-export GATLING_HOME GATLING_CONF
+export GATLING_HOME
 
-echo "GATLING_HOME is set to ${GATLING_HOME}"
+JAVA_OPTS="${JAVA_OPTS} -Xms32M -Xmx128M"
 
-JAVA_OPTS="${JAVA_OPTS} -Xms512M -Xmx512M -Xmn100M"
+# Setup classpath
+CLASSPATH="$GATLING_HOME/lib/*"
 
-CLASSPATH="$GATLING_HOME/lib/*:$GATLING_CONF:${JAVA_CLASSPATH}"
-
-"$JAVA" $JAVA_OPTS -cp "$CLASSPATH" io.gatling.recorder.GatlingRecorder "$@"
+"$JAVA" $JAVA_OPTS -cp "$CLASSPATH" io.gatling.bundle.RecorderCLI "$@"

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 package io.gatling.jms
 
 import javax.jms.{ BytesMessage, Message, TextMessage }
+
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
 
 trait MockMessage extends MockitoSugar {
-
   def textMessage(text: String): TextMessage = {
     val msg = mock[TextMessage]
     when(msg.getText) thenReturn text

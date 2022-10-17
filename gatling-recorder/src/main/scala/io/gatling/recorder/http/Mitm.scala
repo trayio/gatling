@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,22 +31,20 @@ import io.gatling.recorder.http.ssl.SslServerContext
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.bootstrap.{ Bootstrap, ServerBootstrap }
+import io.netty.channel.{ Channel, ChannelInitializer, ChannelOption, EventLoopGroup }
 import io.netty.channel.group.{ ChannelGroup, DefaultChannelGroup }
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.nio.{ NioServerSocketChannel, NioSocketChannel }
-import io.netty.channel.{ Channel, ChannelInitializer, ChannelOption, EventLoopGroup }
 import io.netty.handler.codec.http._
 import io.netty.util.concurrent.GlobalEventExecutor
 
 object Mitm extends StrictLogging {
-
   val SslHandlerName = "ssl"
   val HttpCodecHandlerName = "http"
   val GatlingClientHandler = "gatling-client"
   val GatlingServerHandler = "gatling-server"
 
   def apply(controller: RecorderController, clock: Clock, config: RecorderConfiguration): Mitm = {
-
     import config.netty._
 
     val serverChannelGroup = new DefaultChannelGroup("Gatling_Recorder", GlobalEventExecutor.INSTANCE)
@@ -125,12 +123,11 @@ class Mitm(
     serverWorkerEventLoopGroup: EventLoopGroup,
     actorSystem: ActorSystem
 ) {
-
   def shutdown(): Unit = {
     clientEventLoopGroup.shutdownGracefully(0, 2, TimeUnit.SECONDS)
     serverChannelGroup.close.awaitUninterruptibly
     serverBossEventLoopGroup.shutdownGracefully(0, 2, TimeUnit.SECONDS)
     serverWorkerEventLoopGroup.shutdownGracefully(0, 2, TimeUnit.SECONDS)
-    Await.ready(actorSystem.terminate(), 2 seconds)
+    Await.ready(actorSystem.terminate(), 2.seconds)
   }
 }

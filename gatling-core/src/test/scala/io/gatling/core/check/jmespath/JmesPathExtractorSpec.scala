@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import io.gatling.core.check.jsonpath.JsonFilter
 import io.gatling.core.json.JsonParsers
 
 class JmesPathExtractorSpec extends BaseSpec with ValidationValues {
-
   private val jsonParsers = new JsonParsers
   private val jmesPaths = new JmesPaths(Long.MaxValue)
 

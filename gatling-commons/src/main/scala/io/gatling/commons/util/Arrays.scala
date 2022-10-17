@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import java.util.concurrent.ThreadLocalRandom
 import io.gatling.commons.util.Spire._
 
 object Arrays {
-
   private def swap[T](array: Array[T], i: Int, j: Int): Unit = {
     val tmp = array(i)
     array(i) = array(j)

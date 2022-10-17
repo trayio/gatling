@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import scala.util.control.NonFatal
 
 import io.gatling.commons.util.Clock
 import io.gatling.commons.util.Throwables._
-import io.gatling.commons.validation.Validation
+import io.gatling.commons.validation._
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 
@@ -31,36 +31,39 @@ import com.typesafe.scalalogging.StrictLogging
  * Top level abstraction in charge of executing concrete actions along a scenario, for example sending an HTTP request.
  */
 trait Action extends StrictLogging {
-
   def name: String
 
+  override def toString: String = name
+
   def !(session: Session): Unit = {
-    val evenLoop = session.eventLoop
-    if (evenLoop.inEventLoop) {
+    val eventLoop = session.eventLoop
+    if (eventLoop.inEventLoop) {
       execute(session)
-    } else {
-      evenLoop.execute(() => execute(session))
+    } else if (!eventLoop.isShutdown) {
+      eventLoop.execute(() => execute(session))
     }
   }
 
   /**
    * Core method executed when the Action received a Session message
    *
-   * @param session the session of the virtual user
-   * @return Nothing
+   * @param session
+   *   the session of the virtual user
+   * @return
+   *   Nothing
    */
   protected def execute(session: Session): Unit
 }
 
 /**
- * An Action that is to be chained with another.
- * Almost all Gatling Actions are Chainable.
- * For example, the final Action at the end of a scenario workflow is not.
+ * An Action that is to be chained with another. Almost all Gatling Actions are Chainable. For example, the final Action at the end of a scenario workflow is
+ * not.
  */
 trait ChainableAction extends Action {
 
   /**
-   * @return the next Action in the scenario workflow
+   * @return
+   *   the next Action in the scenario workflow
    */
   def next: Action
 
@@ -87,7 +90,6 @@ trait ChainableAction extends Action {
 }
 
 class ActorDelegatingAction(val name: String, actor: ActorRef) extends Action {
-
   def execute(session: Session): Unit = actor ! session
 }
 
@@ -95,7 +97,6 @@ class ActorDelegatingAction(val name: String, actor: ActorRef) extends Action {
  * An Action that can trigger a forced exit and bypass regular workflow.
  */
 trait ExitableAction extends ChainableAction {
-
   def statsEngine: StatsEngine
   def clock: Clock
 
@@ -107,25 +108,32 @@ trait ExitableAction extends ChainableAction {
 }
 
 trait RequestAction extends ExitableAction {
-
   def requestName: Expression[String]
-  def sendRequest(requestName: String, session: Session): Validation[Unit]
+  def sendRequest(session: Session): Validation[Unit]
 
-  override def execute(session: Session): Unit = recover(session) {
-    requestName(session).flatMap { resolvedRequestName =>
-      val outcome =
-        try {
-          sendRequest(resolvedRequestName, session)
-        } catch {
-          case NonFatal(e) =>
-            statsEngine.reportUnbuildableRequest(session, resolvedRequestName, e.detailedMessage)
-            // rethrow so we trigger exception handling in "ChainableAction!"
-            throw e
-        }
-      outcome.onFailure { errorMessage =>
-        statsEngine.reportUnbuildableRequest(session, resolvedRequestName, errorMessage)
-      }
-      outcome
+  private def reportUnbuildableRequest(session: Session, error: String): Unit = {
+    val loggedName = requestName(session) match {
+      case Success(requestNameValue) =>
+        statsEngine.reportUnbuildableRequest(session.scenario, session.groups, error, requestNameValue)
+        requestNameValue
+      case _ =>
+        name
     }
+    logger.error(s"'$loggedName' failed to execute: $error")
   }
+
+  override def execute(session: Session): Unit =
+    try {
+      sendRequest(session) match {
+        case Failure(error) =>
+          reportUnbuildableRequest(session, error)
+          next ! session.markAsFailed
+        case _ =>
+      }
+    } catch {
+      case NonFatal(e) =>
+        reportUnbuildableRequest(session, e.detailedMessage)
+        // rethrow so we trigger exception handling in "ChainableAction!"
+        throw e
+    }
 }

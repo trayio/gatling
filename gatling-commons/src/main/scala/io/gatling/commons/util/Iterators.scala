@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ final class InfiniteIterator[T](value: T) extends AbstractIterator[T] {
 }
 
 object CircularIterator {
-
   def apply[T](values: IndexedSeq[T], threadSafe: Boolean): Iterator[T] = values.length match {
     case 0 => Iterator.empty
     case 1 => new InfiniteIterator(values(0))

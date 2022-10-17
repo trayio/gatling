@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,23 +33,10 @@ private[inject] object InjectorData {
   final case class StartedData(
       controller: ActorRef,
       inProgressWorkloads: Map[String, Workload],
-      todoScenarios: List[Scenario],
-      pendingChildrenScenarios: Map[String, List[Scenario]],
+      readyScenarios: List[Scenario],
+      flows: ScenarioFlows[String, Scenario],
       timer: Cancellable
   ) extends InjectorData
 }
 
 private[inject] class InjectorFSM extends BaseActor with FSM[InjectorState, InjectorData]
-
-private[inject] class UserCounts {
-
-  private[this] var _started: Long = 0
-  private[this] var _stopped: Long = 0
-
-  def started: Long = _started
-
-  def incrementStarted(more: Long): Unit = _started += more
-  def incrementStopped(): Unit = _stopped += 1
-
-  def allStopped: Boolean = started == _stopped
-}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,50 +18,51 @@ package io.gatling.app
 
 import io.gatling.app.cli.StatusCode
 import io.gatling.charts.report.{ ReportsGenerationInputs, ReportsGenerator }
-import io.gatling.charts.stats.LogFileReader
-import io.gatling.commons.stats.assertion.{ AssertionResult, AssertionValidator }
+import io.gatling.charts.stats.{ LogFileData, LogFileReader }
+import io.gatling.commons.shared.unstable.model.stats.assertion.{ AssertionResult, AssertionValidator }
 import io.gatling.core.config.GatlingConfiguration
 
 private final class RunResultProcessor(configuration: GatlingConfiguration) {
-
-  private implicit val config: GatlingConfiguration = configuration
-
   def processRunResult(runResult: RunResult): StatusCode =
-    config.resolve(
-      // [fl]
-      //
-      // [fl]
-      initLogFileReader(runResult) match {
-        case Some(reader) =>
-          val assertionResults = AssertionValidator.validateAssertions(reader)
+    // [e]
+    //
+    //
+    //
+    // [e]
+    initLogFileData(runResult) match {
+      case Some(logFileData) =>
+        val assertionResults = AssertionValidator.validateAssertions(logFileData)
 
-          if (reportsGenerationEnabled) {
-            val reportsGenerationInputs = new ReportsGenerationInputs(runResult.runId, reader, assertionResults)
-            generateReports(reportsGenerationInputs)
-          }
+        if (reportsGenerationEnabled) {
+          val reportsGenerationInputs = new ReportsGenerationInputs(runResult.runId, logFileData, assertionResults)
+          generateReports(reportsGenerationInputs)
+        }
 
-          runStatus(assertionResults)
+        runStatus(assertionResults)
 
-        case _ =>
-          StatusCode.Success
-      }
-    )
+      case _ =>
+        StatusCode.Success
+    }
 
-  private def initLogFileReader(runResult: RunResult): Option[LogFileReader] =
-    if (reportsGenerationEnabled || runResult.hasAssertions)
-      Some(new LogFileReader(runResult.runId))
-    else
+  private def initLogFileData(runResult: RunResult): Option[LogFileData] =
+    if (reportsGenerationEnabled || runResult.hasAssertions) {
+      println("Parsing log file(s)...")
+      val logFileData = LogFileReader(runResult.runId, configuration).read()
+      println("Parsing log file(s) done")
+      Some(logFileData)
+    } else {
       None
+    }
 
   private def reportsGenerationEnabled: Boolean =
-    !configuration.charting.noReports && (configuration.core.directory.reportsOnly.isDefined || configuration.data.fileDataWriterEnabled)
+    configuration.core.directory.reportsOnly.isDefined || (configuration.data.fileDataWriterEnabled && !configuration.charting.noReports)
 
   private def generateReports(reportsGenerationInputs: ReportsGenerationInputs): Unit = {
     println("Generating reports...")
     val start = System.currentTimeMillis()
-    val indexFile = new ReportsGenerator().generateFor(reportsGenerationInputs)
+    val indexFile = new ReportsGenerator()(configuration).generateFor(reportsGenerationInputs)
     println(s"Reports generated in ${(System.currentTimeMillis() - start) / 1000}s.")
-    println(s"Please open the following file: ${indexFile.toFile}")
+    println(s"Please open the following file: ${indexFile.toUri}")
   }
 
   private def runStatus(assertionResults: List[AssertionResult]): StatusCode = {
@@ -70,7 +71,6 @@ private final class RunResultProcessor(configuration: GatlingConfiguration) {
       isValid && assertionResult.result
     }
 
-    if (consolidatedAssertionResult) StatusCode.Success
-    else StatusCode.AssertionsFailed
+    if (consolidatedAssertionResult) StatusCode.Success else StatusCode.AssertionsFailed
   }
 }

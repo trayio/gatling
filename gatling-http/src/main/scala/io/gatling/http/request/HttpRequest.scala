@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package io.gatling.http.request
 
+import java.nio.charset.Charset
+import java.security.MessageDigest
+
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
@@ -26,10 +29,12 @@ import io.gatling.http.protocol.HttpProtocol
 final case class HttpRequestConfig(
     checks: List[HttpCheck],
     responseTransformer: Option[ResponseTransformer],
-    maxRedirects: Int,
     throttled: Boolean,
     silent: Option[Boolean],
     followRedirect: Boolean,
+    digests: Map[String, MessageDigest],
+    storeBodyParts: Boolean,
+    defaultCharset: Charset,
     explicitResources: List[HttpRequestDef],
     httpProtocol: HttpProtocol
 )
@@ -39,27 +44,17 @@ final case class HttpRequestDef(
     clientRequest: Expression[Request],
     requestConfig: HttpRequestConfig
 ) {
-
-  def build(requestName: String, session: Session): Validation[HttpRequest] =
-    clientRequest(session).map(HttpRequest(requestName, _, requestConfig))
+  def build(session: Session): Validation[HttpRequest] =
+    clientRequest(session).map(request => HttpRequest(request.getName, request, requestConfig))
 }
 
 final case class HttpRequest(requestName: String, clientRequest: Request, requestConfig: HttpRequestConfig) {
-
-  def isSilent(root: Boolean): Boolean = {
-
-    val requestPart = requestConfig.httpProtocol.requestPart
-
-    def silentBecauseProtocolSilentURI: Boolean = requestPart.silentUri match {
-      case Some(silentUri) => silentUri.matcher(clientRequest.getUri.toUrl).matches
-      case _               => false
-    }
-
-    def silentBecauseProtocolSilentResources = !root && requestPart.silentResources
-
+  def isSilent(root: Boolean): Boolean =
     requestConfig.silent match {
       case Some(silent) => silent
-      case _            => silentBecauseProtocolSilentURI || silentBecauseProtocolSilentResources
+      case _ =>
+        val requestPart = requestConfig.httpProtocol.requestPart
+        requestPart.silentUri.exists(_.matcher(clientRequest.getUri.toUrl).matches) || // silent because matches protocol's silentUri
+        (!root && requestPart.silentResources) // silent because resources are silent
     }
-  }
 }

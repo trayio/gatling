@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ package io.gatling.core.check.stream
 import java.io.InputStream
 
 import io.gatling.commons.validation._
-import io.gatling.core.check.{ DefaultFindCheckBuilder, FindExtractor }
+import io.gatling.core.check.{ CheckBuilder, FindExtractor }
 import io.gatling.core.session._
 
-trait BodyStreamCheckType
+sealed trait BodyStreamCheckType
 
 object BodyStreamCheckBuilder
-    extends DefaultFindCheckBuilder[BodyStreamCheckType, () => InputStream, InputStream](
+    extends CheckBuilder.Find.Default[BodyStreamCheckType, () => InputStream, InputStream](
       extractor = new FindExtractor[() => InputStream, InputStream]("bodyStream", isSource => Some(isSource()).success).expressionSuccess,
       displayActualValue = false
     )

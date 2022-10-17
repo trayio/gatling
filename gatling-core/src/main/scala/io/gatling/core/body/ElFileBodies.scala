@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,9 @@ import io.gatling.core.util.cache.Cache
 
 import com.github.benmanes.caffeine.cache.LoadingCache
 
-class ElFileBodies(resourcesDirectory: Path, charset: Charset, cacheMaxCapacity: Long) extends ResourceCache {
-
+final class ElFileBodies(customResourcesDirectory: Option[Path], charset: Charset, cacheMaxCapacity: Long) extends ResourceCache {
   private def compileFile(path: String): Validation[List[ElBody.ElBodyPart]] =
-    cachedResource(resourcesDirectory, path).flatMap { resource =>
+    cachedResource(customResourcesDirectory, path).flatMap { resource =>
       safely() {
         val string = resource.string(charset)
         ElBody.toParts(string, charset).success
@@ -53,6 +52,5 @@ class ElFileBodies(resourcesDirectory: Path, charset: Charset, cacheMaxCapacity:
             path <- filePath(session)
             expression <- elFileBodyPartsCache.get(path)
           } yield expression
-
     }
 }

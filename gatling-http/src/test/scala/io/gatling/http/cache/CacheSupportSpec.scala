@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,77 +16,67 @@
 
 package io.gatling.http.cache
 
-import java.nio.charset.StandardCharsets.UTF_8
-
 import io.gatling.BaseSpec
 import io.gatling.commons.util.DefaultClock
 import io.gatling.core.CoreComponents
-import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.EmptySession
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
-import io.gatling.http.client.uri.Uri
 import io.gatling.http.client.{ Request, RequestBuilder }
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.engine.HttpEngine
 import io.gatling.http.engine.tx.HttpTx
-import io.gatling.http.protocol.HttpProtocol
+import io.gatling.http.protocol.{ HttpProtocol, HttpProtocolDnsPart }
 import io.gatling.http.request.{ HttpRequest, HttpRequestConfig }
-import io.gatling.http.{ HeaderNames, HeaderValues }
-import io.gatling.http.response.{ Response, ResponseBody }
 
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, EmptyHttpHeaders, HttpMethod, HttpResponseStatus }
+import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderNames, HttpHeaderValues, HttpMethod }
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 
-class CacheSupportSpec extends BaseSpec {
-
+class CacheSupportSpec extends BaseSpec with EmptySession {
   private val configuration = GatlingConfiguration.loadForTest()
-  private val clock = new DefaultClock
   private val coreComponents = new CoreComponents(null, null, null, null, null, new DefaultClock, null, configuration)
   private val httpCaches = new HttpCaches(coreComponents)
 
   class CacheContext {
-
-    private val request = new RequestBuilder(HttpMethod.GET, Uri.create("http://localhost"))
-      .build()
-
-    def getResponseExpire(headers: Seq[(String, String)]): Option[Long] = {
-      val status = mock[HttpResponseStatus]
-      val body = mock[ResponseBody]
-      val headersMap = new DefaultHttpHeaders
-      headers.foreach { case (headerName, headerValue) => headersMap.add(headerName, headerValue) }
-      val response = Response(request, EmptyHttpHeaders.INSTANCE, -1, -1, status, headersMap, body, Map.empty, 0, UTF_8, isHttp2 = false)
-
-      httpCaches.getResponseExpires(response)
+    def getResponseExpire(headers: Seq[(CharSequence, CharSequence)]): Option[Long] = {
+      val httpHeaders = new DefaultHttpHeaders
+      headers.foreach { case (headerName, headerValue) => httpHeaders.add(headerName, headerValue) }
+      httpCaches.getResponseExpires(httpHeaders)
     }
   }
 
   "getResponseExpires()" should "correctly support Pragma header" in new CacheContext {
-    getResponseExpire(List(HeaderNames.Pragma -> HeaderValues.NoCache)) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.PRAGMA -> HttpHeaderValues.NO_CACHE)) shouldBe None
   }
 
   it should "correctly support Cache-Control header" in new CacheContext {
-    getResponseExpire(List(HeaderNames.CacheControl -> "max-age=1")) shouldBe 'defined
-    getResponseExpire(List(HeaderNames.CacheControl -> "private, max-age=3600, must-revalidate")) shouldBe 'defined
-    getResponseExpire(List(HeaderNames.CacheControl -> "public, no-cache")) shouldBe None
-    getResponseExpire(List(HeaderNames.CacheControl -> "public, max-age=-1")) shouldBe None
-    getResponseExpire(List(HeaderNames.CacheControl -> "public, max-age=0")) shouldBe None
-    getResponseExpire(List(HeaderNames.CacheControl -> HeaderValues.NoStore)) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> "max-age=1")) shouldBe Symbol("defined")
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> "private, max-age=3600, must-revalidate")) shouldBe Symbol("defined")
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> "public, no-cache")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> "public, max-age=-1")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> "public, max-age=0")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.CACHE_CONTROL -> HttpHeaderValues.NO_STORE)) shouldBe None
   }
 
   it should "correctly support Expires header" in new CacheContext {
-    getResponseExpire(List(HeaderNames.Expires -> "Sun, 16 Oct 2033 21:56:44 GMT")) shouldBe 'defined
+    getResponseExpire(List(HttpHeaderNames.EXPIRES -> "Sun, 16 Oct 2033 21:56:44 GMT")) shouldBe Symbol("defined")
   }
 
   it should "give priority to Cache-Control over Expires" in new CacheContext {
-    getResponseExpire(List(HeaderNames.Expires -> "Tue, 19 Jan 2038 03:14:06 GMT", HeaderNames.CacheControl -> HeaderValues.NoStore)) shouldBe None
-    getResponseExpire(List(HeaderNames.Expires -> "Tue, 19 Jan 2038 03:14:06 GMT", HeaderNames.CacheControl -> "max-age=-1")) shouldBe None
-    getResponseExpire(List(HeaderNames.Expires -> "Tue, 19 Jan 2038 03:14:06 GMT", HeaderNames.CacheControl -> "max-age=0")) shouldBe None
-    getResponseExpire(List(HeaderNames.Expires -> "Tue, 19 Jan 2038 03:14:06 GMT", HeaderNames.CacheControl -> "max-age=567")) shouldBe 'defined
+    getResponseExpire(
+      List(HttpHeaderNames.EXPIRES -> "Tue, 19 Jan 2038 03:14:06 GMT", HttpHeaderNames.CACHE_CONTROL -> HttpHeaderValues.NO_STORE)
+    ) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.EXPIRES -> "Tue, 19 Jan 2038 03:14:06 GMT", HttpHeaderNames.CACHE_CONTROL -> "max-age=-1")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.EXPIRES -> "Tue, 19 Jan 2038 03:14:06 GMT", HttpHeaderNames.CACHE_CONTROL -> "max-age=0")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.EXPIRES -> "Tue, 19 Jan 2038 03:14:06 GMT", HttpHeaderNames.CACHE_CONTROL -> "max-age=567")) shouldBe Symbol(
+      "defined"
+    )
   }
 
   it should "Pragma has priority over Cache-Control" in new CacheContext {
-    getResponseExpire(List(HeaderNames.Pragma -> HeaderValues.NoCache, HeaderNames.CacheControl -> "max-age=3600")) shouldBe None
-    getResponseExpire(List(HeaderNames.Pragma -> HeaderValues.NoCache, HeaderNames.Expires -> "3600")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.PRAGMA -> HttpHeaderValues.NO_CACHE, HttpHeaderNames.CACHE_CONTROL -> "max-age=3600")) shouldBe None
+    getResponseExpire(List(HttpHeaderNames.PRAGMA -> HttpHeaderValues.NO_CACHE, HttpHeaderNames.EXPIRES -> "3600")) shouldBe None
   }
 
   "extractExpiresValue()" should "supports Expires field format" in {
@@ -110,10 +100,10 @@ class CacheSupportSpec extends BaseSpec {
   }
 
   class RedirectContext {
-    var session: Session = EmptySession
+    var session: Session = emptySession
 
     def addRedirect(from: String, to: String): Unit = {
-      val request = new RequestBuilder(HttpMethod.GET, Uri.create(from))
+      val request = new RequestBuilder("request", HttpMethod.GET, Uri.create(from), null)
         .build()
       session = httpCaches.addRedirect(session, request, Uri.create(to))
     }
@@ -134,7 +124,6 @@ class CacheSupportSpec extends BaseSpec {
 
     tx.request.clientRequest.getUri shouldBe Uri.create("http://gatling.io/")
     tx.redirectCount shouldBe 1
-
   }
 
   it should "return updated transaction with several redirects" in new RedirectContext {
@@ -147,7 +136,6 @@ class CacheSupportSpec extends BaseSpec {
 
     tx.request.clientRequest.getUri shouldBe Uri.create("http://gatling3.io/")
     tx.redirectCount shouldBe 3
-
   }
 
   it should "return updated transaction with several redirects, with redirectCount preset" in new RedirectContext {
@@ -171,7 +159,7 @@ class CacheSupportSpec extends BaseSpec {
 
     when(request.getUri) thenReturn Uri.create(uri)
     when(request.getHeaders) thenReturn new DefaultHttpHeaders
-    when(caches.setNameResolver(any[HttpProtocol], any[HttpEngine])) thenReturn identity[Session] _
+    when(caches.setNameResolver(any[HttpProtocolDnsPart], any[HttpEngine])) thenReturn identity[Session] _
 
     HttpTx(
       session,
@@ -181,15 +169,16 @@ class CacheSupportSpec extends BaseSpec {
         requestConfig = HttpRequestConfig(
           checks = Nil,
           responseTransformer = None,
-          maxRedirects = 10,
           throttled = false,
           silent = None,
           followRedirect = true,
+          digests = Map.empty,
+          storeBodyParts = false,
+          defaultCharset = configuration.core.charset,
           httpProtocol = protocol,
           explicitResources = Nil
         )
       ),
-      responseBuilderFactory = null,
       next = null,
       resourceTx = None,
       redirectCount = redirectCount

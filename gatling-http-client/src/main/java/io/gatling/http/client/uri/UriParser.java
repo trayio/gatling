@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,8 @@
 // Unless required by applicable law or agreed to in writing,
 // software distributed under the Apache License Version 2.0 is distributed on an
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+// See the Apache License Version 2.0 for the specific language governing permissions and
+// limitations there under.
 //
 
 package io.gatling.http.client.uri;
@@ -33,16 +34,18 @@ package io.gatling.http.client.uri;
 import static io.gatling.http.client.util.Assertions.assertNotNull;
 import static io.gatling.http.client.util.MiscUtils.isNonEmpty;
 
+import java.util.Locale;
+
 final class UriParser {
 
-  public String scheme;
-  public String host;
-  public int port = -1;
-  public String query;
-  public String fragment;
+  String scheme;
+  String host;
+  int port = -1;
+  String query;
+  String fragment;
   private String authority;
-  public String path;
-  public String userInfo;
+  String path;
+  String userInfo;
 
   private String originalUrl;
   private int start, end, currentIndex = 0;
@@ -82,7 +85,9 @@ final class UriParser {
   }
 
   private boolean isValidProtocol(String protocol) {
-    return protocol.length() > 0 && Character.isLetter(protocol.charAt(0)) && isValidProtocolChars(protocol);
+    return protocol.length() > 0
+        && Character.isLetter(protocol.charAt(0))
+        && isValidProtocolChars(protocol);
   }
 
   private void computeInitialScheme() {
@@ -91,7 +96,7 @@ final class UriParser {
       if (c == ':') {
         String s = originalUrl.substring(currentIndex, i);
         if (isValidProtocol(s)) {
-          scheme = s.toLowerCase();
+          scheme = s.toLowerCase(Locale.ROOT);
           currentIndex = i + 1;
         }
         break;
@@ -202,7 +207,6 @@ final class UriParser {
   private void computeIPV6() {
     int positionAfterClosingSquareBrace = host.indexOf(']') + 1;
     if (positionAfterClosingSquareBrace > 1) {
-
       port = -1;
 
       if (host.length() > positionAfterClosingSquareBrace) {
@@ -230,8 +234,7 @@ final class UriParser {
     if (colonPosition >= 0) {
       // see RFC2396: port can be null
       int portPosition = colonPosition + 1;
-      if (host.length() > portPosition)
-        port = Integer.parseInt(host.substring(portPosition));
+      if (host.length() > portPosition) port = Integer.parseInt(host.substring(portPosition));
       host = host.substring(0, colonPosition);
     }
   }
@@ -296,7 +299,7 @@ final class UriParser {
   private void handleConsecutiveSlashes() {
     StringBuilder sb = null;
     boolean inSlashSequence = false;
-    for (int i = 0; i < path.length(); i ++) {
+    for (int i = 0; i < path.length(); i++) {
       char c = path.charAt(i);
       if (c == '/') {
         if (inSlashSequence) {

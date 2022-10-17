@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,15 +28,13 @@ class PollingStartBuilder(
     period: FiniteDuration,
     requestBuilder: HttpRequestBuilder
 ) extends HttpActionBuilder {
-
   override def build(ctx: ScenarioContext, next: Action): Action = {
-    import ctx._
-    val httpComponents = lookUpHttpComponents(protocolComponentsRegistry)
-    val requestDef = requestBuilder.build(httpComponents.httpCaches, httpComponents.httpProtocol, throttled, coreComponents.configuration)
+    val httpComponents = lookUpHttpComponents(ctx.protocolComponentsRegistry)
+    val requestDef = requestBuilder.build(httpComponents.httpCaches, httpComponents.httpProtocol, ctx.throttled, ctx.coreComponents.configuration)
     new PollingStart(
       pollerName,
       period,
-      coreComponents,
+      ctx.coreComponents,
       requestDef,
       httpComponents.httpCaches,
       httpComponents.httpProtocol,
@@ -47,7 +45,6 @@ class PollingStartBuilder(
 }
 
 class PollingStopBuilder(pollerName: String) extends HttpActionBuilder {
-
   override def build(ctx: ScenarioContext, next: Action): Action =
     new PollingStop(pollerName, ctx.coreComponents.statsEngine, ctx.coreComponents.clock, next)
 }

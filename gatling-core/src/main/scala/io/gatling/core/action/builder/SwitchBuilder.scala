@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,21 @@
 
 package io.gatling.core.action.builder
 
-import scala.collection.breakOut
-
 import io.gatling.core.action.{ Action, Switch }
 import io.gatling.core.session._
 import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
 import io.gatling.core.util.NameGen
 
-class SwitchBuilder(value: Expression[Any], possibilities: List[(Any, ChainBuilder)], elseNext: Option[ChainBuilder]) extends ActionBuilder with NameGen {
-
-  require(possibilities.size >= 2, "Switch requires at least 2 possibilities")
+private[core] final class SwitchBuilder(value: Expression[Any], possibilities: List[(Any, ChainBuilder)], elseNext: Option[ChainBuilder])
+    extends ActionBuilder
+    with NameGen {
+  require(possibilities.sizeIs >= 2, "Switch requires at least 2 possibilities")
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
-
-    val possibleActions: Map[Any, Action] = possibilities.map {
-      case (value, possibility) =>
-        val possibilityAction = possibility.build(ctx, next)
-        (value, possibilityAction)
-    }(breakOut)
+    val possibleActions: Map[Any, Action] = possibilities.map { case (value, possibility) =>
+      val possibilityAction = possibility.build(ctx, next)
+      (value, possibilityAction)
+    }.toMap
 
     val elseNextAction = elseNext.map(_.build(ctx, next)).getOrElse(next)
 

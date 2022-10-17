@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,19 +27,18 @@ import io.gatling.core.json.JsonParsers
 import com.fasterxml.jackson.databind.JsonNode
 
 trait SseCheckSupport {
-
-  implicit def checkBuilder2SseCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
+  implicit def checkBuilder2SseCheck[T, P](checkBuilder: CheckBuilder[T, P])(implicit materializer: CheckMaterializer[T, SseCheck, String, P]): SseCheck =
     checkBuilder.build(materializer)
 
-  implicit def validatorCheckBuilder2SseCheck[A, P, X](
-      validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]
-  )(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
-    validatorCheckBuilder.exists
+  implicit def validate2SseCheck[T, P, X](
+      validate: CheckBuilder.Validate[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, SseCheck, String, P]): SseCheck =
+    validate.exists
 
-  implicit def findCheckBuilder2SseCheck[A, P, X](
-      findCheckBuilder: FindCheckBuilder[A, P, X]
-  )(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
-    findCheckBuilder.find.exists
+  implicit def find2SseCheck[T, P, X](
+      find: CheckBuilder.Find[T, P, X]
+  )(implicit materializer: CheckMaterializer[T, SseCheck, String, P]): SseCheck =
+    find.find.exists
 
   implicit def sseJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JsonPathCheckType, SseCheck, String, JsonNode] =
     SseCheckMaterializer.jsonPath(jsonParsers)
@@ -54,4 +53,8 @@ trait SseCheckSupport {
 
   implicit val sseBodyStringCheckMaterializer: CheckMaterializer[BodyStringCheckType, SseCheck, String, String] =
     SseCheckMaterializer.BodyString
+
+  implicit val sseUntypedCheckIfMaker: UntypedCheckIfMaker[SseCheck] = _.checkIf(_)
+
+  implicit val sseTypedCheckIfMaker: TypedCheckIfMaker[String, SseCheck] = _.checkIf(_)
 }

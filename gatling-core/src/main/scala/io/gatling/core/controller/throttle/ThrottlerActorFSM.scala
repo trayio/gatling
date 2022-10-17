@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,25 +23,23 @@ import io.gatling.core.akka.BaseActor
 
 import akka.actor.FSM
 
-private[throttle] object ThrottlerActorState {
+private object ThrottlerActorState {
   private[throttle] case object WaitingToStart extends ThrottlerActorState
   private[throttle] case object Started extends ThrottlerActorState
 }
-private[throttle] sealed trait ThrottlerActorState
+private sealed trait ThrottlerActorState
 
-private[throttle] object ThrottlerActorData {
+private object ThrottlerActorData {
   private[throttle] case object NoData extends ThrottlerActorData
 
   // mutable state is very ugly and error prone, but we're trying to limit allocations...
   private[throttle] final case class StartedData(throttles: Throttles, buffer: mutable.ArrayBuffer[ThrottledRequest], tickNanos: Long)
       extends ThrottlerActorData {
-
     var count: Int = 0
 
     def incrementCount(): Unit = count += 1
 
     val requestStep: Double = {
-
       val globalLimit = throttles.global.map(_.limit).getOrElse(Int.MaxValue)
       val perScenarioLimit =
         if (throttles.perScenario.isEmpty)
@@ -54,6 +52,6 @@ private[throttle] object ThrottlerActorData {
     }
   }
 }
-private[throttle] sealed trait ThrottlerActorData
+private sealed trait ThrottlerActorData
 
-private[throttle] class ThrottlerActorFSM extends BaseActor with FSM[ThrottlerActorState, ThrottlerActorData]
+private abstract class ThrottlerActorFSM extends BaseActor with FSM[ThrottlerActorState, ThrottlerActorData]

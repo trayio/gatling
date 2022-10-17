@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.commons.util
 import java.io.InputStream
 
 final class FastByteArrayInputStream(bytes: Array[Byte]) extends InputStream {
-
   private val length: Int = bytes.length
   private var position: Int = _
   private var mark: Int = _
@@ -52,7 +51,7 @@ final class FastByteArrayInputStream(bytes: Array[Byte]) extends InputStream {
     } else {
       val oldPosition = position
       position += 1
-      bytes(oldPosition) & 0xFF
+      bytes(oldPosition) & 0xff
     }
 
   override def read(b: Array[Byte], offset: Int, length: Int): Int =

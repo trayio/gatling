@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,23 +22,27 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 
-class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val clock: Clock, val name: String, val next: Action) extends ExitableAction {
+private final class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val clock: Clock, val name: String, val next: Action)
+    extends ExitableAction {
 
   /**
-   * Generates a duration if required or use the one given and defer
-   * next actor execution of this duration
+   * Generates a duration if required or use the one given and defer next actor execution of this duration
    *
-   * @param session the session of the virtual user
+   * @param session
+   *   the session of the virtual user
    */
   override def execute(session: Session): Unit = recover(session) {
-
     def schedule(durationInMillis: Long): Unit = {
       // can make pause
       logger.debug(s"Pausing for ${durationInMillis}ms")
 
-      session.eventLoop.schedule((() => {
-        next ! session
-      }): Runnable, durationInMillis, TimeUnit.MILLISECONDS)
+      session.eventLoop.schedule(
+        (() => {
+          next ! session
+        }): Runnable,
+        durationInMillis,
+        TimeUnit.MILLISECONDS
+      )
     }
 
     pauseDuration(session).map(schedule)

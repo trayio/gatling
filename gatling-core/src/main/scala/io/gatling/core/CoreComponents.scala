@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ final class CoreComponents(
     val actorSystem: ActorSystem,
     val eventLoopGroup: EventLoopGroup,
     val controller: ActorRef,
-    val throttler: Throttler,
+    val throttler: Option[Throttler],
     val statsEngine: StatsEngine,
     val clock: Clock,
     val exit: Action,

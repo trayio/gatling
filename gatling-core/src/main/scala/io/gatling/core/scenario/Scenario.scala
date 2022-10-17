@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,5 @@ final class Scenario(
     val onStart: Session => Session,
     val onExit: Session => Unit,
     val injectionProfile: InjectionProfile,
-    val ctx: ScenarioContext,
-    val children: Iterable[Scenario]
-)
-
-private[gatling] final class Scenarios(
-    val roots: List[Scenario],
-    val children: Map[String, List[Scenario]]
+    val ctx: ScenarioContext
 )

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.gatling.core.body
 
 import java.nio.file.Path
 
+import io.gatling.commons.validation.Validation
 import io.gatling.core.session.{ Expression, StaticValueExpression }
 import io.gatling.core.util.{ Resource, ResourceCache }
 import io.gatling.core.util.cache.Cache
@@ -26,8 +27,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache
 
 final case class ResourceAndCachedBytes(resource: Resource, cachedBytes: Option[Array[Byte]])
 
-class RawFileBodies(resourcesDirectory: Path, cacheMaxCapacity: Long) extends ResourceCache {
-
+final class RawFileBodies(customResourcesDirectory: Option[Path], cacheMaxCapacity: Long) extends ResourceCache {
   private val bytesCache: LoadingCache[Resource, Option[Array[Byte]]] = {
     val resourceToBytes: Resource => Option[Array[Byte]] = resource =>
       if (resource.file.length > cacheMaxCapacity) {
@@ -39,21 +39,18 @@ class RawFileBodies(resourcesDirectory: Path, cacheMaxCapacity: Long) extends Re
     Cache.newConcurrentLoadingCache(cacheMaxCapacity, resourceToBytes)
   }
 
+  private def asResourceAndCachedBytes(path: String): Validation[ResourceAndCachedBytes] =
+    for {
+      resource <- cachedResource(customResourcesDirectory, path)
+    } yield ResourceAndCachedBytes(resource, bytesCache.get(resource))
+
   def asResourceAndCachedBytes(filePath: Expression[String]): Expression[ResourceAndCachedBytes] =
     filePath match {
       case StaticValueExpression(path) =>
-        val resourceAndCachedBytes =
-          for {
-            resource <- cachedResource(resourcesDirectory, path)
-          } yield ResourceAndCachedBytes(resource, Some(resource.bytes))
-
-        _ => resourceAndCachedBytes
+        val staticResourceAndCachedBytes = asResourceAndCachedBytes(path)
+        _ => staticResourceAndCachedBytes
 
       case _ =>
-        session =>
-          for {
-            path <- filePath(session)
-            resource <- cachedResource(resourcesDirectory, path)
-          } yield ResourceAndCachedBytes(resource, bytesCache.get(resource))
+        filePath(_).flatMap(asResourceAndCachedBytes)
     }
 }

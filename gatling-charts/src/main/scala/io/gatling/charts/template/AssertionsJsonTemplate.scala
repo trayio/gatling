@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,10 @@
 
 package io.gatling.charts.template
 
-import io.gatling.commons.stats.assertion.AssertionResult
-import io.gatling.core.stats.writer.RunMessage
+import io.gatling.charts.stats.RunInfo
+import io.gatling.commons.shared.unstable.model.stats.assertion.AssertionResult
 
-private[charts] class AssertionsJsonTemplate(runMessage: RunMessage, scenarioNames: List[String], assertionResults: List[AssertionResult]) {
-
+private[charts] final class AssertionsJsonTemplate(runInfo: RunInfo, scenarioNames: List[String], assertionResults: List[AssertionResult]) {
   private[this] def print(assertionResult: AssertionResult): String = {
     import assertionResult._
     s"""{
@@ -34,16 +33,15 @@ private[charts] class AssertionsJsonTemplate(runMessage: RunMessage, scenarioNam
 }"""
   }
 
-  def getOutput: String = {
+  def getOutput: String =
     s"""{
-  "simulation": "${runMessage.simulationClassName}",
-  "simulationId": "${runMessage.simulationId}",
-  "start": ${runMessage.start},
-  "description": "${runMessage.runDescription}",
+  "simulation": "${runInfo.simulationClassName}",
+  "simulationId": "${runInfo.simulationId}",
+  "start": ${runInfo.injectStart},
+  "description": "${runInfo.runDescription}",
   "scenarios": [${scenarioNames.map(n => s""""$n"""").mkString(", ")}],
   "assertions": [
 ${assertionResults.map(print).mkString(",\n")}
   ]
 }"""
-  }
 }

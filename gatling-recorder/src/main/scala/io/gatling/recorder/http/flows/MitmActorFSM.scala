@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import io.netty.channel.Channel
 import io.netty.handler.codec.http.FullHttpRequest
 
 object Remote {
-
   def missingScheme(rawUri: String, https: Boolean): Option[String] =
     if (rawUri.startsWith("http")) {
       None
@@ -40,7 +39,6 @@ object Remote {
 }
 
 final case class Remote(host: String, port: Int) {
-
   def makeAbsoluteUri(rawUri: String, https: Boolean): String = {
     val sb = new StringBuilder
 
@@ -59,7 +57,6 @@ final case class Remote(host: String, port: Int) {
 }
 
 object MitmActorFSM {
-
   // state
   case object Init extends MitmActorState
   case object WaitingForClientChannelConnect extends MitmActorState

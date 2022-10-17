@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,21 +21,19 @@ import io.gatling.commons.stats.{ OK, Status }
 
 @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
 private[stats] class Counts(var oks: Int = 0, var kos: Int = 0) {
-
   def increment(status: Status): Unit = status match {
     case OK => oks += 1
     case _  => kos += 1
   }
 
-  def total = oks + kos
+  def total: Int = oks + kos
 }
 
 private[stats] class CountsBuffer(buckets: Array[Int]) {
   val counts: Array[Counts] = Array.fill(buckets.length)(new Counts)
 
-  def update(bucketNumber: Int, status: Status): Unit = {
+  def update(bucketNumber: Int, status: Status): Unit =
     counts(bucketNumber).increment(status)
-  }
 
   def distribution: Iterable[CountsVsTimePlot] =
     counts.view.zipWithIndex

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,12 @@ import io.gatling.commons.model.Credentials
 import com.softwaremill.quicklens._
 
 object ProxyBuilder {
-
   def apply(host: String, port: Int): ProxyBuilder = new ProxyBuilder(Proxy(host, port, port, HttpProxy, None))
 
   implicit def toProxy(proxyBuilder: ProxyBuilder): Proxy = proxyBuilder.proxy
 }
 
 final class ProxyBuilder(val proxy: Proxy) {
-
   def http: ProxyBuilder =
     new ProxyBuilder(proxy.modify(_.proxyType).setTo(HttpProxy))
 

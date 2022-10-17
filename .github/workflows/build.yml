@@ -1,0 +1,60 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      actions: write  # for styfle/cancel-workflow-action to cancel/stop running workflows
+      contents: read  # for actions/checkout to fetch code
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAVA_OPTS: "-Xmx6G"
+      SBT_OPTS: "-Dsbt.ci=true -Xss100M"
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.8.0
+        with:
+          access_token: ${{ github.token }}
+
+      - uses: actions/checkout@v2
+
+      - name: Setup JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'zulu'
+          java-version: '8'
+
+      - name: Cache SBT
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.ivy2/cache
+            ~/.cache/coursier
+            ~/.sbt/launchers
+            ~/.sbt/boot
+            ~/.sbt/preloaded
+          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt', '**/plugins.sbt', '**/build.properties') }}
+
+      - name: Test
+        run: |
+          sbt \
+            "all headerCheck" \
+            "all scalafmtSbtCheck" \
+            "all scalafmtCheckAll" \
+            "all spotlessCheck" \
+            "all scalafixAll --check" \
+            "test"

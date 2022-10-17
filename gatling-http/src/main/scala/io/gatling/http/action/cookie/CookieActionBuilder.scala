@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,14 @@
 
 package io.gatling.http.action.cookie
 
-import io.gatling.commons.validation._
 import io.gatling.core.session._
-import io.gatling.http.cache.HttpCaches
-import io.gatling.http.client.uri.Uri
+import io.gatling.http.cache.BaseUrlSupport
+import io.gatling.http.protocol.HttpProtocol
 
 object CookieActionBuilder {
-  private val NoBaseUrlFailure = "Neither cookie domain nor baseUrl nor wsBaseUrl".failure
+  private val NoBaseUrlFailure = "Neither cookie domain nor baseUrl nor wsBaseUrl".expressionFailure
   val DefaultPath: String = "/"
 
-  def defaultDomain(httpCaches: HttpCaches): Expression[String] =
-    session =>
-      httpCaches.baseUrl(session).orElse(httpCaches.wsBaseUrl(session)) match {
-        case Some(baseUrl) => Uri.create(baseUrl).getHost.success
-        case _             => NoBaseUrlFailure
-      }
+  def defaultDomain(httpProtocol: HttpProtocol): Expression[String] =
+    BaseUrlSupport.defaultDomain(httpProtocol, NoBaseUrlFailure)
 }

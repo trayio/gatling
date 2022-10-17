@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,22 @@
 
 package io.gatling.core.check.jmespath
 
+import io.gatling.core.check.CheckBuilder
 import io.gatling.core.check.jsonpath.JsonFilter
 import io.gatling.core.session._
 
-trait JsonpJmesPathCheckType
+import com.fasterxml.jackson.databind.JsonNode
+
+sealed trait JsonpJmesPathCheckType
 
 // we have to duplicate JmesPathCheckBuilder because traits can't take parameters (for now)
 // so we can't make CheckType a parameter
-trait JsonpJmesPathOfType { self: JsonpJmesPathCheckBuilder[String] =>
+sealed trait JsonpJmesPathOfType { self: JsonpJmesPathCheckBuilder[String] =>
 
-  def ofType[X: JsonFilter]: JsonpJmesPathCheckBuilder[X] = new JsonpJmesPathCheckBuilder[X](path, jmesPaths)
+  def ofType[X: JsonFilter]: CheckBuilder.Find[JsonpJmesPathCheckType, JsonNode, X] = new JsonpJmesPathCheckBuilder[X](path, jmesPaths)
 }
 
 object JsonpJmesPathCheckBuilder {
-
   def jsonpJmesPath(path: Expression[String], jmesPaths: JmesPaths): JsonpJmesPathCheckBuilder[String] with JsonpJmesPathOfType =
     new JsonpJmesPathCheckBuilder[String](path, jmesPaths) with JsonpJmesPathOfType
 }

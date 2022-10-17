@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,15 @@ package io.gatling.app.classloader
 import java.io.InputStream
 import java.net.{ URL, URLConnection }
 import java.nio.file.{ Files, Path, Paths }
-import java.security.cert.Certificate
 import java.security.{ CodeSource, ProtectionDomain }
+import java.security.cert.Certificate
 
 import scala.collection.mutable
 
+import io.gatling.commons.shared.unstable.util.PathHelper
 import io.gatling.commons.util.Io._
-import io.gatling.commons.util.PathHelper._
 
 private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) extends ClassLoader(parent) {
-
   private def classNameToPath(name: String): Path =
     if (name.endsWith(".class")) Paths.get(name)
     else Paths.get(name.replace('.', '/') + ".class")
@@ -37,8 +36,8 @@ private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) exten
     Paths.get(name.replace('.', '/'))
 
   private def findPath(path: Path): Option[Path] = {
-    val fullPath = root / path
-    if (fullPath.exists) Some(fullPath) else None
+    val fullPath = root.resolve(path)
+    if (Files.exists(fullPath)) Some(fullPath) else None
   }
 
   override def findResource(name: String): URL =
@@ -49,20 +48,20 @@ private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) exten
         (url: URL) =>
           new URLConnection(url) {
             override def connect(): Unit = ()
-            override def getInputStream: InputStream = path.inputStream
+            override def getInputStream: InputStream = Files.newInputStream(path)
           }
       )
     }.orNull
 
   override def getResourceAsStream(name: String): InputStream = findPath(Paths.get(name)) match {
-    case Some(path) => path.inputStream
+    case Some(path) => Files.newInputStream(path)
     case _          => super.getResourceAsStream(name)
   }
 
   private def classAsStream(className: String): Option[InputStream] =
     Option(getResourceAsStream(className.replaceAll("""\.""", "/") + ".class"))
 
-  def classBytes(name: String): Array[Byte] = findPath(classNameToPath(name)) match {
+  private def classBytes(name: String): Array[Byte] = findPath(classNameToPath(name)) match {
     case Some(path) => Files.readAllBytes(path)
     case _ =>
       classAsStream(name) match {
@@ -103,9 +102,8 @@ private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) exten
       implVersion: String,
       implVendor: String,
       sealBase: URL
-  ): Package = {
+  ): Package =
     throw new UnsupportedOperationException()
-  }
 
   override def getPackage(name: String): Package = findPath(dirNameToPath(name)) match {
     case None => super.getPackage(name)
@@ -130,5 +128,5 @@ private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) exten
   }
 
   override def getPackages: Array[Package] =
-    root.deepDirs(_ => true).map(path => getPackage(path.toString)).toArray
+    PathHelper.deepDirs(root).map(path => getPackage(path.toString)).toArray
 }

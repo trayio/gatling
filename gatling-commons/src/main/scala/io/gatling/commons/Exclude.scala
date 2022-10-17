@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,10 @@
 
 package io.gatling.commons
 
-trait Exclude[Scope, X]
+sealed trait Exclude[Scope, T]
 
 object Exclude {
-  implicit def NOT_FOR_USER_CODE[X, A]: Exclude[X, A] = new Exclude[X, A] {}
-  @SuppressWarnings(Array("org.wartremover.warts.PublicInference"))
-  def list[X] = new {
-    def apply[A]: Exclude[X, A] = NOT_FOR_USER_CODE[X, A]
-  }
+  private val Instance: Exclude[Any, Any] = new Exclude[Any, Any] {}
+
+  implicit def apply[Scope, T]: Exclude[Scope, T] = Instance.asInstanceOf[Exclude[Scope, T]]
 }

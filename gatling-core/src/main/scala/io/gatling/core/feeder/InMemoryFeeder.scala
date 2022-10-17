@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ import java.util.concurrent.ThreadLocalRandom
 
 import io.gatling.commons.util.CircularIterator
 
-object InMemoryFeeder {
-
+private[gatling] object InMemoryFeeder {
   def apply[T](records: IndexedSeq[Record[T]], conversion: Option[Record[T] => Record[Any]], strategy: FeederStrategy): Feeder[Any] = {
     val convertedRecords = conversion match {
       case Some(f) => records.map(f)
@@ -29,10 +28,10 @@ object InMemoryFeeder {
     }
 
     strategy match {
-      case Queue    => convertedRecords.iterator
-      case Random   => Iterator.continually(convertedRecords(ThreadLocalRandom.current.nextInt(records.length)))
-      case Shuffle  => scala.util.Random.shuffle(convertedRecords).iterator
-      case Circular => CircularIterator(convertedRecords, threadSafe = false)
+      case FeederStrategy.Queue    => convertedRecords.iterator
+      case FeederStrategy.Random   => Iterator.continually(convertedRecords(ThreadLocalRandom.current.nextInt(records.length)))
+      case FeederStrategy.Shuffle  => scala.util.Random.shuffle(convertedRecords).iterator
+      case FeederStrategy.Circular => CircularIterator(convertedRecords, threadSafe = false)
     }
   }
 }

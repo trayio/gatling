@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.graphite.message
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import io.gatling.netty.util.StringBuilderPool
+import io.gatling.jdk.util.StringBuilderPool
 
 import akka.util.ByteString
 import com.typesafe.scalalogging.StrictLogging
@@ -26,13 +26,10 @@ import com.typesafe.scalalogging.StrictLogging
 private[graphite] final case class GraphiteMetrics(byteString: ByteString)
 
 private[graphite] object GraphiteMetrics extends StrictLogging {
-
   def apply(pathValuePairs: Iterator[(String, Long)], epoch: Long): GraphiteMetrics = {
-
     val sb = StringBuilderPool.DEFAULT.get()
-    pathValuePairs.foreach {
-      case (path, value) =>
-        sb.append(path).append(' ').append(value).append(' ').append(epoch).append('\n')
+    pathValuePairs.foreach { case (path, value) =>
+      sb.append(path).append(' ').append(value).append(' ').append(epoch).append('\n')
     }
     logger.debug(s"GraphiteMetrics=${sb.toString}")
     GraphiteMetrics(ByteString(sb.toString, UTF_8.name))

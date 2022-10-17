@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.http.client.proxy;
 import io.gatling.http.client.realm.BasicRealm;
 import io.netty.handler.proxy.ProxyHandler;
 import io.netty.handler.proxy.Socks5ProxyHandler;
-
 import java.net.UnknownHostException;
 
 public class Socks5ProxyServer extends SockProxyServer {
@@ -33,15 +32,21 @@ public class Socks5ProxyServer extends SockProxyServer {
 
   @Override
   public ProxyHandler newHandler() {
-    return realm != null ? new Socks5ProxyHandler(address, realm.getUsername(), realm.getPassword()) : new Socks5ProxyHandler(address);
+    return realm != null
+        ? new Socks5ProxyHandler(address, realm.getUsername(), realm.getPassword())
+        : new Socks5ProxyHandler(address);
   }
 
   @Override
   public String toString() {
-    return "Socks5ProxyServer{" +
-      "realm=" + realm +
-      ", host='" + host + '\'' +
-      ", port=" + port +
-      '}';
+    return "Socks5ProxyServer{"
+        + "realm="
+        + realm
+        + ", host='"
+        + host
+        + '\''
+        + ", port="
+        + port
+        + '}';
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,17 @@ package io.gatling.commons.util
 
 import java.nio.charset.StandardCharsets.UTF_8
 
+import scala.util.Using
+
 import io.gatling.BaseSpec
 import io.gatling.commons.util.Io._
 
 class CompositeByteArrayInputStreamSpec extends BaseSpec {
-
   "CompositeByteArrayInputStream" should "properly read full bytes" in {
     val bytes1 = "hello".getBytes(UTF_8)
     val bytes2 = " ".getBytes(UTF_8)
     val bytes3 = "world".getBytes(UTF_8)
-    val concat = withCloseable(new CompositeByteArrayInputStream(Seq(bytes1, bytes2, bytes3))) {
+    val concat = Using.resource(new CompositeByteArrayInputStream(Seq(bytes1, bytes2, bytes3))) {
       _.toString(UTF_8)
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,11 @@ import scala.util.control.NoStackTrace
 
 import io.gatling.BaseSpec
 import io.gatling.commons.validation._
+import io.gatling.core.EmptySession
 import io.gatling.core.session.Session
-import io.gatling.core.session.SessionSpec.EmptySession
 
-class ChainableActionSpec extends BaseSpec {
-
-  class ChainableTestAction(val next: Action, fail: Boolean) extends Action with ChainableAction {
+class ChainableActionSpec extends BaseSpec with EmptySession {
+  class ChainableTestAction(val next: Action, fail: Boolean) extends ChainableAction {
     var hasRun = false
 
     override val name = "chainable"
@@ -40,7 +39,7 @@ class ChainableActionSpec extends BaseSpec {
     override def execute(session: Session): Unit = message = session
   }
 
-  class FailableTestAction(val next: Action, fail: Boolean) extends Action with ChainableAction {
+  class FailableTestAction(val next: Action, fail: Boolean) extends ChainableAction {
     var hasRun = false
 
     override val name = "test"
@@ -59,7 +58,7 @@ class ChainableActionSpec extends BaseSpec {
     val testAction = new ChainableTestAction(next, fail = false)
 
     testAction.hasRun shouldBe false
-    testAction ! EmptySession
+    testAction ! emptySession
     testAction.hasRun shouldBe true
   }
 
@@ -67,8 +66,8 @@ class ChainableActionSpec extends BaseSpec {
     val next = new NextTestAction
     val testAction = new ChainableTestAction(next, fail = true)
 
-    testAction ! EmptySession
-    next.message shouldBe EmptySession.markAsFailed
+    testAction ! emptySession
+    next.message shouldBe emptySession.markAsFailed
   }
 
   "A Failable Action" should "call the execute method when receiving a Session" in {
@@ -77,7 +76,7 @@ class ChainableActionSpec extends BaseSpec {
 
     testAction.hasRun shouldBe false
 
-    testAction ! EmptySession
+    testAction ! emptySession
     testAction.hasRun shouldBe true
   }
 
@@ -85,7 +84,7 @@ class ChainableActionSpec extends BaseSpec {
     val next = new NextTestAction
     val testAction = new FailableTestAction(next, fail = true)
 
-    testAction ! EmptySession
-    next.message shouldBe EmptySession.markAsFailed
+    testAction ! emptySession
+    next.message shouldBe emptySession.markAsFailed
   }
 }

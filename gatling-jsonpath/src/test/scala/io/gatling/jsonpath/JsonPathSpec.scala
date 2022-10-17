@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package io.gatling.jsonpath
 
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
+import com.fasterxml.jackson.databind.node.{ BooleanNode, DoubleNode, IntNode, NullNode, TextNode }
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.{ MatchResult, Matcher }
 import org.scalatest.matchers.should.Matchers
-import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
-import com.fasterxml.jackson.databind.node.{ BooleanNode, DoubleNode, IntNode, NullNode, TextNode }
 
 class JsonPathSpec extends AnyFlatSpec with Matchers with JsonPathMatchers {
-
   private val mapper = new ObjectMapper
 
   private def parseJson(s: String) = mapper.readValue(s, classOf[JsonNode])
@@ -32,14 +31,6 @@ class JsonPathSpec extends AnyFlatSpec with Matchers with JsonPathMatchers {
   private def double(f: Double) = DoubleNode.valueOf(f)
   private def text(s: String) = TextNode.valueOf(s)
   private def nullNode: Any = NullNode.instance
-  //  def array(elts: Any*): JList[Any] = elts.asJava
-  //  def obj(elts: (String, Any)*) = {
-  //    val node = new ObjectNode
-  //    elts.foreach { case (key, value) =>
-  //      node.put(key, value)
-  //    }
-  //    node
-  //  }
 
   // Goessner JSON exemple
 
@@ -778,7 +769,7 @@ class JsonPathSpec extends AnyFlatSpec with Matchers with JsonPathMatchers {
   //////////////
 
   "Incorrect JsonPath expressions" should "be handled properly" in {
-    JsonPath.query("€.$", goessnerJson) should be('left)
+    JsonPath.query("€.$", goessnerJson) shouldBe Symbol("left")
   }
 
   "Keys starting with number" should "be handled properly" in {
@@ -1043,7 +1034,6 @@ class JsonPathSpec extends AnyFlatSpec with Matchers with JsonPathMatchers {
   /// Goessner reference examples ///////////////////////////////////////////
 
   "Goessner examples" should "work with finding all the authors" in {
-
     JsonPath.query("$.store.book[*].author", goessnerJson) should findOrderedElements(
       text("Nigel Rees"),
       text("Evelyn Waugh"),
@@ -1131,7 +1121,6 @@ class JsonPathSpec extends AnyFlatSpec with Matchers with JsonPathMatchers {
       text("Sword of Honour"),
       text("Moby Dick")
     )
-
   }
 
   "Recursive" should "honor filters directly on root" in {
@@ -1195,7 +1184,6 @@ class OrderedElementsMatcher(expected: Iterable[Any]) extends Matcher[Either[JPE
 }
 
 trait JsonPathMatchers {
-
   def findOrderedElements(expected: Any*): OrderedElementsMatcher = new OrderedElementsMatcher(expected)
 
   class ElementsMatcher(expected: Iterable[Any]) extends Matcher[Either[JPError, Iterator[Any]]] {

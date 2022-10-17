@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,17 @@
 
 package io.gatling.core.check.jsonpath
 
-import io.gatling.commons.util.Collections
 import io.gatling.core.check._
 
 import com.fasterxml.jackson.databind.JsonNode
 
 object JsonPathExtractors {
-
   def find[X: JsonFilter](name: String, path: String, occurrence: Int, jsonPaths: JsonPaths): FindCriterionExtractor[JsonNode, String, X] =
     new FindCriterionExtractor[JsonNode, String, X](
       name,
       path,
       occurrence,
-      jsonPaths.extractAll(_, path).map(Collections.lift(_, occurrence))
+      jsonPaths.extractAll(_, path).map(_.slice(occurrence, occurrence + 1).nextOption())
     )
 
   def findAll[X: JsonFilter](name: String, path: String, jsonPaths: JsonPaths): FindAllCriterionExtractor[JsonNode, String, X] =

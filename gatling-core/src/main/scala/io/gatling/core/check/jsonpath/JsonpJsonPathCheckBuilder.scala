@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,21 @@
 
 package io.gatling.core.check.jsonpath
 
+import io.gatling.core.check.CheckBuilder
 import io.gatling.core.session._
 
-trait JsonpJsonPathCheckType
+import com.fasterxml.jackson.databind.JsonNode
+
+sealed trait JsonpJsonPathCheckType
 
 // we have to duplicate JsonPathCheckBuilder because traits can't take parameters (for now)
 // so we can't make CheckType a parameter
-trait JsonpJsonPathOfType { self: JsonpJsonPathCheckBuilder[String] =>
+sealed trait JsonpJsonPathOfType { self: JsonpJsonPathCheckBuilder[String] =>
 
-  def ofType[X: JsonFilter]: JsonpJsonPathCheckBuilder[X] = new JsonpJsonPathCheckBuilder[X](path, jsonPaths)
+  def ofType[X: JsonFilter]: CheckBuilder.MultipleFind[JsonpJsonPathCheckType, JsonNode, X] = new JsonpJsonPathCheckBuilder[X](path, jsonPaths)
 }
 
 object JsonpJsonPathCheckBuilder {
-
   def jsonpJsonPath(path: Expression[String], jsonPaths: JsonPaths): JsonpJsonPathCheckBuilder[String] with JsonpJsonPathOfType =
     new JsonpJsonPathCheckBuilder[String](path, jsonPaths) with JsonpJsonPathOfType
 }

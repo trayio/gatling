@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 package io.gatling.netty.util;
 
+import io.gatling.jdk.util.StringBuilderPool;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-
 import java.nio.charset.Charset;
 import java.util.List;
 
@@ -33,9 +33,10 @@ public class StringWithCachedBytes {
       case 1:
         return Unpooled.wrappedBuffer(chunks.get(0).bytes);
       default:
-        CompositeByteBuf comp = new CompositeByteBuf(ByteBufAllocator.DEFAULT, false, chunks.size());
+        CompositeByteBuf comp =
+            new CompositeByteBuf(ByteBufAllocator.DEFAULT, false, chunks.size());
         for (StringWithCachedBytes chunk : chunks) {
-          comp.addComponent(Unpooled.wrappedBuffer(chunk.bytes));
+          comp.addComponent(true, Unpooled.wrappedBuffer(chunk.bytes));
         }
         return comp;
     }
@@ -43,7 +44,7 @@ public class StringWithCachedBytes {
 
   public static String toString(List<StringWithCachedBytes> chunks) {
     StringBuilder sb = StringBuilderPool.DEFAULT.get();
-    for (StringWithCachedBytes chunk: chunks) {
+    for (StringWithCachedBytes chunk : chunks) {
       sb.append(chunk.string);
     }
     return sb.toString();
@@ -55,5 +56,10 @@ public class StringWithCachedBytes {
   public StringWithCachedBytes(String string, Charset charset) {
     this.string = string;
     this.bytes = string.getBytes(charset);
+  }
+
+  @Override
+  public String toString() {
+    return string;
   }
 }

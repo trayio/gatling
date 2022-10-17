@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,27 @@
 
 package io.gatling.http.check.ws
 
-import java.util.{ Map => JMap }
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check.{ Check, CheckResult }
-import io.gatling.core.session.Session
+import io.gatling.core.session.{ Expression, Session }
 
 sealed trait WsCheck
-final class WsTextCheck(wrapped: Check[String]) extends WsCheck with Check[String] {
-  override def check(message: String, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
-    wrapped.check(message, session, preparedCache)
-}
-final class WsBinaryCheck(wrapped: Check[Array[Byte]]) extends WsCheck with Check[Array[Byte]] {
-  override def check(message: Array[Byte], session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
-    wrapped.check(message, session, preparedCache)
+
+object WsCheck {
+  final class Text(wrapped: Check[String]) extends WsCheck with Check[String] {
+    override def check(message: String, session: Session, preparedCache: Check.PreparedCache): Validation[CheckResult] =
+      wrapped.check(message, session, preparedCache)
+
+    override def checkIf(condition: Expression[Boolean]): Text = new Text(wrapped.checkIf(condition))
+
+    override def checkIf(condition: (String, Session) => Validation[Boolean]): Text = new Text(wrapped.checkIf(condition))
+  }
+  final class Binary(wrapped: Check[Array[Byte]]) extends WsCheck with Check[Array[Byte]] {
+    override def check(message: Array[Byte], session: Session, preparedCache: Check.PreparedCache): Validation[CheckResult] =
+      wrapped.check(message, session, preparedCache)
+
+    override def checkIf(condition: Expression[Boolean]): Binary = new Binary(wrapped.checkIf(condition))
+
+    override def checkIf(condition: (Array[Byte], Session) => Validation[Boolean]): Binary = new Binary(wrapped.checkIf(condition))
+  }
 }

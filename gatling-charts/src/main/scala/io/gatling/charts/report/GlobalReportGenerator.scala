@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,45 +20,43 @@ import io.gatling.charts.component._
 import io.gatling.charts.config.ChartsFiles
 import io.gatling.charts.stats._
 import io.gatling.charts.template.GlobalPageTemplate
-import io.gatling.charts.util.Colors._
-import io.gatling.commons.stats.{ Group, KO, OK, Status }
+import io.gatling.charts.util.Color
+import io.gatling.commons.shared.unstable.model.stats.Group
+import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.core.config.GatlingConfiguration
 
 private[charts] class GlobalReportGenerator(reportsGenerationInputs: ReportsGenerationInputs, chartsFiles: ChartsFiles, componentLibrary: ComponentLibrary)(
     implicit configuration: GatlingConfiguration
 ) extends ReportGenerator {
-
   def generate(): Unit = {
     import reportsGenerationInputs._
 
     def activeSessionsChartComponent = {
+      val seriesColors = Iterator.continually(Color.Users.Base).flatten.take(logFileData.scenarioNames.size).toList
 
-      val baseColors = List(Blue, Green, Red, Yellow, Cyan, Lime, Purple, Pink, LightBlue, LightOrange, LightRed, LightLime, LightPurple, LightPink)
-      val seriesColors = Iterator.continually(baseColors).flatten.take(logFileReader.scenarioNames.size).toList
-
-      val activeSessionsSeries: Seq[Series[IntVsTimePlot]] = logFileReader.scenarioNames
+      val activeSessionsSeries: Seq[Series[IntVsTimePlot]] = logFileData.scenarioNames
         .map { scenarioName =>
-          scenarioName -> logFileReader.numberOfActiveSessionsPerSecond(Some(scenarioName))
+          scenarioName -> logFileData.numberOfActiveSessionsPerSecond(Some(scenarioName))
         }
         .reverse
         .zip(seriesColors)
         .map { case ((scenarioName, data), color) => new Series[IntVsTimePlot](scenarioName, data, List(color)) }
 
-      componentLibrary.getActiveSessionsChartComponent(logFileReader.runStart, activeSessionsSeries)
+      componentLibrary.getActiveSessionsComponent(logFileData.runInfo.injectStart, activeSessionsSeries)
     }
 
     def responseTimeDistributionChartComponent: Component = {
-      val (okDistribution, koDistribution) = logFileReader.responseTimeDistribution(100, None, None)
-      val okDistributionSeries = new Series(Series.OK, okDistribution, List(Blue))
-      val koDistributionSeries = new Series(Series.KO, koDistribution, List(Red))
+      val (okDistribution, koDistribution) = logFileData.responseTimeDistribution(100, None, None)
+      val okDistributionSeries = new Series(Series.OK, okDistribution, List(Color.Requests.Ok))
+      val koDistributionSeries = new Series(Series.KO, koDistribution, List(Color.Requests.Ko))
 
-      componentLibrary.getRequestDetailsResponseTimeDistributionChartComponent(okDistributionSeries, koDistributionSeries)
+      componentLibrary.getDistributionComponent("Response Time", "Requests", okDistributionSeries, koDistributionSeries)
     }
 
     def responseTimeChartComponent: Component =
       percentilesChartComponent(
-        logFileReader.responseTimePercentilesOverTime,
-        componentLibrary.getRequestDetailsResponseTimeChartComponent,
+        logFileData.responseTimePercentilesOverTime,
+        componentLibrary.getPercentilesOverTimeComponent("Response Time", _, _),
         "Response Time Percentiles over Time"
       )
 
@@ -68,16 +66,16 @@ private[charts] class GlobalReportGenerator(reportsGenerationInputs: ReportsGene
         title: String
     ): Component = {
       val successData = dataSource(OK, None, None)
-      val successSeries = new Series[PercentilesVsTimePlot](s"$title (${Series.OK})", successData, ReportGenerator.PercentilesColors)
+      val successSeries = new Series[PercentilesVsTimePlot](s"$title (${Series.OK})", successData, Color.Requests.Percentiles)
 
-      componentFactory(logFileReader.runStart, successSeries)
+      componentFactory(logFileData.runInfo.injectStart, successSeries)
     }
 
     def requestsChartComponent: Component =
-      countsChartComponent(logFileReader.numberOfRequestsPerSecond, componentLibrary.getRequestsChartComponent)
+      countsChartComponent(logFileData.numberOfRequestsPerSecond, componentLibrary.getRequestsComponent)
 
     def responsesChartComponent: Component =
-      countsChartComponent(logFileReader.numberOfResponsesPerSecond, componentLibrary.getResponsesChartComponent)
+      countsChartComponent(logFileData.numberOfResponsesPerSecond, componentLibrary.getResponsesComponent)
 
     def countsChartComponent(
         dataSource: (Option[String], Option[Group]) => Seq[CountsVsTimePlot],
@@ -85,20 +83,26 @@ private[charts] class GlobalReportGenerator(reportsGenerationInputs: ReportsGene
     ): Component = {
       val counts = dataSource(None, None).sortBy(_.time)
 
-      val countsSeries = new Series[CountsVsTimePlot]("", counts, List(Blue, Red, Green))
-      val okPieSlice = new PieSlice(Series.OK, count(counts, OK))
-      val koPieSlice = new PieSlice(Series.KO, count(counts, KO))
-      val pieRequestsSeries = new Series[PieSlice](Series.Distribution, Seq(okPieSlice, koPieSlice), List(Green, Red))
+      val countsSeries = new Series[CountsVsTimePlot]("", counts, List(Color.Requests.All, Color.Requests.Ok, Color.Requests.Ko))
+      val pieRequestsSeries = new Series[PieSlice](
+        Series.Distribution,
+        List(new PieSlice(Series.OK, count(counts, OK)), new PieSlice(Series.KO, count(counts, KO))),
+        List(Color.Requests.Ok, Color.Requests.Ko)
+      )
 
-      componentFactory(logFileReader.runStart, countsSeries, pieRequestsSeries)
+      componentFactory(logFileData.runInfo.injectStart, countsSeries, pieRequestsSeries)
     }
 
     val template = new GlobalPageTemplate(
-      componentLibrary.getNumberOfRequestsChartComponent(logFileReader.requestNames.size),
-      componentLibrary.getRequestDetailsIndicatorChartComponent,
+      logFileData.runInfo,
+      new SchemaContainerComponent(
+        componentLibrary.getRangesComponent("Response Time Ranges", "requests", large = false),
+        componentLibrary.getRequestCountPolarComponent,
+        new SimulationCardComponent(logFileData.runInfo)
+      ),
       new AssertionsTableComponent(assertionResults),
-      new StatisticsTableComponent,
-      new ErrorsTableComponent(logFileReader.errors(None, None)),
+      new GlobalStatsTableComponent,
+      new ErrorsTableComponent(logFileData.errors(None, None)),
       activeSessionsChartComponent,
       responseTimeDistributionChartComponent,
       responseTimeChartComponent,

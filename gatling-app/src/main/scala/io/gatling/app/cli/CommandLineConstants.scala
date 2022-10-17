@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +18,31 @@ package io.gatling.app.cli
 
 import io.gatling.core.cli.CommandLineConstant
 
-private object CommandLineConstants {
-  val Help = new CommandLineConstant("help", "h")
-  val NoReports = new CommandLineConstant("no-reports", "nr")
-  val ReportsOnly = new CommandLineConstant("reports-only", "ro")
-  val ResultsFolder = new CommandLineConstant("results-folder", "rf")
-  val ResourcesFolder = new CommandLineConstant("resources-folder", "rsf")
-  val SimulationsFolder = new CommandLineConstant("simulations-folder", "sf")
-  val BinariesFolder = new CommandLineConstant("binaries-folder", "bf")
-  val Simulation = new CommandLineConstant("simulation", "s")
-  val RunDescription = new CommandLineConstant("run-description", "rd")
+private[gatling] object CommandLineConstants {
+  val NoReports = new CommandLineConstant("no-reports", "nr", "Runs simulation but does not generate reports", None)
+  val ReportsOnly = new CommandLineConstant("reports-only", "ro", "Generates the reports for the simulation in <directoryName>", Some("<directoryName>"))
+  val ResultsFolder = new CommandLineConstant(
+    "results-folder",
+    "rf",
+    "Uses <directoryPath> as the absolute path of the directory where results are stored",
+    Some("<directoryPath>")
+  )
+  val ResourcesFolder = new CommandLineConstant(
+    "resources-folder",
+    "rsf",
+    "Uses <directoryPath> as the absolute path of the directory where resources are stored",
+    Some("<directoryPath>")
+  )
+  val BinariesFolder = new CommandLineConstant(
+    "binaries-folder",
+    "bf",
+    "Uses <directoryPath> as the absolute path of the directory where binaries (jar files) are stored",
+    Some("<directoryPath>")
+  )
+  val Simulation = new CommandLineConstant("simulation", "s", "Runs <className> simulation", Some("<className>"))
+  val RunDescription = new CommandLineConstant("run-description", "rd", "A short <description> of the run to include in the report", Some("<description>"))
+  val Launcher = new CommandLineConstant("launcher", "l", "The program that launched Gatling", Some(""))
+  val BuildToolVersion = new CommandLineConstant("build-tool-version", "btv", "The version of the build tool used to launch Gatling", Some(""))
+
+  val AllOptions = List(NoReports, ReportsOnly, ResultsFolder, ResourcesFolder, BinariesFolder, Simulation, RunDescription, Launcher, BuildToolVersion)
 }

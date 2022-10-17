@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,16 @@ package io.gatling.http.action.ws
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{ Action, ExitableAction, RequestAction }
-import io.gatling.core.session.{ Session, _ }
+import io.gatling.core.session._
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus
+
 class WsClose(
     override val requestName: Expression[String],
-    wsName: String,
+    wsName: Expression[String],
+    closeStatus: WebSocketCloseStatus,
     override val statsEngine: StatsEngine,
     override val clock: Clock,
     val next: Action
@@ -33,14 +36,15 @@ class WsClose(
     with WsAction
     with ExitableAction
     with NameGen {
-
   override val name: String = genName("wsClose")
 
-  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
+  override def sendRequest(session: Session): Validation[Unit] =
     for {
-      fsm <- fetchFsm(wsName, session)
+      reqName <- requestName(session)
+      fsmName <- wsName(session)
+      fsm <- fetchFsm(fsmName, session)
     } yield {
-      logger.info(s"Closing websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
-      fsm.onClientCloseRequest(requestName, session, next)
+      logger.debug(s"Closing websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
+      fsm.onClientCloseRequest(reqName, closeStatus, session, next)
     }
 }

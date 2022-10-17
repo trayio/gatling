@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import io.gatling.mqtt.protocol.{ LastWillBuilder, MqttProtocolBuilder }
 import com.typesafe.scalalogging.StrictLogging
 
 object Predef extends MqttCheckSupport with StrictLogging {
-
   def LastWill(topic: Expression[String], message: Body): LastWillBuilder = ???
 
   // NB We need this implicit parameter even though it's not used so compiler can tell appart this method and io.gatling.mqtt(requestName)

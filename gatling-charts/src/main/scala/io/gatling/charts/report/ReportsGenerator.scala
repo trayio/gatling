@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,24 +20,20 @@ import java.nio.file.Path
 
 import io.gatling.charts.component.ComponentLibrary
 import io.gatling.charts.config.ChartsFiles
-import io.gatling.charts.template.{ MenuTemplate, PageTemplate }
-import io.gatling.commons.stats.RequestStatsPath
-import io.gatling.commons.util.ScanHelper.deepCopyPackageContent
+import io.gatling.commons.shared.unstable.model.stats.RequestStatsPath
+import io.gatling.commons.shared.unstable.util.ScanHelper.deepCopyPackageContent
 import io.gatling.core.config.GatlingConfiguration
 
 private[gatling] class ReportsGenerator(implicit configuration: GatlingConfiguration) {
-
   def generateFor(reportsGenerationInputs: ReportsGenerationInputs): Path = {
     import reportsGenerationInputs._
 
     val chartsFiles = new ChartsFiles(reportFolderName, configuration)
 
     def hasAtLeastOneRequestReported: Boolean =
-      logFileReader.statsPaths.exists(_.isInstanceOf[RequestStatsPath])
+      logFileData.statsPaths.exists(_.isInstanceOf[RequestStatsPath])
 
-    def generateMenu(): Unit = new TemplateWriter(chartsFiles.menuFile).writeToFile(new MenuTemplate().getOutput)
-
-    def generateStats(): Unit = new StatsReportGenerator(reportsGenerationInputs, chartsFiles, ComponentLibrary.Instance).generate()
+    def generateStats(): Unit = new StatsReportGenerator(reportsGenerationInputs, chartsFiles).generate()
 
     def generateAssertions(): Unit = new AssertionsReportGenerator(reportsGenerationInputs, chartsFiles, ComponentLibrary.Instance).generate()
 
@@ -58,8 +54,6 @@ private[gatling] class ReportsGenerator(implicit configuration: GatlingConfigura
       )
 
     copyAssets()
-    generateMenu()
-    PageTemplate.setRunInfo(logFileReader.runMessage, logFileReader.runEnd)
     reportGenerators.foreach(_.generate())
     generateStats()
     generateAssertions()

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,9 +39,12 @@ object AST {
   /**
    * Slicing of an array, indices start at zero
    *
-   * @param start is the first item that you want (of course)
-   * @param stop is the first item that you do not want
-   * @param step, being positive or negative, defines whether you are moving
+   * @param start
+   *   is the first item that you want (of course)
+   * @param stop
+   *   is the first item that you do not want
+   * @param step,
+   *   being positive or negative, defines whether you are moving
    */
   final case class ArraySlice(start: Option[Int], stop: Option[Int], step: Int) extends ArrayAccessor
   object ArraySlice {

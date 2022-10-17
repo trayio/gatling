@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.mqtt.MqttQoS
 
 trait CheckablePublishBuilder { this: PublishBuilder =>
-  def check(ck: MqttCheck): PublishBuilder =
-    PublishBuilder(requestName, topic, body, qosOverride, retainOverride, expectation.map(_.copy(check = Some(ck))))
+  def check(cks: MqttCheck*): PublishBuilder =
+    PublishBuilder(requestName, topic, body, qosOverride, retainOverride, expectation.map(_.copy(checks = cks.toList)))
 }
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
@@ -43,7 +43,6 @@ case class PublishBuilder(
     expectation: Option[MqttExpectation]
 ) extends MqttActionBuilder
     with StrictLogging {
-
   def qosAtMostOnce: PublishBuilder = qos(MqttQoS.AT_MOST_ONCE)
   def qosAtLeastOnce: PublishBuilder = qos(MqttQoS.AT_LEAST_ONCE)
   def qosExactlyOnce: PublishBuilder = qos(MqttQoS.EXACTLY_ONCE)
@@ -51,17 +50,25 @@ case class PublishBuilder(
 
   def retain(newRetain: Boolean): PublishBuilder = copy(retainOverride = Some(newRetain))
 
-  def wait(timeout: FiniteDuration): PublishBuilder with CheckablePublishBuilder =
-    wait(timeout, null)
-  def wait(timeout: FiniteDuration, expectedTopic: Expression[String]): PublishBuilder with CheckablePublishBuilder =
+  def await(timeout: FiniteDuration): PublishBuilder with CheckablePublishBuilder =
+    await(timeout, null)
+
+  def await(timeout: FiniteDuration, expectedTopic: Expression[String]): PublishBuilder with CheckablePublishBuilder =
     new PublishBuilder(
       requestName,
       topic,
       body,
       qosOverride,
       retainOverride,
-      Some(MqttExpectation(None, timeout, topic = Option(expectedTopic), blocking = true))
+      Some(MqttExpectation(Nil, timeout, topic = Option(expectedTopic), blocking = true))
     ) with CheckablePublishBuilder
+
+  @deprecated("Use await instead", "3.7.0")
+  def wait(timeout: FiniteDuration): PublishBuilder with CheckablePublishBuilder =
+    await(timeout)
+  @deprecated("Use await instead", "3.7.0")
+  def wait(timeout: FiniteDuration, expectedTopic: Expression[String]): PublishBuilder with CheckablePublishBuilder =
+    await(timeout, expectedTopic)
 
   def expect(timeout: FiniteDuration): PublishBuilder with CheckablePublishBuilder =
     expect(timeout, null)
@@ -72,7 +79,7 @@ case class PublishBuilder(
       body,
       qosOverride,
       retainOverride,
-      Some(MqttExpectation(None, timeout, topic = Option(expectedTopic), blocking = false))
+      Some(MqttExpectation(Nil, timeout, topic = Option(expectedTopic), blocking = false))
     ) with CheckablePublishBuilder
 
   override def build(ctx: ScenarioContext, next: Action): Action = ???

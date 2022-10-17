@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,38 +17,41 @@
 package io.gatling.recorder.config
 
 import java.io.FileNotFoundException
-import java.nio.file.{ Path, Paths }
+import java.nio.file.{ Files, Path, Paths }
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.{ Duration, DurationInt }
+import scala.jdk.CollectionConverters._
 import scala.util.Properties.userHome
+import scala.util.Using
 import scala.util.control.NonFatal
 
 import io.gatling.commons.util.ConfigHelper.configChain
-import io.gatling.commons.util.Io._
-import io.gatling.commons.util.PathHelper._
 import io.gatling.commons.util.StringHelper.RichString
 import io.gatling.commons.util.Throwables._
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.config.GatlingFiles._
-import io.gatling.core.filter.{ BlackList, Filters, WhiteList }
+import io.gatling.core.filter.{ AllowList, DenyList, Filters }
 import io.gatling.recorder.http.ssl.{ HttpsMode, KeyStoreType }
+import io.gatling.recorder.render.template.Format
 
 import com.typesafe.config.{ Config, ConfigFactory, ConfigRenderOptions }
 import com.typesafe.scalalogging.StrictLogging
 
 private[recorder] object RecorderConfiguration extends StrictLogging {
-
   implicit class IntOption(val value: Int) extends AnyVal {
     def toOption: Option[Int] = if (value != 0) Some(value) else None
   }
 
   private val RenderOptions = ConfigRenderOptions.concise.setFormatted(true).setJson(false)
+  private val DefaultSimulationsDirectory = resolvePath(Paths.get("user-files/simulations"))
+  private val DefaultResourcesDirectory = resolvePath(Paths.get("user-files/resources"))
 
-  var configFile: Option[Path] = None
+  private var configFile: Option[Path] = None
 
-  implicit var configuration: RecorderConfiguration = _
+  private var _configuration: Option[RecorderConfiguration] = None
+  def recorderConfiguration: RecorderConfiguration =
+    _configuration.getOrElse(throw new UnsupportedOperationException("RecorderConfiguration hasn't been loaded yet"))
 
   private[this] val gatlingConfiguration: GatlingConfiguration = GatlingConfiguration.load(mutable.Map.empty)
 
@@ -64,7 +67,10 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
   def initialSetup(props: mutable.Map[String, _ <: Any], recorderConfigFile: Option[Path]): Unit = {
     val classLoader = getClassLoader
     val defaultConfig = getDefaultConfig(classLoader)
-    configFile = recorderConfigFile.orElse(Option(classLoader.getResource("recorder.conf")).map(url => Paths.get(url.toURI)))
+    configFile = recorderConfigFile.orElse(
+      Option(classLoader.getResource("recorder.conf"))
+        .map(url => Paths.get(url.toURI))
+    )
 
     val customConfig = configFile.map(path => ConfigFactory.parseFile(path.toFile)).getOrElse {
       // Should only happens with a manually (and incorrectly) updated Maven archetype or SBT template
@@ -76,33 +82,39 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
     val propertiesConfig = ConfigFactory.parseMap(props.asJava)
 
     try {
-      configuration = buildConfig(configChain(ConfigFactory.systemProperties, propertiesConfig, customConfig, defaultConfig))
+      _configuration = Some(buildConfig(configChain(ConfigFactory.systemProperties, propertiesConfig, customConfig, defaultConfig)))
     } catch {
       case NonFatal(e) =>
         logger.warn(s"Loading configuration crashed: ${e.rootMessage}. Probable cause is a format change, resetting.")
-        configFile.foreach(_.delete())
-        configuration = buildConfig(configChain(ConfigFactory.systemProperties, propertiesConfig, defaultConfig))
+        configFile.foreach { file =>
+          if (Files.exists(file)) {
+            Files.delete(file)
+          }
+        }
+        _configuration = Some(buildConfig(configChain(ConfigFactory.systemProperties, propertiesConfig, defaultConfig)))
     }
   }
 
   def reload(props: mutable.Map[String, _ <: Any]): Unit = {
     val frameConfig = ConfigFactory.parseMap(props.asJava)
-    configuration = buildConfig(configChain(frameConfig, configuration.config))
+    _configuration = Some(buildConfig(configChain(frameConfig, recorderConfiguration.config)))
   }
 
   def saveConfig(): Unit = {
     // Remove request bodies folder configuration (transient), keep only Gatling-related properties
-    val configToSave = configuration.config.withoutPath(ConfigKeys.core.ResourcesFolder).root.withOnlyKey(ConfigKeys.ConfigRoot)
-    configFile.foreach(file => withCloseable(createAndOpen(file).writer(gatlingConfiguration.core.charset))(_.write(configToSave.render(RenderOptions))))
+    val configToSave = recorderConfiguration.config.withoutPath(ConfigKeys.core.ResourcesFolder).root.withOnlyKey(ConfigKeys.ConfigRoot)
+    configFile.foreach(file =>
+      Using.resource(Files.newBufferedWriter(createAndOpen(file), gatlingConfiguration.core.charset))(_.write(configToSave.render(RenderOptions)))
+    )
   }
 
   private[config] def createAndOpen(path: Path): Path =
-    if (!path.exists) {
+    if (!Files.exists(path)) {
       val parent = path.getParent
-      if (!parent.exists) {
+      if (!Files.exists(parent)) {
         throw new FileNotFoundException(s"Directory '${parent.toString}' for recorder configuration does not exist")
       }
-      path.createFile()
+      Files.createFile(path)
     } else {
       path
     }
@@ -112,14 +124,24 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
 
     def getSimulationsFolder(folder: String) =
       folder.trimToOption match {
-        case Some(f)                               => f
-        case _ if sys.env.contains("GATLING_HOME") => simulationsDirectory(gatlingConfiguration).toFile.toString
-        case _                                     => userHome
+        case Some(f) => f
+        case _ if sys.env.contains("GATLING_HOME") =>
+          customResourcesDirectory(gatlingConfiguration)
+            .getOrElse(DefaultSimulationsDirectory)
+            .toFile
+            .toString
+        case _ => userHome
       }
 
     def getResourcesFolder =
-      if (config.hasPath(core.ResourcesFolder)) config.getString(core.ResourcesFolder)
-      else resourcesDirectory(gatlingConfiguration).toFile.toString
+      if (config.hasPath(core.ResourcesFolder)) {
+        config.getString(core.ResourcesFolder)
+      } else {
+        customResourcesDirectory(gatlingConfiguration)
+          .getOrElse(DefaultResourcesDirectory)
+          .toFile
+          .toString
+      }
 
     RecorderConfiguration(
       core = CoreConfiguration(
@@ -129,15 +151,16 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
         resourcesFolder = getResourcesFolder,
         pkg = config.getString(core.Package),
         className = config.getString(core.ClassName),
-        thresholdForPauseCreation = config.getInt(core.ThresholdForPauseCreation) milliseconds,
+        thresholdForPauseCreation = config.getInt(core.ThresholdForPauseCreation).milliseconds,
         saveConfig = config.getBoolean(core.SaveConfig),
         headless = config.getBoolean(core.Headless),
-        harFilePath = config.getString(core.HarFilePath).trimToOption
+        harFilePath = config.getString(core.HarFilePath).trimToOption,
+        format = Format.fromString(config.getString(core.Format).trim)
       ),
       filters = FiltersConfiguration(
-        filterStrategy = FilterStrategy(config.getString(filters.FilterStrategy)),
-        whiteList = new WhiteList(config.getStringList(filters.WhitelistPatterns).asScala.toList),
-        blackList = new BlackList(config.getStringList(filters.BlacklistPatterns).asScala.toList)
+        enabled = config.getBoolean(filters.Enable),
+        allowList = new AllowList(config.getStringList(filters.AllowListPatterns).asScala.toList),
+        denyList = new DenyList(config.getStringList(filters.DenyListPatterns).asScala.toList)
       ),
       http = HttpConfiguration(
         automaticReferer = config.getBoolean(http.AutomaticReferer),
@@ -145,7 +168,8 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
         inferHtmlResources = config.getBoolean(http.InferHtmlResources),
         removeCacheHeaders = config.getBoolean(http.RemoveCacheHeaders),
         checkResponseBodies = config.getBoolean(http.CheckResponseBodies),
-        useSimulationAsPrefix = config.getBoolean(http.UseSimulationAsPrefix)
+        useSimulationAsPrefix = config.getBoolean(http.UseSimulationAsPrefix),
+        useMethodAndUriAsPostfix = config.getBoolean(http.UseMethodAndUriAsPostfix)
       ),
       proxy = ProxyConfiguration(
         port = config.getInt(proxy.Port),
@@ -181,16 +205,16 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
 }
 
 private[recorder] final case class FiltersConfiguration(
-    filterStrategy: FilterStrategy,
-    whiteList: WhiteList,
-    blackList: BlackList
+    enabled: Boolean,
+    allowList: AllowList,
+    denyList: DenyList
 ) {
-
-  def filters: Option[Filters] = filterStrategy match {
-    case FilterStrategy.Disabled       => None
-    case FilterStrategy.BlackListFirst => Some(new Filters(blackList, whiteList))
-    case FilterStrategy.WhiteListFirst => Some(new Filters(whiteList, blackList))
-  }
+  def filters: Option[Filters] =
+    if (enabled) {
+      Some(new Filters(denyList, allowList))
+    } else {
+      None
+    }
 }
 
 private[recorder] final case class CoreConfiguration(
@@ -203,7 +227,8 @@ private[recorder] final case class CoreConfiguration(
     thresholdForPauseCreation: Duration,
     saveConfig: Boolean,
     headless: Boolean,
-    harFilePath: Option[String]
+    harFilePath: Option[String],
+    format: Format
 )
 
 private[recorder] final case class HttpConfiguration(
@@ -212,7 +237,8 @@ private[recorder] final case class HttpConfiguration(
     inferHtmlResources: Boolean,
     removeCacheHeaders: Boolean,
     checkResponseBodies: Boolean,
-    useSimulationAsPrefix: Boolean
+    useSimulationAsPrefix: Boolean,
+    useMethodAndUriAsPostfix: Boolean
 )
 
 private[recorder] final case class KeyStoreConfiguration(

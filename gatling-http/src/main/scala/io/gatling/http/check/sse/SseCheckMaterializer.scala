@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,9 @@ import io.gatling.core.json.JsonParsers
 
 import com.fasterxml.jackson.databind.JsonNode
 
-class SseCheckMaterializer[T, P](override val preparer: Preparer[String, P]) extends CheckMaterializer[T, SseCheck, String, P](SseCheck.apply)
+class SseCheckMaterializer[T, P](override val preparer: Preparer[String, P]) extends CheckMaterializer[T, SseCheck, String, P](new SseCheck(_))
 
 object SseCheckMaterializer {
-
   val BodyString: CheckMaterializer[BodyStringCheckType, SseCheck, String, String] =
     new SseCheckMaterializer[BodyStringCheckType, String](identityPreparer)
 

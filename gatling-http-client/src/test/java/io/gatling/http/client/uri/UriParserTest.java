@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,10 @@
 
 package io.gatling.http.client.uri;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.net.URI;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 class UriParserTest {
 
@@ -122,5 +121,14 @@ class UriParserTest {
     Uri context = new Uri("https", null, "example.com", 80, "/path", "q=2", null);
     validateAgainstRelativeURI(context, "https://example.com:80/path?q=2", "./relative/url/.");
   }
-}
 
+  @Test
+  void testIpV4() {
+    validateAgainstAbsoluteURI("http://127.0.0.1:61584");
+  }
+
+  @Test
+  void testIpV6() {
+    validateAgainstAbsoluteURI("http://[0:0:0:0:0:0:0:1]:61584");
+  }
+}

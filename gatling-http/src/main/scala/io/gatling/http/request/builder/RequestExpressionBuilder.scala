@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,23 +18,26 @@ package io.gatling.http.request.builder
 
 import java.nio.charset.Charset
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
 import io.gatling.commons.util.Throwables._
 import io.gatling.commons.validation._
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.http.HeaderNames
-import io.gatling.http.cache.HttpCaches
-import io.gatling.http.client.{ Request, SignatureCalculator, RequestBuilder => ClientRequestBuilder }
-import io.gatling.http.client.uri.Uri
+import io.gatling.http.auth.DigestAuthSupport
+import io.gatling.http.cache.{ BaseUrlSupport, HttpCaches, LocalAddressSupport }
+import io.gatling.http.client.{ Request, RequestBuilder => ClientRequestBuilder }
+import io.gatling.http.client.realm.DigestRealm
+import io.gatling.http.client.uri.{ Uri, UriEncoder }
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.referer.RefererHandling
 import io.gatling.http.util.HttpHelper
 
 import com.typesafe.scalalogging.LazyLogging
+import io.netty.handler.codec.http.HttpHeaderNames
+import io.netty.util.AsciiString
 
 object RequestExpressionBuilder {
   val BuildRequestErrorMapper: String => String = "Failed to build request: " + _
@@ -44,6 +47,12 @@ object RequestExpressionBuilder {
 
   val ConfigureIdentityRaw: RequestBuilderConfigureRaw = _ => identity
   val ConfigureIdentity: RequestBuilderConfigure = _ => _.success
+
+  private def mergeCaseInsensitive[T](left: Map[CharSequence, T], right: Map[CharSequence, T]): Map[CharSequence, T] =
+    right.foldLeft(left) { case (acc, (key, value)) =>
+      val targetKey = acc.keySet.find(_.toString.equalsIgnoreCase(key.toString)).getOrElse(key)
+      acc.updated(targetKey, value)
+    }
 }
 
 abstract class RequestExpressionBuilder(
@@ -52,24 +61,26 @@ abstract class RequestExpressionBuilder(
     httpProtocol: HttpProtocol,
     configuration: GatlingConfiguration
 ) extends LazyLogging {
-
   import RequestExpressionBuilder._
 
   protected val charset: Charset = configuration.core.charset
-  protected val headers: Map[String, Expression[String]] = httpProtocol.requestPart.headers ++ commonAttributes.headers
-  private val refererHeaderIsUndefined: Boolean = !headers.contains(HeaderNames.Referer)
-  protected val contentTypeHeaderIsUndefined: Boolean = !headers.contains(HeaderNames.ContentType)
-  private val disableUrlEncoding: Boolean = commonAttributes.disableUrlEncoding.getOrElse(httpProtocol.requestPart.disableUrlEncoding)
-  private val signatureCalculatorExpression: Option[Expression[SignatureCalculator]] =
+  protected val headers: Map[CharSequence, Expression[String]] =
+    if (commonAttributes.ignoreProtocolHeaders) {
+      mergeCaseInsensitive(Map.empty, commonAttributes.headers)
+    } else {
+      val deduplicatedProtocolHeaders = mergeCaseInsensitive(Map.empty, httpProtocol.requestPart.headers)
+      mergeCaseInsensitive(deduplicatedProtocolHeaders, commonAttributes.headers)
+    }
+  private val refererHeaderIsUndefined: Boolean = !headers.keys.exists(AsciiString.contentEqualsIgnoreCase(_, HttpHeaderNames.REFERER))
+  protected val contentTypeHeaderIsUndefined: Boolean = !headers.keys.exists(AsciiString.contentEqualsIgnoreCase(_, HttpHeaderNames.CONTENT_TYPE))
+  private val fixUrlEncoding: Boolean = !commonAttributes.disableUrlEncoding.getOrElse(httpProtocol.requestPart.disableUrlEncoding)
+  private val signatureCalculatorExpression: Option[(Request, Session) => Validation[_]] =
     commonAttributes.signatureCalculator.orElse(httpProtocol.requestPart.signatureCalculator)
 
-  protected def baseUrl: Session => Option[String] =
-    if (httpProtocol.baseUrls.size <= 1) {
-      val baseUrl = httpProtocol.baseUrls.headOption
-      _ => baseUrl
-    } else {
-      httpCaches.baseUrl
-    }
+  private val baseUrl: Session => Option[String] = protocolBaseUrl
+
+  protected def protocolBaseUrl: Session => Option[String] =
+    BaseUrlSupport.httpBaseUrl(httpProtocol)
 
   protected def protocolBaseUrls: List[String] =
     httpProtocol.baseUrls
@@ -96,9 +107,11 @@ abstract class RequestExpressionBuilder(
     else
       resolveRelativeAgainstBaseUrl(url, baseUrl(session))
 
-  private val buildURI: Expression[Uri] =
+  private val buildURI: Expression[Uri] = {
+    val queryParams = commonAttributes.queryParams
+
     commonAttributes.urlOrURI match {
-      case Left(StaticValueExpression(staticUrl)) if protocolBaseUrls.size <= 1 =>
+      case Left(StaticValueExpression(staticUrl)) if protocolBaseUrls.sizeIs <= 1 && queryParams.isEmpty =>
         if (isAbsoluteUrl(staticUrl)) {
           Uri.create(staticUrl).expressionSuccess
         } else {
@@ -107,17 +120,17 @@ abstract class RequestExpressionBuilder(
         }
 
       case Left(url) =>
+        // url is not static, or multiple baseUrl, or queryParams
         session =>
           for {
             resolvedUrl <- url(session)
             absoluteUri <- makeAbsolute(session, resolvedUrl)
-          } yield absoluteUri
+            resolvedQueryParams <- resolveParamJList(queryParams, session)
+          } yield UriEncoder.uriEncoder(fixUrlEncoding).encode(absoluteUri, resolvedQueryParams)
+
       case Right(uri) => uri.expressionSuccess
     }
-
-  // note: DNS cache is supposed to be set early
-  private def configureNameResolver(session: Session, requestBuilder: ClientRequestBuilder): Unit =
-    httpCaches.nameResolver(session).foreach(requestBuilder.setNameResolver)
+  }
 
   private val proxy = commonAttributes.proxy.orElse(httpProtocol.proxyPart.proxy)
 
@@ -135,15 +148,6 @@ abstract class RequestExpressionBuilder(
     }
   }
 
-  private val configureQueryParams: RequestBuilderConfigure =
-    commonAttributes.queryParams match {
-      case Nil         => ConfigureIdentity
-      case queryParams => configureQueryParams0(queryParams)
-    }
-
-  private def configureQueryParams0(queryParams: List[HttpParam]): RequestBuilderConfigure =
-    session => requestBuilder => queryParams.resolveParamJList(session).map(requestBuilder.setQueryParams)
-
   private val configureVirtualHost: RequestBuilderConfigure =
     commonAttributes.virtualHost.orElse(httpProtocol.enginePart.virtualHost) match {
       case None              => ConfigureIdentity
@@ -153,9 +157,9 @@ abstract class RequestExpressionBuilder(
   private def configureVirtualHost0(virtualHost: Expression[String]): RequestBuilderConfigure =
     session => requestBuilder => virtualHost(session).map(requestBuilder.setVirtualHost)
 
-  protected def addDefaultHeaders(session: Session)(requestBuilder: ClientRequestBuilder): ClientRequestBuilder = {
+  private def addDefaultHeaders(session: Session)(requestBuilder: ClientRequestBuilder): ClientRequestBuilder = {
     if (httpProtocol.requestPart.autoReferer && refererHeaderIsUndefined) {
-      RefererHandling.getStoredReferer(session).map(requestBuilder.addHeader(HeaderNames.Referer, _))
+      RefererHandling.getStoredReferer(session).map(requestBuilder.addHeader(HttpHeaderNames.REFERER, _))
     }
     requestBuilder
   }
@@ -166,13 +170,13 @@ abstract class RequestExpressionBuilder(
     else {
       val staticHeaders = headers.collect { case (key, StaticValueExpression(value)) => key -> value }
 
-      if (staticHeaders.size == headers.size)
+      if (staticHeaders.sizeIs == headers.size)
         configureStaticHeaders(staticHeaders)
       else
         configureDynamicHeaders
     }
 
-  private def configureStaticHeaders(staticHeaders: Iterable[(String, String)]): RequestBuilderConfigure = {
+  private def configureStaticHeaders(staticHeaders: Iterable[(CharSequence, String)]): RequestBuilderConfigure = {
     val addHeaders: ClientRequestBuilder => Validation[ClientRequestBuilder] = requestBuilder => {
       staticHeaders.foreach { case (key, value) => requestBuilder.addHeader(key, value) }
       requestBuilder.success
@@ -196,33 +200,56 @@ abstract class RequestExpressionBuilder(
 
   private val configureRealm: RequestBuilderConfigure =
     commonAttributes.realm.orElse(httpProtocol.requestPart.realm) match {
-      case Some(realm) => session => requestBuilder => realm(session).map(requestBuilder.setRealm)
-      case _           => ConfigureIdentity
+      case Some(realm) =>
+        session =>
+          requestBuilder =>
+            realm(session).map {
+              case digestRealm: DigestRealm =>
+                requestBuilder.setRealm(DigestAuthSupport.realmWithAuthorizationGen(session, digestRealm))
+              case other => requestBuilder.setRealm(other)
+            }
+      case _ => ConfigureIdentity
     }
 
-  private def configureLocalAddress(session: Session, requestBuilder: ClientRequestBuilder): Unit =
-    if (httpProtocol.enginePart.localAddresses.nonEmpty) {
-      httpCaches.localAddress(session).foreach(requestBuilder.setLocalAddress)
+  private def configureLocalAddress(session: Session, requestBuilder: ClientRequestBuilder): Unit = {
+    if (httpProtocol.enginePart.localIpV4Addresses.nonEmpty) {
+      LocalAddressSupport.localIpV4Address(session).foreach(requestBuilder.setLocalIpV4Address)
     }
+    if (httpProtocol.enginePart.localIpV6Addresses.nonEmpty) {
+      LocalAddressSupport.localIpV6Address(session).foreach(requestBuilder.setLocalIpV6Address)
+    }
+  }
 
   private val configureSignatureCalculator: RequestBuilderConfigure =
     signatureCalculatorExpression match {
       case Some(signatureCalculator) =>
-        session => requestBuilder => signatureCalculator(session).map(requestBuilder.setSignatureCalculator)
+        session =>
+          requestBuilder =>
+            requestBuilder.setSignatureCalculator { request =>
+              signatureCalculator(request, session) match {
+                case Failure(message) => throw new IllegalArgumentException(s"Failed to compute signature: $message")
+                case _                =>
+              }
+            }.success
+
       case _ => ConfigureIdentity
     }
 
-  protected def configureRequestBuilder(session: Session, requestBuilder: ClientRequestBuilder): Validation[ClientRequestBuilder] = {
+  protected def configureRequestTimeout(requestBuilder: ClientRequestBuilder): Unit
+
+  protected def configureRequestBuilderForProtocol: RequestBuilderConfigure
+
+  private def configureRequestBuilder(session: Session, requestBuilder: ClientRequestBuilder): Validation[ClientRequestBuilder] = {
     configureProxy(requestBuilder)
+    configureRequestTimeout(requestBuilder)
     configureCookies(session, requestBuilder)
-    configureNameResolver(session, requestBuilder)
     configureLocalAddress(session, requestBuilder)
 
-    configureQueryParams(session)(requestBuilder)
-      .flatMap(configureVirtualHost(session))
+    configureVirtualHost(session)(requestBuilder)
       .flatMap(configureHeaders(session))
       .flatMap(configureRealm(session))
       .flatMap(configureSignatureCalculator(session))
+      .flatMap(configureRequestBuilderForProtocol(session))
   }
 
   def build: Expression[Request] =
@@ -230,10 +257,11 @@ abstract class RequestExpressionBuilder(
       safely(BuildRequestErrorMapper) {
         for {
           uri <- buildURI(session)
-          requestBuilder = new ClientRequestBuilder(commonAttributes.method, uri)
+          requestName <- commonAttributes.requestName(session)
+          nameResolver <- httpCaches.nameResolver(session) // note: DNS cache is supposed to be set early
+          requestBuilder = new ClientRequestBuilder(requestName, commonAttributes.method, uri, nameResolver)
             .setDefaultCharset(charset)
-            .setFixUrlEncoding(!disableUrlEncoding)
-            .setRequestTimeout(configuration.http.advanced.requestTimeout.toMillis)
+            .setAutoOrigin(httpProtocol.requestPart.autoOrigin)
           rb <- configureRequestBuilder(session, requestBuilder)
         } yield rb.build
       }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ import javax.jms.Message
 import com.eatthepath.uuid.FastUUID
 
 /**
- * define trait for message matching logic with separate request/response
- * to see how it can be used check JmsDefaultMessageMatcher
+ * define trait for message matching logic with separate request/response to see how it can be used check JmsDefaultMessageMatcher
  */
 trait JmsMessageMatcher {
   def prepareRequest(msg: Message): Unit

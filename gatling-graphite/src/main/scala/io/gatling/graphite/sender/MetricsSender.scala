@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,10 @@ import io.gatling.core.config._
 import akka.actor.{ Props, Stash }
 
 private[graphite] object MetricsSender {
-
   def props(clock: Clock, configuration: GatlingConfiguration): Props = {
     val remote = new InetSocketAddress(configuration.data.graphite.host, configuration.data.graphite.port)
     configuration.data.graphite.protocol match {
-      case Tcp => Props(new TcpSender(remote, 5, 5 seconds, clock))
+      case Tcp => Props(new TcpSender(remote, 5, 5.seconds, clock))
       case Udp => Props(new UdpSender(remote))
     }
   }

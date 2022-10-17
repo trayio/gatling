@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package io.gatling.jms.protocol
 
 import javax.jms.ConnectionFactory
 
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.commons.model.Credentials
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
@@ -25,9 +27,7 @@ import io.gatling.core.protocol.{ Protocol, ProtocolKey }
 import io.gatling.jms.client.JmsConnectionPool
 
 object JmsProtocol {
-
   val JmsProtocolKey: ProtocolKey[JmsProtocol, JmsComponents] = new ProtocolKey[JmsProtocol, JmsComponents] {
-
     def protocolClass: Class[io.gatling.core.protocol.Protocol] = classOf[JmsProtocol].asInstanceOf[Class[io.gatling.core.protocol.Protocol]]
 
     def defaultProtocolValue(configuration: GatlingConfiguration): JmsProtocol =
@@ -47,10 +47,9 @@ final case class JmsProtocol(
     connectionFactory: ConnectionFactory,
     credentials: Option[Credentials],
     deliveryMode: Int,
-    replyTimeout: Option[Long],
+    replyTimeout: Option[FiniteDuration],
     listenerThreadCount: Int,
     messageMatcher: JmsMessageMatcher
 ) extends Protocol {
-
   type Components = JmsComponents
 }

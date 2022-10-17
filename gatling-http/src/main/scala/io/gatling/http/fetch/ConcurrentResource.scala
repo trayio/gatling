@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,21 +19,20 @@ package io.gatling.http.fetch
 import io.gatling.commons.validation.Validation
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.http.HeaderNames
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.client.uri.Uri
 import io.gatling.http.protocol.HttpProtocol
+import io.gatling.http.request.HttpRequest
 import io.gatling.http.request.builder.Http
 import io.gatling.http.request.builder.RequestBuilder._
-import io.gatling.http.request.HttpRequest
+
+import io.netty.handler.codec.http.HttpHeaderNames
 
 private[fetch] object ConcurrentResource {
-
   val DefaultResourceChecks = List(DefaultHttpCheck)
 }
 
 private[gatling] sealed abstract class ConcurrentResource extends Product with Serializable {
-
   def uri: Uri
   def acceptHeader: Expression[String]
   val url: String = uri.toString
@@ -47,8 +46,8 @@ private[gatling] sealed abstract class ConcurrentResource extends Product with S
   ): Validation[HttpRequest] = {
     val requestName = httpProtocol.responsePart.inferredHtmlResourcesNaming(uri)
     val httpRequestDef =
-      Http(requestName.expressionSuccess).get(uri).header(HeaderNames.Accept, acceptHeader).build(httpCaches, httpProtocol, throttled, configuration)
-    httpRequestDef.build(requestName, session)
+      new Http(requestName.expressionSuccess).get(uri).header(HttpHeaderNames.ACCEPT, acceptHeader).build(httpCaches, httpProtocol, throttled, configuration)
+    httpRequestDef.build(session)
   }
 }
 

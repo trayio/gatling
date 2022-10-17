@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,16 @@ package io.gatling.core.test
 
 import java.util.concurrent.ConcurrentLinkedDeque
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 import io.gatling.BaseSpec
 import io.gatling.commons.util.DefaultClock
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.Action
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.pause.Constant
 import io.gatling.core.protocol.ProtocolComponentsRegistries
 import io.gatling.core.structure._
@@ -37,28 +36,25 @@ import akka.actor.{ ActorRef, ActorSystem }
 import io.netty.channel.EventLoopGroup
 
 final case class ScenarioTestContext(scenarioContext: ScenarioContext, statsEngine: LoggingStatsEngine, exitAction: BlockingExitAction) {
-
   private[test] val expectations = new ArrayBuffer[PartialFunction[Any, Unit]]
 }
 
 trait ScenarioTestFixture extends BaseSpec {
-
   def configuration: GatlingConfiguration
 
   private def resolve(msgQueue: ConcurrentLinkedDeque[Any], expectations: ArrayBuffer[PartialFunction[Any, Unit]]): Unit = {
     val msgIt = msgQueue.iterator
-    expectations.zipWithIndex.foreach {
-      case (expectation, i) =>
-        if (!msgIt.hasNext) {
-          throw new AssertionError(s"Expectation $i didn't receive any message")
-        }
-        val msg = msgIt.next()
+    expectations.zipWithIndex.foreach { case (expectation, i) =>
+      if (!msgIt.hasNext) {
+        throw new AssertionError(s"Expectation $i didn't receive any message")
+      }
+      val msg = msgIt.next()
 
-        if (!expectation.isDefinedAt(msg)) {
-          throw new AssertionError(s"Expectation $i didn't match message $msg")
-        }
+      if (!expectation.isDefinedAt(msg)) {
+        throw new AssertionError(s"Expectation $i didn't match message $msg")
+      }
 
-        expectation(msg)
+      expectation(msg)
     }
 
     if (msgIt.hasNext) {
@@ -72,18 +68,17 @@ trait ScenarioTestFixture extends BaseSpec {
     try {
       val statsEngine = new LoggingStatsEngine
       val coreComponents =
-        new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], mock[Throttler], statsEngine, new DefaultClock, mock[Action], configuration)
+        new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], None, statsEngine, new DefaultClock, mock[Action], configuration)
       val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, Map.empty).scenarioRegistry(Map.empty)
       val scenarioContext = new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false)
       val exitAction = new BlockingExitAction(1)
       val ctx = ScenarioTestContext(scenarioContext, statsEngine, exitAction)
 
       f(ctx)
-      exitAction.await(2 seconds)
+      exitAction.await(2.seconds)
       resolve(statsEngine.msgQueue, ctx.expectations)
-
     } finally {
-      Await.ready(system.terminate(), 2 seconds)
+      Await.ready(system.terminate(), 2.seconds)
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,29 +26,30 @@ import io.gatling.netty.util.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public final class MultipartFormDataRequestBody extends RequestBody<List<Part<?>>> {
+public final class MultipartFormDataRequestBody extends RequestBody.Base<List<Part<?>>> {
 
   private static final byte[] EMPTY_BYTES = new byte[0];
 
   private static final Logger LOGGER = LoggerFactory.getLogger(MultipartFormDataRequestBody.class);
 
   private final byte[] boundary;
+  private final String patchedContentType;
 
-  MultipartFormDataRequestBody(List<Part<?>> content, String contentType, byte[] boundary) {
-    super(content, contentType);
+  MultipartFormDataRequestBody(List<Part<?>> content, String patchedContentType, byte[] boundary) {
+    super(content);
     this.boundary = boundary;
+    this.patchedContentType = patchedContentType;
   }
 
   private MultipartChunkedInput toChunkedInput() {
     List<PartImpl> partImpls = new ArrayList<>(content.size() + 1);
-    for (Part<?> part: content) {
+    for (Part<?> part : content) {
       partImpls.add(part.toImpl(boundary));
     }
     partImpls.add(new MessageEndPartImpl(boundary));
@@ -63,7 +64,7 @@ public final class MultipartFormDataRequestBody extends RequestBody<List<Part<?>
   }
 
   @Override
-  public RequestBodyBuilder<List<Part<?>>> newBuilder() {
+  public RequestBodyBuilder newBuilder() {
     return new MultipartFormDataRequestBodyBuilder(content);
   }
 
@@ -71,13 +72,14 @@ public final class MultipartFormDataRequestBody extends RequestBody<List<Part<?>
   public byte[] getBytes() {
     MultipartChunkedInput content = toChunkedInput();
 
-    CompositeByteBuf composite = new CompositeByteBuf(ByteBufAllocator.DEFAULT, false, Integer.MAX_VALUE);
+    CompositeByteBuf composite =
+        new CompositeByteBuf(ByteBufAllocator.DEFAULT, false, Integer.MAX_VALUE);
 
     try {
       ByteBuf chunk;
       do {
-        chunk = content.readChunk(ByteBufAllocator.DEFAULT);
-        composite.addComponent(chunk);
+        chunk = content.readChunk(ByteBufAllocator.DEFAULT).content();
+        composite.addComponent(true, chunk);
       } while (chunk != null);
       return ByteBufUtils.byteBuf2Bytes(composite);
 
@@ -91,11 +93,18 @@ public final class MultipartFormDataRequestBody extends RequestBody<List<Part<?>
   }
 
   @Override
+  public String getPatchedContentType() {
+    return patchedContentType;
+  }
+
+  @Override
   public String toString() {
-    return "MultipartFormDataRequestBody{" +
-      "boundary=" + Arrays.toString(boundary) +
-      ", content=" + content +
-      ", contentType=" + contentType +
-      '}';
+    final StringBuilder sb = new StringBuilder("MultipartFormDataRequestBody{");
+    sb.append("boundary=").append(Arrays.toString(boundary));
+    sb.append(", patchedContentType='").append(patchedContentType).append('\'');
+    sb.append(", content=");
+    content.forEach(part -> sb.append(part).append("\n"));
+    sb.append('}');
+    return sb.toString();
   }
 }

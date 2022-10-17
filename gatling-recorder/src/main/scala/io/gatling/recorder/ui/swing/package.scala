@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,5 @@ import scala.swing.Component
 import scala.swing.event.{ KeyEvent, KeyReleased }
 
 package object swing {
-
   def keyReleased(c: Component): KeyEvent = KeyReleased(c, null, 0, null)(null)
 }

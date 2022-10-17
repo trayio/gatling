@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,15 @@ package io.gatling.core.cli
 
 import scopt.{ OptionDef, OptionParser, Read }
 
-private[gatling] class GatlingOptionParser(programName: String) extends OptionParser[Unit](programName) {
-  def help(constant: CommandLineConstant): OptionDef[Unit, Unit] =
-    help(constant.full).abbr(constant.abbr)
+private[gatling] class GatlingOptionParser[B](programName: String) extends OptionParser[B](programName) {
+  def help(constant: CommandLineConstant): OptionDef[Unit, B] =
+    help(constant.full).abbr(constant.abbr).text(constant.text)
 
-  def opt[A: Read](constant: CommandLineConstant): OptionDef[A, Unit] =
-    opt[A](constant.full).abbr(constant.abbr)
+  def opt[A: Read](constant: CommandLineConstant): OptionDef[A, B] =
+    constant.valueName match {
+      case Some(name) => opt[A](constant.full).abbr(constant.abbr).text(constant.text).valueName(name)
+      case _          => opt[A](constant.full).abbr(constant.abbr).text(constant.text)
+    }
 
   override def errorOnUnknownArgument: Boolean = false
 }

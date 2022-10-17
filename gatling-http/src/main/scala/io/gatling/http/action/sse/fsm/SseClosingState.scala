@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,37 +16,25 @@
 
 package io.gatling.http.action.sse.fsm
 
-import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 
-class SseClosingState(fsm: SseFsm, actionName: String, session: Session, next: Action, timestamp: Long) extends SseState(fsm) with StrictLogging {
+import com.typesafe.scalalogging.StrictLogging
 
+class SseClosingState(fsm: SseFsm, actionName: String, session: Session, next: Action, timestamp: Long) extends SseState(fsm) with StrictLogging {
   import fsm._
 
-  override def onSseReceived(message: String, timestamp: Long): NextSseState = {
-    logUnmatchedServerMessage(session)
-    NextSseState(this)
-  }
-
-  override def onSseStreamClosed(closeStart: Long): NextSseState = {
-    // server has acked closing
-    logger.info("Socket closed")
-    val newSession = logResponse(session, actionName, closeStart, timestamp, OK, None, None).remove(wsName)
-    NextSseState(
-      new SseClosedState(fsm),
-      () => next ! newSession
-    )
+  override def onSseStreamClosed(closeEnd: Long): NextSseState = {
+    logger.debug("Stream closed")
+    val newSession = logResponse(session, actionName, timestamp, closeEnd, OK, None, None).remove(sseName)
+    NextSseState(new SseClosedState(fsm), () => next ! newSession)
   }
 
   override def onSseStreamCrashed(t: Throwable, closeStart: Long): NextSseState = {
-    logger.info("SSE stream crashed while waiting for socket close")
+    logger.debug("SSE stream crashed while waiting for socket close")
     // crash, close anyway
-    val newSession = logResponse(session, actionName, closeStart, timestamp, KO, None, Some(t.getMessage)).markAsFailed.remove(wsName)
-    NextSseState(
-      new SseClosedState(fsm),
-      () => next ! newSession
-    )
+    val newSession = logResponse(session, actionName, closeStart, timestamp, KO, None, Some(t.getMessage)).markAsFailed.remove(sseName)
+    NextSseState(new SseClosedState(fsm), () => next ! newSession)
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.gatling.mqtt
 
 import java.nio.charset.StandardCharsets.UTF_8
+import javax.net.ssl.KeyManagerFactory
 
 import scala.concurrent.duration._
 
@@ -24,13 +25,13 @@ import io.gatling.core.Predef._
 import io.gatling.mqtt.Predef._
 
 class MqttCompileTest extends Simulation {
-
-  private val mqttConf = mqtt
+  private val mqttProtocol = mqtt
     .broker("localhost", 1883)
     .useTls(false)
-    .clientId("${clientId}")
+    .perUserKeyManagerFactory(_ => KeyManagerFactory.getInstance("TLS"))
+    .clientId("#{clientId}")
     .cleanSession(true)
-    .credentials("${userName}", "${password}")
+    .credentials("#{userName}", "#{password}")
     .keepAlive(30)
     // default QoS
     .qosAtMostOnce
@@ -38,17 +39,17 @@ class MqttCompileTest extends Simulation {
     .qosExactlyOnce
     // default retain
     .retain(true)
-    .lastWill(LastWill("${willTopic}", StringBody("${willMessage}")).qosAtLeastOnce.retain(true))
-    .lastWill(LastWill("${willTopic}", ByteArrayBody(new Array[Byte](0))))
-    .lastWill(LastWill("${willTopic}", RawFileBody("file")))
+    .lastWill(LastWill("#{willTopic}", StringBody("#{willMessage}")).qosAtLeastOnce.retain(true))
+    .lastWill(LastWill("#{willTopic}", ByteArrayBody(new Array[Byte](0))))
+    .lastWill(LastWill("#{willTopic}", RawFileBody("file")))
     .mqttVersion_3_1
     .mqttVersion_3_1_1
     .reconnectAttemptsMax(1)
-    .reconnectDelay(1L)
+    .reconnectDelay(1.millis)
     .reconnectBackoffMultiplier(1.2f)
     .resendDelay(1000)
     .resendBackoffMultiplier(2.0f)
-    .timeoutCheckInterval(1 second)
+    .timeoutCheckInterval(1.second)
     .correlateBy(jsonPath("$.correlationId"))
     .correlateBy(jsonPath("$.correlationId").find)
     .correlateBy(regex("{correlationId=(.*)}.*"))
@@ -58,63 +59,75 @@ class MqttCompileTest extends Simulation {
 
   private val scn = scenario("MQTT Test")
     .exec(mqtt("Connecting").connect)
-    .exec(mqtt("Subscribing").subscribe("${myTopic}").qosAtMostOnce.qosAtLeastOnce.qosExactlyOnce)
+    .exec(mqtt("Subscribing").subscribe("#{myTopic}").qosAtMostOnce.qosAtLeastOnce.qosExactlyOnce)
     .exec(
       mqtt("Subscribing")
-        .subscribe("${myTopic2}")
-        .wait(100 milliseconds)
+        .subscribe("#{myTopic2}")
+        .await(100.milliseconds)
     )
     .exec(
       mqtt("Subscribing")
-        .subscribe("${myTopic2}")
-        .expect(100 milliseconds)
+        .subscribe("#{myTopic2}")
+        .await(100.milliseconds)
+        .check(jsonPath("$.error").notExists)
+    )
+    .exec(
+      mqtt("Subscribing")
+        .subscribe("#{myTopic2}")
+        .expect(100.milliseconds)
+        .check(jsonPath("$.error").notExists)
+    )
+    .exec(
+      mqtt("Subscribing")
+        .subscribe("#{myTopic2}")
+        .expect(100.milliseconds)
     )
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myTextPayload}"))
+        .publish("#{myTopic}")
+        .message(StringBody("#{myTextPayload}"))
         .qosAtMostOnce
         .qosAtLeastOnce
         .qosExactlyOnce
         .retain(true)
     )
-    .exec(mqtt("Publishing").publish("${myTopic}").message(ElFileBody("file")))
-    .exec(mqtt("Publishing").publish("${myTopic}").message(PebbleFileBody("file")))
-    .exec(mqtt("Publishing").publish("${myTopic}").message(ByteArrayBody("${myBinaryPayload}")))
-    .exec(mqtt("Publishing").publish("${myTopic}").message(RawFileBody("file")))
+    .exec(mqtt("Publishing").publish("#{myTopic}").message(ElFileBody("file")))
+    .exec(mqtt("Publishing").publish("#{myTopic}").message(PebbleFileBody("file")))
+    .exec(mqtt("Publishing").publish("#{myTopic}").message(ByteArrayBody("#{myBinaryPayload}")))
+    .exec(mqtt("Publishing").publish("#{myTopic}").message(RawFileBody("file")))
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myPayload}"))
-        .wait(100 milliseconds)
+        .publish("#{myTopic}")
+        .message(StringBody("#{myPayload}"))
+        .await(100.milliseconds)
     )
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myPayload}"))
-        .wait(100 milliseconds)
+        .publish("#{myTopic}")
+        .message(StringBody("#{myPayload}"))
+        .await(100.milliseconds, "#{responseTopic}")
         .check(jsonPath("$.error").notExists)
     )
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myPayload}"))
-        .expect(100 milliseconds)
+        .publish("#{myTopic}")
+        .message(StringBody("#{myPayload}"))
+        .expect(100.milliseconds)
     )
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myPayload}"))
-        .expect(100 milliseconds, "repub/${myTopic}")
+        .publish("#{myTopic}")
+        .message(StringBody("#{myPayload}"))
+        .expect(100.milliseconds, "repub/#{myTopic}")
     )
     .exec(
       mqtt("Publishing")
-        .publish("${myTopic}")
-        .message(StringBody("${myPayload}"))
-        .expect(100 milliseconds)
+        .publish("#{myTopic}")
+        .message(StringBody("#{myPayload}"))
+        .expect(100.milliseconds)
         .check(jsonPath("$.error").notExists)
     )
-    .exec(waitForMessages.timeout(100 milliseconds))
+    .exec(waitForMessages.timeout(100.milliseconds))
 
-  setUp(scn.inject(atOnceUsers(1))).protocols(mqttConf)
+  setUp(scn.inject(atOnceUsers(1))).protocols(mqttProtocol)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,23 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.Clock
-import io.gatling.core.stats.StatsEngine
+import io.gatling.commons.validation._
 import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.stats.StatsEngine
 
 import akka.actor.ActorRef
 
-class Feed(feedActor: ActorRef, number: Expression[Int], val statsEngine: StatsEngine, val clock: Clock, val next: Action) extends ExitableAction {
-
+private final class Feed(feedActor: ActorRef, numberOpt: Option[Expression[Int]], val statsEngine: StatsEngine, val clock: Clock, val next: Action)
+    extends ExitableAction {
   override val name: String = feedActor.path.name
 
-  override def execute(session: Session): Unit = recover(session) {
-    number(session).map(num => feedActor ! FeedMessage(session, num, next))
-  }
+  override def execute(session: Session): Unit =
+    numberOpt match {
+      case Some(number) =>
+        recover(session) {
+          number(session).map(n => feedActor ! FeedMessage(session, Some(n), next))
+        }
+      case _ =>
+        feedActor ! FeedMessage(session, None, next)
+    }
 }

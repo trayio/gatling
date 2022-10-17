@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import io.gatling.core.session._
 trait BodyBytesCheckType
 
 object BodyBytesCheckBuilder
-    extends DefaultFindCheckBuilder[BodyBytesCheckType, Array[Byte], Array[Byte]](
+    extends CheckBuilder.Find.Default[BodyBytesCheckType, Array[Byte], Array[Byte]](
       extractor = new FindExtractor[Array[Byte], Array[Byte]]("bodyBytes", Some(_).success).expressionSuccess,
       displayActualValue = false
     )

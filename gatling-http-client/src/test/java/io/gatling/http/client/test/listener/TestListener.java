@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,31 +20,31 @@ import java.util.concurrent.CompletableFuture;
 
 public abstract class TestListener extends ResponseAsStringListener {
 
-    private CompletableFuture<Void> result = new CompletableFuture<>();
+  private final CompletableFuture<Void> result = new CompletableFuture<>();
 
-    public abstract void onComplete0();
+  public abstract void onComplete0();
 
+  @Override
+  public void onComplete() {
+    try {
+      onComplete0();
+      result.complete(null);
+    } catch (Throwable e) {
+      result.completeExceptionally(e);
+    }
+  }
+
+  @Override
+  public void onThrowable(Throwable e) {
+    result.completeExceptionally(e);
+  }
+
+  public CompletableFuture<Void> getResult() {
+    return result;
+  }
+
+  public static class NoopTestListener extends TestListener {
     @Override
-    public void onComplete() {
-        try {
-            onComplete0();
-            result.complete(null);
-        } catch (Throwable e) {
-            result.completeExceptionally(e);
-        }
-    }
-
-    @Override
-    public void onThrowable(Throwable e) {
-        result.completeExceptionally(e);
-    }
-
-    public CompletableFuture<Void> getResult() {
-        return result;
-    }
-
-    public static class NoopTestListener extends TestListener {
-        @Override
-        public void onComplete0() {}
-    }
+    public void onComplete0() {}
+  }
 }

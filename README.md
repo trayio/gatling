@@ -1,4 +1,4 @@
-# Gatling [![Build Status](https://travis-ci.org/gatling/gatling.svg?branch=master)](https://travis-ci.org/gatling/gatling) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.gatling/gatling-core/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.gatling/gatling-core/)
+# Gatling [![Build Status](https://github.com/gatling/gatling/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/gatling/gatling/actions/workflows/build.yml?query=branch%3Amain) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.gatling/gatling-core/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.gatling/gatling-core/)
 
 ## What is Gatling ?
 
@@ -25,11 +25,11 @@ Gatling is developed in Scala and built upon :
 
 Read the [documentation](https://gatling.io/docs/current/).
 
-Join the [Gatling User Group](https://groups.google.com/forum/#!forum/gatling).
+Join the [Gatling Community Forum](https://community.gatling.io).
 
 Found a real bug? Raise an [issue](https://github.com/gatling/gatling/issues).
 
 ## Partners
 
-<img alt="Takima" src="https://raw.githubusercontent.com/gatling/gatling/master/src/sphinx/project/img/logo-takima-1-nom-bas.png" width="80">&nbsp;&nbsp;&nbsp;&nbsp;
-![Highsoft AS](https://raw.githubusercontent.com/gatling/gatling/master/src/sphinx/project/img/highsoft_logo.png)&nbsp;&nbsp;&nbsp;&nbsp;
+<img alt="Takima" src="https://raw.githubusercontent.com/gatling/gatling/main/images/logo-takima-1-nom-bas.png" width="80">&nbsp;&nbsp;&nbsp;&nbsp;
+![Highsoft AS](https://raw.githubusercontent.com/gatling/gatling/main/images/highsoft_logo.png)&nbsp;&nbsp;&nbsp;&nbsp;

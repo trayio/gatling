@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,22 +25,21 @@ abstract class JsonPathCheckBuilderBase[T, X: JsonFilter](
     name: String,
     private[jsonpath] val path: Expression[String],
     private[jsonpath] val jsonPaths: JsonPaths
-) extends DefaultMultipleFindCheckBuilder[T, JsonNode, X](displayActualValue = true) {
-
-  override def findExtractor(occurrence: Int): Expression[Extractor[JsonNode, X]] = path.map(JsonPathExtractors.find[X](name, _, occurrence, jsonPaths))
-  override def findAllExtractor: Expression[Extractor[JsonNode, Seq[X]]] = path.map(JsonPathExtractors.findAll[X](name, _, jsonPaths))
-  override def countExtractor: Expression[Extractor[JsonNode, Int]] = path.map(JsonPathExtractors.count(name, _, jsonPaths))
+) extends CheckBuilder.MultipleFind.Default[T, JsonNode, X](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[JsonNode, X]] =
+    path.map(JsonPathExtractors.find[X](name, _, occurrence, jsonPaths))
+  override protected def findAllExtractor: Expression[Extractor[JsonNode, Seq[X]]] = path.map(JsonPathExtractors.findAll[X](name, _, jsonPaths))
+  override protected def countExtractor: Expression[Extractor[JsonNode, Int]] = path.map(JsonPathExtractors.count(name, _, jsonPaths))
 }
 
-trait JsonPathCheckType
+sealed trait JsonPathCheckType
 
-trait JsonPathOfType { self: JsonPathCheckBuilder[String] =>
+sealed trait JsonPathOfType { self: JsonPathCheckBuilder[String] =>
 
-  def ofType[X: JsonFilter]: JsonPathCheckBuilder[X] = new JsonPathCheckBuilder[X](path, jsonPaths)
+  def ofType[X: JsonFilter]: CheckBuilder.MultipleFind[JsonPathCheckType, JsonNode, X] = new JsonPathCheckBuilder[X](path, jsonPaths)
 }
 
 object JsonPathCheckBuilder {
-
   def jsonPath(path: Expression[String], jsonPaths: JsonPaths): JsonPathCheckBuilder[String] with JsonPathOfType =
     new JsonPathCheckBuilder[String](path, jsonPaths) with JsonPathOfType
 }

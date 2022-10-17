@@ -101,11 +101,6 @@ This product depends on jackson, distributed by FasterXML:
   * License: license/LICENSE.jackson.al20.txt (Apache License v2.0)
   * Homepage: https://github.com/FasterXML/jackson
 
-This product depends on JsonPath, distributed by GatlingCorp:
-
-  * License: license/LICENSE.jsonpath.al20.txt (Apache License v2.0)
-  * Homepage: https://github.com/gatling/jsonpath
-
 This product depends on Jodd, distributed by Igor Spasic:
 
   * License: license/LICENSE.jsonpath.bsd2.txt (BSD 2-Clause License)
@@ -203,13 +198,33 @@ This product depends on Coverity Security Library, distributed by Coverity, Inc.
 
 This product depends on SimpleFlatMapper, distributed by Arnaud Roger:
 
-  * License: license/LICENSE.sfm.mit.txt (BSD 3-Clause License)
+  * License: license/LICENSE.sfm.mit.txt (MIT License)
   * Homepage: https://github.com/arnaudroger/SimpleFlatMapper
 
 This product depends on JMESPATH-Java, distributed by Burt AB:
 
-  * License: license/LICENSE.sfm.mit.txt (BSD 3-Clause License)
+  * License: license/LICENSE.jmespathjava.bsd3.txt (BSD 3-Clause License)
   * Homepage: https://github.com/burtcorp/jmespath-java
+
+This product depends on Brotli, distributed by Google:
+
+* License: license/LICENSE.brotli.mit.txt (MIT License)
+* Homepage: https://github.com/google/brotli
+
+This product depends on Brotli4j, distributed by Aayush Atharva:
+
+* License: license/LICENSE.brotli.al20.txt (Apache License v2.0)
+* Homepage: https://github.com/hyperxpro/Brotli4j
+
+This product depends on jsr305, distributed by FindBugs:
+
+* License: license/LICENSE.jsr305.bsd2.txt (BSD 2-Clause License)
+* Homepage: https://code.google.com/archive/p/jsr-305/
+
+This product depends on typetools, distributed by Jonathan Halterman:
+
+* License: license/LICENSE.typetools.al20.txt (Apache License v2.0)
+* Homepage: https://github.com/jhalterman/typetools
 
 Test and documentation dependencies
 ===================================

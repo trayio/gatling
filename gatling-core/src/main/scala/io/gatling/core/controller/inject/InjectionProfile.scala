@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,15 +25,13 @@ import io.gatling.core.stats.StatsEngine
 import io.netty.channel.EventLoopGroup
 
 trait InjectionProfileFactory[-InjectionStep] {
-
   def profile(steps: Iterable[InjectionStep]): InjectionProfile
 }
 
 trait InjectionProfile {
-
   def totalUserCount: Option[Long]
 
-  def workload(
+  private[inject] def workload(
       scenario: Scenario,
       userIdGen: AtomicLong,
       startTime: Long,
@@ -42,7 +40,7 @@ trait InjectionProfile {
       clock: Clock
   ): Workload
 
-  //[fl]
+  // [e]
   //
-  //[fl]
+  // [e]
 }

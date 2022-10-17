@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import io.gatling.commons.NotNothing
 import io.gatling.commons.util.TypeCaster
 
 package object el {
-
   implicit class El(val string: String) extends AnyVal {
     def el[T: TypeCaster: ClassTag: NotNothing]: Expression[T] = ElCompiler.compile[T](string)
   }

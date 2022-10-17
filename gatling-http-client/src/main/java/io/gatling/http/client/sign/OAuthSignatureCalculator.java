@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,32 @@
 
 package io.gatling.http.client.sign;
 
+import static io.netty.handler.codec.http.HttpHeaderNames.AUTHORIZATION;
+
 import io.gatling.http.client.Param;
 import io.gatling.http.client.Request;
-import io.gatling.http.client.SignatureCalculator;
+import io.gatling.http.client.body.RequestBody;
+import io.gatling.http.client.body.form.FormUrlEncodedRequestBody;
 import io.gatling.http.client.oauth.ConsumerKey;
 import io.gatling.http.client.oauth.OAuthSignatureCalculatorInstance;
 import io.gatling.http.client.oauth.RequestToken;
-import io.gatling.http.client.body.form.FormUrlEncodedRequestBody;
-import io.gatling.http.client.body.RequestBody;
-
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.AUTHORIZATION;
+public class OAuthSignatureCalculator implements Consumer<Request> {
 
-public class OAuthSignatureCalculator implements SignatureCalculator {
-
-  private static final ThreadLocal<OAuthSignatureCalculatorInstance> INSTANCES = ThreadLocal.withInitial(() -> {
-    try {
-      return new OAuthSignatureCalculatorInstance();
-    } catch (NoSuchAlgorithmException e) {
-      throw new ExceptionInInitializerError(e);
-    }
-  });
+  private static final ThreadLocal<OAuthSignatureCalculatorInstance> INSTANCES =
+      ThreadLocal.withInitial(
+          () -> {
+            try {
+              return new OAuthSignatureCalculatorInstance();
+            } catch (NoSuchAlgorithmException e) {
+              throw new ExceptionInInitializerError(e);
+            }
+          });
 
   private final ConsumerKey consumerAuth;
   private final RequestToken requestToken;
@@ -50,21 +52,25 @@ public class OAuthSignatureCalculator implements SignatureCalculator {
   }
 
   @Override
-  public void sign(Request request) throws Exception {
+  public void accept(Request request) {
 
-    RequestBody<?> body = request.getBody();
+    RequestBody body = request.getBody();
     List<Param> formParams =
-      body instanceof FormUrlEncodedRequestBody ?
-        ((FormUrlEncodedRequestBody) body).getContent() :
-        Collections.emptyList();
+        body instanceof FormUrlEncodedRequestBody
+            ? ((FormUrlEncodedRequestBody) body).getContent()
+            : Collections.emptyList();
 
-    String authorization = INSTANCES.get().computeAuthorizationHeader(
-      consumerAuth,
-      requestToken,
-      request.getMethod(),
-      request.getUri(),
-      formParams);
+    try {
+      String authorization =
+          INSTANCES
+              .get()
+              .computeAuthorizationHeader(
+                  consumerAuth, requestToken, request.getMethod(), request.getUri(), formParams);
 
-    request.getHeaders().set(AUTHORIZATION, authorization);
+      request.getHeaders().set(AUTHORIZATION, authorization);
+
+    } catch (InvalidKeyException e) {
+      throw new IllegalArgumentException("Failed to compute OAuth signature", e);
+    }
   }
 }

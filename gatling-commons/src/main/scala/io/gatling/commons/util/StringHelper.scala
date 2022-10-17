@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,42 +16,29 @@
 
 package io.gatling.commons.util
 
-import java.lang.{ Long => JLong, StringBuilder => JStringBuilder }
+import java.{ lang => jl }
 import java.nio.charset.StandardCharsets._
 import java.text.Normalizer
+import java.util.Locale
 
 import io.gatling.commons.util.Spire.cfor
-import io.gatling.netty.util.StringBuilderPool
+import io.gatling.jdk.util.StringBuilderPool
 
 object StringHelper {
-
   val Eol: String = System.lineSeparator
   val EolBytes: Array[Byte] = Eol.getBytes(US_ASCII)
 
   val Crlf: String = "\r\n"
-
-  def bytes2Hex(bytes: Array[Byte]): String =
-    bytes
-      .foldLeft(new JStringBuilder(bytes.length)) { (buff, b) =>
-        val shifted = b & 0xff
-        if (shifted < 0x10)
-          buff.append('0')
-        buff.append(JLong.toString(shifted.toLong, 16))
-      }
-      .toString
 
   object RichString {
     private val SbPool = new StringBuilderPool
   }
 
   implicit class RichString(val string: String) extends AnyVal {
-
     def clean: String = {
       val normalized = Normalizer.normalize(string, Normalizer.Form.NFD)
-      normalized.toLowerCase.replaceAll("\\p{InCombiningDiacriticalMarks}+", "-").replaceAll("[^a-zA-Z0-9\\-]", "-")
+      normalized.toLowerCase(Locale.ROOT).replaceAll("\\p{InCombiningDiacriticalMarks}+", "-").replaceAll("[^a-zA-Z0-9\\-]", "-")
     }
-
-    def escapeJsIllegalChars: String = string.replace("\"", "\\\"").replace("\\", "\\\\")
 
     def trimToOption: Option[String] = string.trim match {
       case "" => None
@@ -83,7 +70,7 @@ object StringHelper {
         string
       } else {
         var matchFound = false
-        var sb: JStringBuilder = null
+        var sb: jl.StringBuilder = null
 
         cfor(0)(_ < string.length, _ + 1) { i =>
           val c = string.charAt(i)
@@ -109,18 +96,14 @@ object StringHelper {
   }
 
   implicit class RichCharSequence(val source: CharSequence) extends AnyVal {
-
     def indexOf(target: Array[Char], fromIndex: Int): Int = {
-
       val sourceCount = source.length
       val targetCount = target.length
 
       if (fromIndex >= sourceCount) {
         if (targetCount == 0) sourceCount else -1
-
       } else if (targetCount == 0) {
         fromIndex
-
       } else {
         var i = fromIndex
         val first = target(0)

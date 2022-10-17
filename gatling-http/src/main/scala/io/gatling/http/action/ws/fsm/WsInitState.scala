@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 
 final class WsInitState(fsm: WsFsm) extends WsState(fsm) {
+  override protected def remainingReconnects: Int = fsm.httpProtocol.wsPart.maxReconnects
+
   override def onPerformInitialConnect(session: Session, initialConnectNext: Action): NextWsState =
-    WsConnectingState.gotoConnecting(fsm, session.set(fsm.wsName, fsm), Left(initialConnectNext))
+    WsConnectingState.gotoConnecting(fsm, session, Left(initialConnectNext), remainingReconnects)
 }

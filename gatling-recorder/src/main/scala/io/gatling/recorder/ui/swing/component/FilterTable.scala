@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 package io.gatling.recorder.ui.swing.component
 
 import java.awt.Color
+import javax.swing.{ JMenuItem, JPopupMenu }
+import javax.swing.table.DefaultTableModel
 
 import scala.swing.{ Component, Dimension, ScrollPane, Table }
 import scala.swing.event.{ MouseButtonEvent, MouseEvent }
@@ -24,11 +26,7 @@ import scala.util.{ Failure, Try }
 
 import io.gatling.commons.util.Throwables._
 
-import javax.swing.{ JMenuItem, JPopupMenu }
-import javax.swing.table.DefaultTableModel
-
 private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
-
   private val table = new Table {
     override def rendererComponent(isSelected: Boolean, focused: Boolean, row: Int, column: Int): Component = {
       val c = super.rendererComponent(isSelected, focused, row, column)
@@ -41,6 +39,7 @@ private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
 
   contents = table
   model.addColumn(headerTitle)
+  table.peer.getTableHeader.setOpaque(false)
   table.model = model
   table.rowHeight = 30
   preferredSize = new Dimension(300, 200)
@@ -61,18 +60,16 @@ private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
       .map { str =>
         (str, Try(str.r))
       }
-      .collect {
-        case (str, fail: Failure[_]) => s"$str is not a valid regular expression: ${fail.exception.rootMessage}"
+      .collect { case (str, fail: Failure[_]) =>
+        s"$str is not a valid regular expression: ${fail.exception.rootMessage}"
       }
 
-  def removeRows(toRemove: Seq[Int]): Unit = {
+  def removeRows(toRemove: Seq[Int]): Unit =
     toRemove.sorted.reverse.foreach(model.removeRow)
-  }
 
-  def stopCellEditing(): Unit = {
+  def stopCellEditing(): Unit =
     if (table.peer.isEditing && table.peer.getSelectedRow != -1)
       table.peer.getCellEditor.stopCellEditing
-  }
 
   def removeDuplicates(): Unit = {
     val toRemove = for {
@@ -100,7 +97,7 @@ private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
 
   def removeAllElements(): Unit = removeRows(0 until model.getRowCount)
 
-  def setFocusable(focusable: Boolean): Unit = { table.focusable = focusable }
+  def setFocusable(focusable: Boolean): Unit = table.focusable = focusable
 
   def getRowCount: Int = model.getRowCount
 
@@ -117,8 +114,8 @@ private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
 
     listenTo(table.mouse.clicks)
 
-    reactions += {
-      case e: MouseButtonEvent => maybeShowPopup(e)
+    reactions += { case e: MouseButtonEvent =>
+      maybeShowPopup(e)
     }
 
     def maybeShowPopup(e: MouseEvent): Unit =

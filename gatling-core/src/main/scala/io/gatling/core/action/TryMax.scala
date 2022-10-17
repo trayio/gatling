@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.action
 
-import scala.concurrent.duration._
+import scala.runtime.LongRef
 
 import io.gatling.commons.stats.KO
 import io.gatling.commons.util.Clock
@@ -25,9 +25,7 @@ import io.gatling.core.session.{ Expression, Session, TryMaxBlock }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
-import akka.actor.ActorSystem
-
-class TryMax(
+private final class TryMax(
     times: Expression[Int],
     counterName: String,
     statsEngine: StatsEngine,
@@ -35,12 +33,11 @@ class TryMax(
     next: Action
 ) extends Action
     with NameGen {
-
   override val name: String = genName("tryMax")
 
   private[this] var innerTryMax: Action = _
-  private[core] def initialize(loopNext: Action, system: ActorSystem): Unit =
-    innerTryMax = new InnerTryMax(times, loopNext, counterName, system, name + "-inner", next)
+  private[core] def initialize(loopNext: Action): Unit =
+    innerTryMax = new InnerTryMax(times, loopNext, counterName, name + "-inner", next)
 
   override def execute(session: Session): Unit =
     BlockExit.mustExit(session) match {
@@ -53,17 +50,16 @@ class InnerTryMax(
     times: Expression[Int],
     loopNext: Action,
     counterName: String,
-    actorSystem: ActorSystem,
     val name: String,
     val next: Action
 ) extends ChainableAction {
-
-  private[this] val lastUserIdThreadLocal = new ThreadLocal[Long]
+  private[this] val lastUserIdThreadLocal = ThreadLocal.withInitial(() => LongRef.zero())
 
   private[this] def getAndSetLastUserId(session: Session): Long = {
-    val lastUserId = lastUserIdThreadLocal.get()
-    lastUserIdThreadLocal.set(session.userId)
-    lastUserId
+    val lastUserIdRef = lastUserIdThreadLocal.get()
+    val prev = lastUserIdRef.elem
+    lastUserIdRef.elem = session.userId
+    prev
   }
 
   private def blockFailed(session: Session): Boolean = session.blockStack.headOption match {
@@ -88,13 +84,12 @@ class InnerTryMax(
   private def continue(session: Session): Boolean = blockFailed(session) && maxNotReached(session)
 
   /**
-   * Evaluates the condition and if true executes the first action of loopNext
-   * else it executes next
+   * Evaluates the condition and if true executes the first action of loopNext else it executes next
    *
-   * @param session the session of the virtual user
+   * @param session
+   *   the session of the virtual user
    */
   def execute(session: Session): Unit = {
-
     val lastUserId = getAndSetLastUserId(session)
 
     if (!session.contains(counterName)) {
@@ -103,24 +98,29 @@ class InnerTryMax(
       val incrementedSession = session.incrementCounter(counterName)
 
       if (continue(incrementedSession)) {
-
         // reset status
         val resetSession = incrementedSession.markAsSucceeded
 
         if (session.userId == lastUserId) {
-          // except if we're running only one user, it's very likely we're hitting an empty loop
-          // let's schedule so we don't spin
-          import actorSystem.dispatcher
-          actorSystem.scheduler.scheduleOnce(1 millisecond) { // actual delay is tick (10 ms by default)
-            loopNext ! resetSession
+          // except if we're running only one user per core, it's very likely we're hitting an empty loop
+          // let's dispatch so we don't spin
+          val eventLoop = session.eventLoop
+          if (!eventLoop.isShutdown) {
+            eventLoop.execute(() => loopNext ! resetSession)
           }
-
         } else {
           loopNext ! resetSession
         }
-
       } else {
-        next ! session.exitTryMax
+        val newSession =
+          session.blockStack match {
+            case TryMaxBlock(counterName, _, status) :: tail =>
+              session.exitTryMax(counterName, status, tail)
+            case blockStack =>
+              logger.error(s"exitTryMax called but stack $blockStack head isn't a TryMaxBlock, please report.")
+              session
+          }
+        next ! newSession
       }
     }
   }

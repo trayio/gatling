@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,22 @@ package io.gatling.charts.report
 import io.gatling.charts.component.ComponentLibrary
 import io.gatling.charts.config.ChartsFiles
 import io.gatling.charts.stats.{ IntVsTimePlot, Series }
-import io.gatling.charts.util.Colors.Orange
+import io.gatling.charts.util.Color
 import io.gatling.core.config.GatlingConfiguration
 
-private[charts] class AllSessionsReportGenerator(reportsGenerationInputs: ReportsGenerationInputs, chartsFiles: ChartsFiles, componentLibrary: ComponentLibrary)(
-    implicit configuration: GatlingConfiguration
+private[charts] class AllSessionsReportGenerator(
+    reportsGenerationInputs: ReportsGenerationInputs,
+    chartsFiles: ChartsFiles,
+    componentLibrary: ComponentLibrary
+)(implicit
+    configuration: GatlingConfiguration
 ) extends ReportGenerator {
-
   def generate(): Unit = {
     import reportsGenerationInputs._
 
-    val series = new Series[IntVsTimePlot]("Active Users", logFileReader.numberOfActiveSessionsPerSecond(None), List(Orange))
+    val series = new Series[IntVsTimePlot]("Active Users", logFileData.numberOfActiveSessionsPerSecond(None), List(Color.Users.All))
 
-    val javascript = componentLibrary.getAllUsersJs(logFileReader.runStart, series)
+    val javascript = componentLibrary.getAllUsersJs(logFileData.runInfo.injectStart, series)
 
     new TemplateWriter(chartsFiles.allSessionsFile).writeToFile(javascript)
   }

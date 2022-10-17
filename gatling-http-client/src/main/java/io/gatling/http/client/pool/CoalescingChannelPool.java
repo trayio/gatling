@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,40 +18,43 @@ package io.gatling.http.client.pool;
 
 import io.gatling.http.client.ssl.Tls;
 import io.netty.channel.Channel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class CoalescingChannelPool {
   private static final Logger LOGGER = LoggerFactory.getLogger(CoalescingChannelPool.class);
 
   // FIXME Queue or Set?
-  private final Map<Long, Map<IpAndPort, Map.Entry<Set<String>, Queue<Channel>>>> channels = new HashMap<>(ChannelPool.INITIAL_CLIENT_MAP_SIZE);
+  private final Map<Long, Map<IpAndPort, Map.Entry<Set<String>, Queue<Channel>>>> channels =
+      new HashMap<>(ChannelPool.INITIAL_CLIENT_MAP_SIZE);
 
-  private final Map<Long, Map<Channel, Queue<Channel>>> cleanUpMap = new HashMap<>(ChannelPool.INITIAL_CLIENT_MAP_SIZE);
+  private final Map<Long, Map<Channel, Queue<Channel>>> cleanUpMap =
+      new HashMap<>(ChannelPool.INITIAL_CLIENT_MAP_SIZE);
 
   private Map<IpAndPort, Map.Entry<Set<String>, Queue<Channel>>> clientChannels(long clientId) {
-    return channels
-      .computeIfAbsent(clientId, k -> new HashMap<>(ChannelPool.INITIAL_KEY_PER_CLIENT_MAP_SIZE));
+    return channels.computeIfAbsent(
+        clientId, k -> new HashMap<>(ChannelPool.INITIAL_KEY_PER_CLIENT_MAP_SIZE));
   }
 
   private Map<Channel, Queue<Channel>> clientCleanUpMap(long clientId) {
-    return cleanUpMap
-      .computeIfAbsent(clientId, k -> new HashMap<>(ChannelPool.INITIAL_KEY_PER_CLIENT_MAP_SIZE));
+    return cleanUpMap.computeIfAbsent(
+        clientId, k -> new HashMap<>(ChannelPool.INITIAL_KEY_PER_CLIENT_MAP_SIZE));
   }
 
-
-  void addEntry(long clientId, IpAndPort ipAndPort, Set<String> subjectAlternativeNames, Channel channel) {
-    LOGGER.debug("Adding entry {} with subjectAlternativeNames {} to coalescing pool", ipAndPort, subjectAlternativeNames);
-    Map<IpAndPort, Map.Entry<Set<String>, Queue<Channel>>> clientChannels = clientChannels(clientId);
-    Map.Entry<Set<String>, Queue<Channel>> entry =  clientChannels.get(ipAndPort);
+  void addEntry(
+      long clientId, IpAndPort ipAndPort, Set<String> subjectAlternativeNames, Channel channel) {
+    Map<IpAndPort, Map.Entry<Set<String>, Queue<Channel>>> clientChannels =
+        clientChannels(clientId);
+    Map.Entry<Set<String>, Queue<Channel>> entry = clientChannels.get(ipAndPort);
     Queue<Channel> channels;
     if (entry == null) {
       channels = new ArrayDeque<>(ChannelPool.INITIAL_CHANNEL_QUEUE_SIZE);
       channels.add(channel);
-      clientChannels.put(ipAndPort, new AbstractMap.SimpleEntry<>(subjectAlternativeNames, channels));
+      clientChannels.put(
+          ipAndPort, new AbstractMap.SimpleEntry<>(subjectAlternativeNames, channels));
     } else {
       channels = entry.getValue();
       entry.getValue().offer(channel);
@@ -60,7 +63,11 @@ class CoalescingChannelPool {
     clientCleanUpMap(clientId).put(channel, channels);
   }
 
-  Channel getCoalescedChannel(long clientId, String domain, List<InetSocketAddress> addresses) {
+  Channel getCoalescedChannel(
+      long clientId,
+      String domain,
+      List<InetSocketAddress> addresses,
+      Function<Channel, Boolean> onCandidate) {
     for (InetSocketAddress address : addresses) {
       IpAndPort ipAndPort = new IpAndPort(address.getAddress().getAddress(), address.getPort());
       Map.Entry<Set<String>, Queue<Channel>> entry = clientChannels(clientId).get(ipAndPort);
@@ -68,7 +75,7 @@ class CoalescingChannelPool {
         for (String subjectAlternativeName : entry.getKey()) {
           if (Tls.isCertificateAuthoritative(subjectAlternativeName, domain)) {
             for (Channel channel : entry.getValue()) {
-              if (channel.isActive()) {
+              if (channel.isActive() && onCandidate.apply(channel)) {
                 return channel;
               }
             }

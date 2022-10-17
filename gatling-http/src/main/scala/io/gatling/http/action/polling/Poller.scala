@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,10 @@
 
 package io.gatling.http.action.polling
 
-import java.nio.charset.Charset
 import java.util.concurrent.{ ScheduledFuture, TimeUnit }
 
 import scala.concurrent.duration.FiniteDuration
 
-import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.{ Success, Validation }
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
@@ -31,7 +29,7 @@ import io.gatling.http.engine.response.{ ResponseProcessor, RootSessionProcessor
 import io.gatling.http.engine.tx.{ HttpTx, HttpTxExecutor }
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request.HttpRequestDef
-import io.gatling.http.response.{ HttpResult, ResponseBuilderFactory }
+import io.gatling.http.response.HttpResult
 
 import com.typesafe.scalalogging.StrictLogging
 
@@ -39,34 +37,27 @@ private[polling] class Poller(
     pollerName: String,
     period: FiniteDuration,
     requestDef: HttpRequestDef,
-    responseBuilderFactory: ResponseBuilderFactory,
     httpTxExecutor: HttpTxExecutor,
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
-    statsEngine: StatsEngine,
-    clock: Clock,
-    charset: Charset
+    statsEngine: StatsEngine
 ) extends StrictLogging {
-
   private var session: Session = _
   private var timer: ScheduledFuture[_] = _
 
-  def start(session: Session): Unit =
+  def start(session: Session): Unit = {
+    this.session = session
     timer = session.eventLoop.scheduleAtFixedRate(() => poll(), 0, period.toMillis, TimeUnit.MILLISECONDS)
+  }
 
   // FIXME is currently static
   private def buildHttpTx(): Validation[HttpTx] =
     for {
-      requestName <- requestDef.requestName(session).mapError { errorMessage =>
-        logger.error(s"'$pollerName' failed to execute: $errorMessage")
+      httpRequest <- requestDef.build(session).mapFailure { errorMessage =>
+        statsEngine.reportUnbuildableRequest(session.scenario, session.groups, pollerName, errorMessage)
         errorMessage
       }
-
-      httpRequest <- requestDef.build(requestName, session).mapError { errorMessage =>
-        statsEngine.reportUnbuildableRequest(session, pollerName, errorMessage)
-        errorMessage
-      }
-    } yield HttpTx(session, httpRequest, responseBuilderFactory, next = null, resourceTx = None, redirectCount = 0)
+    } yield HttpTx(session, httpRequest, next = null, resourceTx = None, redirectCount = 0)
 
   private def poll(): Unit =
     buildHttpTx() match {
@@ -93,11 +84,10 @@ private[polling] class Poller(
         tx.request.clientRequest,
         tx.request.requestConfig.checks,
         httpCaches,
-        httpProtocol,
-        clock
+        httpProtocol
       ),
       statsProcessor = httpTxExecutor.statsProcessor(tx),
-      charset
+      tx.request.requestConfig.defaultCharset
     ).onComplete(result)
 
   def stop(next: Action, session: Session): Unit = {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package io.gatling.recorder.config
 
 private[recorder] object ConfigKeys {
-
   val ConfigRoot = "recorder"
 
   object core {
@@ -31,11 +30,12 @@ private[recorder] object ConfigKeys {
     val SaveConfig = "recorder.core.saveConfig"
     val Headless = "recorder.core.headless"
     val HarFilePath = "recorder.core.harFilePath"
+    val Format = "recorder.core.format"
   }
   object filters {
-    val FilterStrategy = "recorder.filters.filterStrategy"
-    val WhitelistPatterns = "recorder.filters.whitelist"
-    val BlacklistPatterns = "recorder.filters.blacklist"
+    val Enable = "recorder.filters.enable"
+    val AllowListPatterns = "recorder.filters.allowList"
+    val DenyListPatterns = "recorder.filters.denyList"
   }
   object http {
     val AutomaticReferer = "recorder.http.automaticReferer"
@@ -44,6 +44,7 @@ private[recorder] object ConfigKeys {
     val RemoveCacheHeaders = "recorder.http.removeCacheHeaders"
     val CheckResponseBodies = "recorder.http.checkResponseBodies"
     val UseSimulationAsPrefix = "recorder.http.useSimulationAsPrefix"
+    val UseMethodAndUriAsPostfix = "recorder.http.useMethodAndUriAsPostfix"
   }
   object proxy {
     val Port = "recorder.proxy.port"

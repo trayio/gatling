@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.gatling.core.Predef._
 import io.gatling.jdbc.Predef._
 
 class JdbcCompileTest extends Simulation {
-
   private val testData2 = jdbcFeeder(
     "jdbc:postgresql:gatling",
     "gatling",

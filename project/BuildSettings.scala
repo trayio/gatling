@@ -1,55 +1,48 @@
-import io.gatling.build.MavenPublishKeys._
-import io.gatling.build.license._
-
+import net.moznion.sbt.SbtSpotless.autoImport.{ spotless, spotlessJava, spotlessKotlin }
+import net.moznion.sbt.spotless.config.{ GoogleJavaFormatConfig, JavaConfig, KotlinConfig, SpotlessConfig }
 import sbt.Keys._
 import sbt._
-import de.heikoseeberger.sbtheader.HeaderPlugin.autoImport._
 
 object BuildSettings {
-
   lazy val basicSettings = Seq(
-    headerLicense := ApacheV2License,
-    githubPath := "gatling/gatling",
-    projectDevelopers := developers,
-    parallelExecution in Test := false,
+    Test / parallelExecution := false,
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.html"))
-    // [fl]
+    // not set in private build
+    // [e]
     //
     //
-    //
-    // [fl]
+    // [e]
+  )
+
+  lazy val spotlessSettings = Seq(
+    spotless := SpotlessConfig(
+      applyOnCompile = !sys.env.getOrElse("CI", "false").toBoolean
+    ),
+    spotlessJava := JavaConfig(
+      googleJavaFormat = GoogleJavaFormatConfig()
+    ),
+    spotlessKotlin := KotlinConfig()
   )
 
   lazy val gatlingModuleSettings =
-    basicSettings ++ scaladocSettings ++ utf8Encoding
+    basicSettings ++ scaladocSettings ++ utf8Encoding ++ spotlessSettings
 
   lazy val skipPublishing =
-    skip in publish := true
+    publish / skip := true
 
-  lazy val noArtifactToPublish =
-    publishArtifact in Compile := false
+  lazy val noSrcToPublish =
+    Compile / packageSrc / publishArtifact := false
 
-  // [fl]
-  //
-  //
-  //
-  //
-  //
-  // [fl]
-
-  val developers = Seq(
-    GatlingDeveloper("slandelle@gatling.io", "Stephane Landelle", isGatlingCorp = true),
-    GatlingDeveloper("gcorre@gatling.io", "Guillaume Corré", isGatlingCorp = true),
-    GatlingDeveloper("ccousseran@gatling.io", "Cédric Cousseran", isGatlingCorp = true),
-    GatlingDeveloper("achaouat@gatling.io", "Alexandre Chaouat", isGatlingCorp = true)
-  )
+  lazy val noDocToPublish =
+    Compile / packageDoc / publishArtifact := false
 
   // UTF-8
 
   lazy val utf8Encoding = Seq(
     fork := true,
-    javacOptions in Compile ++= Seq("-encoding", "utf8"),
-    javacOptions in Test ++= Seq("-encoding", "utf8")
+    Compile / javacOptions ++= Seq("-encoding", "utf8"),
+    Test / javacOptions ++= Seq("-encoding", "utf8")
   )
 
   // Documentation settings
@@ -62,13 +55,6 @@ object BuildSettings {
 
   lazy val chartTestsSettings = Seq(
     fork := true,
-    javaOptions in Test := Seq("-DGATLING_HOME=gatling-charts") // Allows FileDataReaderSpec to run
-  )
-
-  lazy val excludeDummyComponentLibrary = Seq(
-    mappings in (Compile, packageBin) := {
-      val compiledClassesMappings = (mappings in (Compile, packageBin)).value
-      compiledClassesMappings.filter { case (_, path) => !path.contains("io/gatling/charts/component/impl") }
-    }
+    Test / javaOptions := Seq("-DGATLING_HOME=gatling-charts") // Allows FileDataReaderSpec to run
   )
 }

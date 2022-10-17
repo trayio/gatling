@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.commons
 
-import scala.util.{ Try, Failure => TFailure, Success => TSuccess }
+import scala.util.{ Failure => TFailure, Success => TSuccess, Try }
 import scala.util.control.NonFatal
 
 import io.gatling.commons.util.Throwables._
@@ -24,12 +24,6 @@ import io.gatling.commons.util.Throwables._
 import com.typesafe.scalalogging.StrictLogging
 
 package object validation extends StrictLogging {
-
-  val TrueSuccess: Validation[Boolean] = true.success
-  val FalseSuccess: Validation[Boolean] = false.success
-  val NoneSuccess: Validation[None.type] = None.success
-  val NullStringSuccess: Validation[String] = "null".success
-
   @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
   def safely[T](errorMapper: String => String = identity)(f: => Validation[T]): Validation[T] =
     try {
@@ -37,7 +31,7 @@ package object validation extends StrictLogging {
     } catch {
       case NonFatal(e) =>
         val message = errorMapper(e.detailedMessage)
-        logger.info(message, e)
+        logger.debug(message, e)
         message.failure
     }
 

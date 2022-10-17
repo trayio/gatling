@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import scala.util.Try
 import io.gatling.commons.util.StringHelper.RichString
 
 private[swing] object ValidationHelper {
-
   @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
   final case class Validator(
       condition: String => Boolean,
@@ -56,16 +55,15 @@ private[swing] object ValidationHelper {
       !s.substring(1, s.length).exists(!Character.isJavaIdentifierPart(_))
 
   /* Default callbacks */
-  def setStandardBorder(c: Component): Unit = { c.border = standardBorder }
-  def setErrorBorder(c: Component): Unit = { c.border = errorBorder }
+  def setStandardBorder(c: Component): Unit = c.border = standardBorder
+  def setErrorBorder(c: Component): Unit = c.border = errorBorder
 
   private val validators = mutable.Map.empty[TextField, Validator]
   private val status = mutable.Map.empty[TextField, Boolean]
   private val ignoredStatus = mutable.Map.empty[TextField, Boolean]
 
-  def registerValidator(textField: TextField, validator: Validator): Unit = {
+  def registerValidator(textField: TextField, validator: Validator): Unit =
     validators += (textField -> validator)
-  }
 
   def updateValidationStatus(field: TextField) = validators.get(field) match {
     case Some(validator) =>

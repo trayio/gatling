@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2022 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@
 
 package io.gatling.http.action.ws.fsm
 
-import io.gatling.commons.stats.OK
+import io.gatling.commons.stats.{ KO, OK }
+import io.gatling.commons.util.Throwables._
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.http.action.ws.{ OnConnectedChainEndAction, WsListener }
@@ -29,47 +30,44 @@ import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.http.HttpResponseStatus.SWITCHING_PROTOCOLS
 import io.netty.handler.codec.http.cookie.Cookie
 
-object WsConnectingState extends SslContextSupport {
+object WsConnectingState extends StrictLogging {
   private val WsConnectSuccessStatusCode = Some(Integer.toString(SWITCHING_PROTOCOLS.code))
 
-  def gotoConnecting(fsm: WsFsm, session: Session, next: Either[Action, SendFrame]): NextWsState =
-    gotoConnecting(fsm, session, next, fsm.httpProtocol.wsPart.maxReconnects.getOrElse(0))
-
-  def gotoConnecting(fsm: WsFsm, session: Session, next: Either[Action, SendFrame], remainingTries: Int): NextWsState = {
-
+  def gotoConnecting(fsm: WsFsm, session: Session, next: Either[Action, SendFrame], remainingReconnects: Int): NextWsState = {
     import fsm._
 
     val listener = new WsListener(fsm, clock)
 
-    // [fl]
+    // [e]
     //
-    // [fl]
-    val userSslContexts = sslContexts(session)
-    httpEngine.executeRequest(
-      connectRequest,
-      session.userId,
-      httpProtocol.enginePart.shareConnections,
-      session.eventLoop,
-      listener,
-      userSslContexts.map(_.sslContext).orNull,
-      userSslContexts.flatMap(_.alpnSslContext).orNull
+    // [e]
+    logger.debug(s"Connecting to ${connectRequest.getUri}")
+    val userSslContexts = SslContextSupport.sslContexts(session)
+    NextWsState(
+      state = new WsConnectingState(fsm, session, next, clock.nowMillis, remainingReconnects),
+      () =>
+        httpEngine.executeRequest(
+          connectRequest,
+          session.userId,
+          httpProtocol.enginePart.shareConnections,
+          session.eventLoop,
+          listener,
+          userSslContexts.map(_.sslContext).orNull,
+          userSslContexts.flatMap(_.alpnSslContext).orNull
+        )
     )
-
-    NextWsState(new WsConnectingState(fsm, session, next, clock.nowMillis, remainingTries))
   }
 }
 
-final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Action, SendFrame], connectStart: Long, remainingTries: Int)
+final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Action, SendFrame], connectStart: Long, remainingReconnects: Int)
     extends WsState(fsm)
-    with SslContextSupport
     with StrictLogging {
-
   import fsm._
 
   override def onWebSocketConnected(webSocket: WebSocket, cookies: List[Cookie], connectEnd: Long): NextWsState = {
     val sessionWithCookies = CookieSupport.storeCookies(session, connectRequest.getUri, cookies, connectEnd)
     val sessionWithGroupTimings =
-      logResponse(sessionWithCookies, connectActionName, connectStart, connectEnd, OK, WsConnectingState.WsConnectSuccessStatusCode, None)
+      logResponse(sessionWithCookies, connectRequest.getName, connectStart, connectEnd, OK, WsConnectingState.WsConnectSuccessStatusCode, None)
 
     connectCheckSequence match {
       case WsFrameCheckSequence(timeout, currentCheck :: remainingChecks) :: remainingCheckSequences =>
@@ -102,9 +100,9 @@ final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Ac
           }
 
         fsm.scheduleTimeout(timeout)
-        //[fl]
+        // [e]
         //
-        //[fl]
+        // [e]
 
         NextWsState(
           WsPerformingCheckState(
@@ -114,6 +112,7 @@ final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Ac
             remainingChecks = remainingChecks,
             checkSequenceStart = connectEnd,
             remainingCheckSequences = remainingCheckSequences,
+            remainingReconnects = remainingReconnects,
             session = newSession,
             next = newNext
           )
@@ -135,7 +134,7 @@ final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Ac
             val newSession = OnConnectedChainEndAction.setOnConnectedChainEndCallback(sessionWithGroupTimings, onConnectedChainEndCallback)
 
             NextWsState(
-              new WsIdleState(fsm, newSession, webSocket),
+              new WsIdleState(fsm, newSession, webSocket, remainingReconnects),
               () => onConnectedAction ! newSession
             )
 
@@ -148,14 +147,29 @@ final case class WsConnectingState(fsm: WsFsm, session: Session, next: Either[Ac
 
                 case Right(sendFrame) =>
                   logger.debug("Reconnected, no checks, sending pending message")
-                  sendFrameNextAction(sessionWithGroupTimings, sendFrame)
+                  () => sendFrameNextAction(sessionWithGroupTimings, sendFrame)
               }
 
             NextWsState(
-              new WsIdleState(fsm, sessionWithGroupTimings, webSocket),
+              new WsIdleState(fsm, sessionWithGroupTimings, webSocket, remainingReconnects),
               afterStateUpdate
             )
         }
     }
+  }
+
+  override def onWebSocketCrashed(t: Throwable, timestamp: Long): NextWsState = {
+    // crash
+    logger.debug(s"WebSocket crashed by the server while in Connecting state", t)
+    val failedSession = session.markAsFailed
+    logResponse(failedSession, connectRequest.getName, connectStart, timestamp, KO, None, Some(t.rootMessage))
+
+    val n = next match {
+      case Left(nextAction) => nextAction
+      case Right(sendFrame) => sendFrame.next
+    }
+    logger.debug("Connect failed, performing next action")
+
+    NextWsState(new WsCrashedState(fsm, Some(t.rootMessage), remainingReconnects), () => n ! failedSession)
   }
 }
