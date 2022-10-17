@@ -18,9 +18,9 @@ package io.gatling.decoupled.models
 
 import java.time.Instant
 
-import io.circe.Decoder
-
 import scala.util.Try
+
+import io.circe.Decoder
 
 sealed trait ExecutionPhase {
   def name: String

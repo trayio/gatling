@@ -16,10 +16,11 @@
 
 package io.gatling.decoupled.protocol
 
-import com.softwaremill.quicklens._
+import scala.concurrent.duration._
+
 import io.gatling.decoupled.ingestion.SqsReader.{ AwsKeys, Secret }
 
-import scala.concurrent.duration._
+import com.softwaremill.quicklens._
 
 object SqsProtocolBuilder {
 

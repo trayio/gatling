@@ -16,21 +16,22 @@
 
 package io.gatling.decoupled.ingestion
 
+import scala.concurrent.{ ExecutionContext, Future }
+
+import io.gatling.decoupled.ingestion.SqsReader.{ AwsKeys, MessageProcessor }
+
 import akka.Done
 import akka.actor.ActorSystem
+import akka.stream.{ ActorAttributes, Supervision }
 import akka.stream.alpakka.sqs.{ MessageAction, SqsSourceSettings }
 import akka.stream.alpakka.sqs.scaladsl.{ SqsAckSink, SqsSource }
 import akka.stream.scaladsl.Flow
-import akka.stream.{ ActorAttributes, Supervision }
 import com.github.matsluni.akkahttpspi.AkkaHttpClient
 import com.typesafe.scalalogging.StrictLogging
-import io.gatling.decoupled.ingestion.SqsReader.{ AwsKeys, MessageProcessor }
 import software.amazon.awssdk.auth.credentials.{ AwsBasicCredentials, StaticCredentialsProvider }
-import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.Message
-
-import scala.concurrent.{ ExecutionContext, Future }
 
 object SqsReader {
   type MessageProcessor = Message => Future[Done]

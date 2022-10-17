@@ -18,16 +18,17 @@ package io.gatling.decoupled.state
 
 import java.time.Instant
 
-import akka.actor.{ Actor, ActorLogging, ActorRef, ActorRefFactory, Props, Timers }
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.models.{ ExecutionPhase, MissingPhase }
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 
-import scala.concurrent.duration.FiniteDuration
+import akka.actor.{ Actor, ActorLogging, ActorRef, ActorRefFactory, Props, Timers }
 
 object PendingRequestsActor {
 
@@ -236,6 +237,7 @@ private[state] class PendingRequestsActor(statsEngine: StatsEngine, clock: Clock
 
   }
 
+  @SuppressWarnings(Array("org.wartremover.warts.ListUnapply"))
   private def logAllPhases(id: ExecutionId, session: Session, allPhases: Seq[ExecutionPhase]) =
     allPhases.sliding(2).foreach {
       case from :: to :: Nil =>

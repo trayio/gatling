@@ -21,7 +21,7 @@ import java.time.Instant
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{ Action, RequestAction }
-import io.gatling.core.session.{ Expression, Session, _ }
+import io.gatling.core.session._
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen

@@ -29,8 +29,8 @@ object ExecutionId {
 }
 
 trait ExecutionIdCirceFormat {
-  import io.circe.{ Decoder, Encoder }
   import ExecutionId._
+  import io.circe.{ Decoder, Encoder }
 
   implicit val ExecutionIdEncoder: Encoder[ExecutionId] = Encoder.encodeString.contramap(identity)
   implicit val ExecutionIdDecoder: Decoder[ExecutionId] = Decoder.decodeString.map(ExecutionId.apply)

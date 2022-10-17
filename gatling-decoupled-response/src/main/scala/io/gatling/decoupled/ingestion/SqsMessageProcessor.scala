@@ -16,16 +16,17 @@
 
 package io.gatling.decoupled.ingestion
 
-import akka.Done
-import io.gatling.decoupled.ingestion.SqsReader.MessageProcessor
-import io.gatling.decoupled.state.PendingRequestsState
-import software.amazon.awssdk.services.sqs.model.Message
-import io.circe.generic.auto._
-import io.circe.parser._
-import io.gatling.decoupled.models.{ ExecutionCompleted, ExecutionIdCirceFormat, ExecutionPhaseCirceFormat }
-
 import scala.concurrent.Future
 import scala.util.control.NoStackTrace
+
+import io.gatling.decoupled.ingestion.SqsReader.MessageProcessor
+import io.gatling.decoupled.models.{ ExecutionCompleted, ExecutionIdCirceFormat, ExecutionPhaseCirceFormat }
+import io.gatling.decoupled.state.PendingRequestsState
+
+import akka.Done
+import io.circe.generic.auto._
+import io.circe.parser._
+import software.amazon.awssdk.services.sqs.model.Message
 
 class SqsMessageProcessor(pendingRequests: PendingRequestsState) extends MessageProcessor {
   import SqsMessageProcessor._

@@ -19,19 +19,19 @@ package io.gatling.decoupled.state
 import java.time.Instant
 import java.util.UUID
 import io.gatling.AkkaSpec
-import io.gatling.commons.stats.{KO, OK}
+import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.util.Clock
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.{ExecutionId, ExecutionPhase, MissingPhase, TriggerPhase}
-import io.gatling.decoupled.state.PendingRequestsActor.{DecoupledResponseReceived, MessageAck, RequestTriggered, WaitResponseTimeout}
+import io.gatling.decoupled.models.{ ExecutionId, ExecutionPhase, MissingPhase, TriggerPhase }
+import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, MessageAck, RequestTriggered, WaitResponseTimeout }
 import io.netty.channel.EventLoop
 import org.scalatest.concurrent.Eventually
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers._
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 import scala.language.postfixOps
 
 class PendingRequestsActorSpec extends AkkaSpec with Eventually {

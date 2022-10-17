@@ -18,7 +18,6 @@ package io.gatling.decoupled.action
 
 import java.util.UUID
 
-import com.softwaremill.quicklens._
 import io.gatling.core.ValidationImplicits
 import io.gatling.core.action.Action
 import io.gatling.core.session.Expression
@@ -27,6 +26,8 @@ import io.gatling.decoupled.models.ExecutionId
 import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.protocol.SqsActionBuilder
 import io.gatling.http.request.builder.HttpRequestBuilder
+
+import com.softwaremill.quicklens._
 
 final case class DecoupledResponseActionBuilder(name: String, httpRequestBuilder: HttpRequestBuilder, attributes: DecoupledResponseActionAttributes)
     extends SqsActionBuilder

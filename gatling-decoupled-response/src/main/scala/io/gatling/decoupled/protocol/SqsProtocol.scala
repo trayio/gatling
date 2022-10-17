@@ -18,17 +18,18 @@ package io.gatling.decoupled.protocol
 
 import java.net.URL
 
-import com.github.benmanes.caffeine.cache.{ Cache, Caffeine }
+import scala.concurrent.duration._
+
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.protocol.{ Protocol, ProtocolComponents, ProtocolKey }
 import io.gatling.core.session.Session
-import io.gatling.decoupled.ingestion.SqsReader.AwsKeys
 import io.gatling.decoupled.ingestion.{ SqsMessageProcessor, SqsReader }
+import io.gatling.decoupled.ingestion.SqsReader.AwsKeys
 import io.gatling.decoupled.state.{ ActorBasedPendingRequestsState, PendingRequestsState }
-import software.amazon.awssdk.regions.Region
 
-import scala.concurrent.duration._
+import com.github.benmanes.caffeine.cache.{ Cache, Caffeine }
+import software.amazon.awssdk.regions.Region
 
 object SqsProtocol {
   val SqsProtocolKey: ProtocolKey[SqsProtocol, SqsComponents] = new ProtocolKey[SqsProtocol, SqsComponents] {

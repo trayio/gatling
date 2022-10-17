@@ -16,22 +16,23 @@
 
 package io.gatling.decoupled.state
 
-import akka.Done
-import akka.pattern.ask
-import akka.actor.ActorRefFactory
-import akka.util.Timeout
-import com.typesafe.scalalogging.StrictLogging
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.commons.util.Clock
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.models.{ NormalExecutionPhase, TriggerPhase }
+import io.gatling.decoupled.models.ExecutionId.ExecutionId
 import io.gatling.decoupled.state.PendingRequestsActor.{ DecoupledResponseReceived, RequestTriggered }
 
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration.FiniteDuration
+import akka.Done
+import akka.actor.ActorRefFactory
+import akka.pattern.ask
+import akka.util.Timeout
+import com.typesafe.scalalogging.StrictLogging
 
 trait PendingRequestsState {
   def registerTrigger(id: ExecutionId, trigger: TriggerPhase, session: Session, next: Action): Future[Done]
