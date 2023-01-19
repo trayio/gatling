@@ -17,30 +17,37 @@
 package io.gatling.datadog
 
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-import io.gatling.core.stats.writer.{ DataWriterData, DataWriterMessage }
+import io.gatling.core.stats.writer.{DataWriterData, DataWriterMessage}
 
-trait DatadogLabels
-final case class ErrorLabels(instant: Instant) extends DatadogLabels
-final case class UserLabels(instant: Instant, scenario: String) extends DatadogLabels
-final case class ResponseLabels(instant: Instant, scenario: String, status: String) extends DatadogLabels
+trait DatadogLabels {
+  def value: BigDecimal
+  def instant: Instant
+}
+final case class ErrorLabels(instant: Instant, value: BigDecimal)
+    extends DatadogLabels
+final case class UserLabels(
+    instant: Instant,
+    scenario: String,
+    value: BigDecimal
+) extends DatadogLabels
+final case class ResponseLabels(
+    instant: Instant,
+    scenario: String,
+    status: String,
+    value: BigDecimal
+) extends DatadogLabels
 
 final case class DatadogData(
     simulation: String,
     run: String,
-    startedUsers: ConcurrentHashMap[UserLabels, BigDecimal],
-    finishedUsers: ConcurrentHashMap[UserLabels, BigDecimal],
-    requestLatency: ConcurrentHashMap[ResponseLabels, BigDecimal],
-    errorCounter: ConcurrentHashMap[ErrorLabels, BigDecimal]
-) extends DataWriterData {
-  def flush(): Unit = {
-    startedUsers.clear()
-    finishedUsers.clear()
-    requestLatency.clear()
-    errorCounter.clear()
-  }
-}
+    startedUsers: ConcurrentHashMap[UUID, UserLabels],
+    finishedUsers: ConcurrentHashMap[UUID, UserLabels],
+    requestLatency: ConcurrentHashMap[UUID, ResponseLabels],
+    errorCounter: ConcurrentHashMap[UUID, ErrorLabels]
+) extends DataWriterData
 
 object DatadogData {
 
@@ -48,9 +55,12 @@ object DatadogData {
     DatadogData(
       simulation = init.runMessage.simulationId,
       run = init.runMessage.runId,
-      startedUsers = new ConcurrentHashMap[UserLabels, BigDecimal](),
-      finishedUsers = new ConcurrentHashMap[UserLabels, BigDecimal](),
-      requestLatency = new ConcurrentHashMap[ResponseLabels, BigDecimal](),
-      errorCounter = new ConcurrentHashMap[ErrorLabels, BigDecimal]()
+      startedUsers = new ConcurrentHashMap[UUID, UserLabels](),
+      finishedUsers = new ConcurrentHashMap[UUID, UserLabels](),
+      requestLatency = new ConcurrentHashMap[UUID, ResponseLabels](),
+      errorCounter = new ConcurrentHashMap[UUID, ErrorLabels]()
     )
+
+  def remove[T <: DatadogLabels](id: UUID, map: ConcurrentHashMap[UUID, T]): Unit =
+    map.remove(id)
 }
