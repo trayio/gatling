@@ -344,7 +344,7 @@ object DatadogRequests {
               Series(
                 metric = metricName,
                 points =
-                  dataPoints.map { case (id: UUID, labels: DatadogLabels) =>
+                  dataPoints.map { case (_, labels: DatadogLabels) =>
                     Point(labels.instant, labels.value)
                   },
                 tags = tags,
