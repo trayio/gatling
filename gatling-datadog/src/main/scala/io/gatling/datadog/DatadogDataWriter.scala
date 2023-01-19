@@ -187,7 +187,7 @@ private[gatling] class DatadogDataWriter(
       UUID.randomUUID(),
       UserLabels(currentInstant, user.scenario, BigDecimal.valueOf(1))
     )
-    if (data.startedUsers.size() > 100) {
+    if (data.startedUsers.size() >= configuration.data.datadog.flushSize) {
       onFlush(data)
     }
   }
@@ -198,7 +198,7 @@ private[gatling] class DatadogDataWriter(
       UUID.randomUUID(),
       UserLabels(currentInstant, user.scenario, BigDecimal.valueOf(1))
     )
-    if (data.finishedUsers.size() > 100) {
+    if (data.finishedUsers.size() >= configuration.data.datadog.flushSize) {
       onFlush(data)
     }
   }
@@ -216,7 +216,7 @@ private[gatling] class DatadogDataWriter(
         )
       )
     )
-    if (data.requestLatency.size() > 100) {
+    if (data.requestLatency.size() >= configuration.data.datadog.flushSize) {
       onFlush(data)
     }
   }
@@ -227,7 +227,7 @@ private[gatling] class DatadogDataWriter(
       UUID.randomUUID(),
       ErrorLabels(currentInstant, BigDecimal.valueOf(1))
     )
-    if (data.errorCounter.size() > 100) {
+    if (data.errorCounter.size() >= configuration.data.datadog.flushSize) {
       onFlush(data)
     }
   }

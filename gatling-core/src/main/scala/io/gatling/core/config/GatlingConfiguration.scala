@@ -266,7 +266,8 @@ object GatlingConfiguration extends StrictLogging {
       datadog = new DatadogDataWriterConfiguration(
         apiKey = config.getString(data.datadog.ApiKey),
         appKey = config.getString(data.datadog.AppKey),
-        site = config.getString(data.datadog.Site)
+        site = config.getString(data.datadog.Site),
+        flushSize = config.getInt(data.datadog.FlushSize)
       ),
       enableAnalytics = config.getBoolean(data.EnableAnalytics),
       launcher = config.getStringOption(data.Launcher),
@@ -441,7 +442,8 @@ final class GraphiteDataWriterConfiguration(
 final class DatadogDataWriterConfiguration(
     val apiKey: String,
     val appKey: String,
-    val site: String
+    val site: String,
+    val flushSize: Int
 )
 
 final class GatlingConfiguration(
