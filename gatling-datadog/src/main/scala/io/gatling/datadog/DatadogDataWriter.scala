@@ -19,34 +19,39 @@ package io.gatling.datadog
 import java.time.Instant
 import java.util.UUID
 
-import scala.concurrent.{ blocking, ExecutionContext, Future }
-import scala.concurrent.duration.DurationInt
-import scala.jdk.CollectionConverters.{ ConcurrentMapHasAsScala, EnumerationHasAsScala }
-import scala.util.{ Failure, Success }
+import scala.concurrent.{ExecutionContext, Future, blocking}
+import scala.jdk.CollectionConverters.{
+  ConcurrentMapHasAsScala,
+  EnumerationHasAsScala
+}
+import scala.util.{Failure, Success}
 
 import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.writer.{ DataWriter, DataWriterMessage }
+import io.gatling.core.stats.writer.{DataWriter, DataWriterMessage}
 import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent
-import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent.{ Error => EventError, Response, UserEnd, UserStart }
+import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent.{
+  Response,
+  UserEnd,
+  UserStart,
+  Error => EventError
+}
 import io.gatling.core.util.NameGen
-import io.gatling.datadog.DatadogRequests.{ sendMetrics, sendRequestLatencyMillis, sendTotalErrors, sendTotalFinishedUsers, sendTotalStartedUsers }
-
-import akka.actor.{ Actor, ActorRef, Props }
+import io.gatling.datadog.DatadogRequests.sendMetrics
+import akka.actor.{Actor, ActorRef, Props}
 import com.typesafe.scalalogging.Logger
 import scaladog.Client
-import scaladog.api.{ DatadogSite, StatusResponse }
-import scaladog.api.metrics.{ MetricType, Point, Series }
+import scaladog.api.{DatadogSite, StatusResponse}
+import scaladog.api.metrics.{MetricType, Point, Series}
 
 private[gatling] class DatadogDataWriter(
-                                          clock: Clock,
-                                          configuration: GatlingConfiguration
-                                        ) extends DataWriter[DatadogData]
-  with NameGen {
+    clock: Clock,
+    configuration: GatlingConfiguration
+) extends DataWriter[DatadogData]
+    with NameGen {
 
-  /**
-   * Datadog recommend instantiating a client for every thread writing to the API
-   */
+  /** Datadog recommend instantiating a client for every thread writing to the API
+    */
   private def buildClient: Client =
     scaladog.Client(
       configuration.data.datadog.apiKey,
@@ -64,7 +69,11 @@ private[gatling] class DatadogDataWriter(
       MetricsSender.props(configuration, dispatcher, logger),
       genName("metricsSender")
     )
-    startTimerAtFixedRate(flushTimerName, DataWriterMessage.Flush, configuration.data.datadog.flushRate)
+    startTimerAtFixedRate(
+      flushTimerName,
+      DataWriterMessage.Flush,
+      configuration.data.datadog.flushRate
+    )
     DatadogData.initialise(metricsSender, init)
   }
 
@@ -134,24 +143,28 @@ private[gatling] class DatadogDataWriter(
 
 private[datadog] object MetricsSender {
   def props(
-             configuration: GatlingConfiguration,
-             dispatcher: ExecutionContext,
-             logger: Logger
-           ): Props = {
+      configuration: GatlingConfiguration,
+      dispatcher: ExecutionContext,
+      logger: Logger
+  ): Props = {
     val apiKey = configuration.data.datadog.apiKey
     val appKey = configuration.data.datadog.appKey
     val site = configuration.data.datadog.site
-    Props(new DatadogApiSender(apiKey, appKey, site, dispatcher, logger))
+    val bufferSize = configuration.data.datadog.flushSize
+    Props(
+      new DatadogApiSender(apiKey, appKey, site, bufferSize, dispatcher, logger)
+    )
   }
 }
 
 private[datadog] class DatadogApiSender(
-                                         apiKey: String,
-                                         appKey: String,
-                                         site: String,
-                                         dispatcher: ExecutionContext,
-                                         logger: Logger
-                                       ) extends Actor {
+    apiKey: String,
+    appKey: String,
+    site: String,
+    bufferSize: Int,
+    dispatcher: ExecutionContext,
+    logger: Logger
+) extends Actor {
   val client = scaladog.Client(
     apiKey,
     appKey,
@@ -162,22 +175,23 @@ private[datadog] class DatadogApiSender(
     logger.info(
       s"Received request to push data to Datadog for run: ${data.runId}"
     )
-    sendMetrics(client, data)(dispatcher, logger)
+    sendMetrics(client, bufferSize, data)(dispatcher, logger)
   }
 }
 
 object DatadogRequests {
   def sendTotalStartedUsers(
-                             client: Client,
-                             runId: String,
-                             simulation: String,
-                             startedUsers: List[(UUID, UserLabels)]
-                           )(implicit
-                             ec: ExecutionContext
-                           ): Seq[Future[StatusResponse]] = {
+      client: Client,
+      batchSize: Int,
+      runId: String,
+      simulation: String,
+      startedUsers: List[(UUID, UserLabels)]
+  )(implicit
+      ec: ExecutionContext
+  ): Seq[Future[StatusResponse]] = {
     val futures = for {
       (scenario, users) <- startedUsers.groupBy(_._2.scenario)
-      batchedUsers <- users.grouped(500).toSeq
+      batchedUsers <- users.grouped(batchSize).toSeq
     } yield {
       send(
         client,
@@ -195,16 +209,17 @@ object DatadogRequests {
   }
 
   def sendTotalFinishedUsers(
-                              client: Client,
-                              runId: String,
-                              simulation: String,
-                              finishedUsers: List[(UUID, UserLabels)]
-                            )(implicit
-                              ec: ExecutionContext
-                            ): Seq[Future[StatusResponse]] = {
+      client: Client,
+      batchSize: Int,
+      runId: String,
+      simulation: String,
+      finishedUsers: List[(UUID, UserLabels)]
+  )(implicit
+      ec: ExecutionContext
+  ): Seq[Future[StatusResponse]] = {
     val futures = for {
       (scenario, users) <- finishedUsers.groupBy(_._2.scenario)
-      batchedUsers <- users.grouped(500).toSeq
+      batchedUsers <- users.grouped(batchSize).toSeq
     } yield {
       send(
         client,
@@ -222,13 +237,14 @@ object DatadogRequests {
   }
 
   def sendTotalErrors(
-                       client: Client,
-                       runId: String,
-                       simulation: String,
-                       errors: List[(UUID, ErrorLabels)]
-                     )(implicit ec: ExecutionContext): Seq[Future[StatusResponse]] = {
+      client: Client,
+      batchSize: Int,
+      runId: String,
+      simulation: String,
+      errors: List[(UUID, ErrorLabels)]
+  )(implicit ec: ExecutionContext): Seq[Future[StatusResponse]] = {
     val futures = for {
-      batchedErrors <- errors.grouped(500).toSeq
+      batchedErrors <- errors.grouped(batchSize).toSeq
     } yield {
       send(
         client,
@@ -245,17 +261,20 @@ object DatadogRequests {
   }
 
   def sendRequestLatencyMillis(
-                                client: Client,
-                                runId: String,
-                                simulation: String,
-                                requestLatency: List[(UUID, ResponseLabels)]
-                              )(implicit
-                                ec: ExecutionContext
-                              ): Seq[Future[StatusResponse]] = {
+      client: Client,
+      batchSize: Int,
+      runId: String,
+      simulation: String,
+      requestLatency: List[(UUID, ResponseLabels)]
+  )(implicit
+      ec: ExecutionContext
+  ): Seq[Future[StatusResponse]] = {
     val futures = for {
       (scenario, requestsByScenario) <- requestLatency.groupBy(_._2.scenario)
-      (status, requestsByScenarioAndStatus) <- requestsByScenario.groupBy(_._2.status)
-      batchedRequests <- requestsByScenarioAndStatus.grouped(500).toSeq
+      (status, requestsByScenarioAndStatus) <- requestsByScenario.groupBy(
+        _._2.status
+      )
+      batchedRequests <- requestsByScenarioAndStatus.grouped(batchSize).toSeq
     } yield {
       send(
         client,
@@ -273,14 +292,15 @@ object DatadogRequests {
     futures.toSeq
   }
 
-  def sendMetrics(client: Client, data: DatadogData)(implicit
-                                                     ec: ExecutionContext,
-                                                     logger: Logger
+  def sendMetrics(client: Client, batchSize: Int, data: DatadogData)(implicit
+      ec: ExecutionContext,
+      logger: Logger
   ): Unit = {
     logger.info(s"sendMetrics executing for run: ${data.runId}")
     val startedUsers = data.startedUsers
     val startedUsersRequests = sendTotalStartedUsers(
       client,
+      batchSize,
       data.runId,
       data.simulation,
       startedUsers.asScala.toList
@@ -289,6 +309,7 @@ object DatadogRequests {
     val finishedUsers = data.finishedUsers
     val finishedUsersRequests = sendTotalFinishedUsers(
       client,
+      batchSize,
       data.runId,
       data.simulation,
       finishedUsers.asScala.toList
@@ -297,6 +318,7 @@ object DatadogRequests {
     val requestLatency = data.requestLatency
     val requestLatencyRequests = sendRequestLatencyMillis(
       client,
+      batchSize,
       data.runId,
       data.simulation,
       requestLatency.asScala.toList
@@ -305,6 +327,7 @@ object DatadogRequests {
     val errorCounter = data.errorCounter
     val errorCounterRequests = sendTotalErrors(
       client,
+      batchSize,
       data.runId,
       data.simulation,
       errorCounter.asScala.toList
@@ -368,12 +391,12 @@ object DatadogRequests {
   }
 
   def send(
-            client: Client,
-            metricName: String,
-            metricType: MetricType,
-            dataPoints: Seq[(UUID, DatadogLabels)],
-            tags: Seq[String]
-          )(implicit ec: ExecutionContext): Future[StatusResponse] =
+      client: Client,
+      metricName: String,
+      metricType: MetricType,
+      dataPoints: Seq[(UUID, DatadogLabels)],
+      tags: Seq[String]
+  )(implicit ec: ExecutionContext): Future[StatusResponse] =
     Future {
       blocking {
         client.metrics
