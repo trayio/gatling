@@ -248,7 +248,7 @@ object DatadogRequests {
     } yield {
       send(
         client,
-        "total_started_users",
+        "gatling.performance_tests.total_started_users",
         MetricType.Count,
         users,
         Seq(
@@ -272,7 +272,7 @@ object DatadogRequests {
     } yield {
       send(
         client,
-        "total_finished_users",
+        "gatling.performance_tests.total_finished_users",
         MetricType.Count,
         users,
         Seq(
@@ -292,7 +292,7 @@ object DatadogRequests {
     Seq(
       send(
         client,
-        "total_errors",
+        "gatling.performance_tests.total_errors",
         MetricType.Count,
         errors,
         Seq(
@@ -316,7 +316,7 @@ object DatadogRequests {
     } yield {
       send(
         client,
-        "request_latency_seconds",
+        "gatling.performance_tests.request_latency_seconds",
         MetricType.Gauge,
         requestsByScenarioAndStatus,
         Seq(
