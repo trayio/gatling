@@ -249,7 +249,7 @@ object DatadogRequests {
       send(
         client,
         "gatling.performance_tests.total_started_users",
-        MetricType.Count,
+        MetricType.Gauge,
         users,
         Seq(
           s"simulation:$simulation",
@@ -273,7 +273,7 @@ object DatadogRequests {
       send(
         client,
         "gatling.performance_tests.total_finished_users",
-        MetricType.Count,
+        MetricType.Gauge,
         users,
         Seq(
           s"simulation:$simulation",
@@ -293,7 +293,7 @@ object DatadogRequests {
       send(
         client,
         "gatling.performance_tests.total_errors",
-        MetricType.Count,
+        MetricType.Gauge,
         errors,
         Seq(
           s"simulation:$simulation"
