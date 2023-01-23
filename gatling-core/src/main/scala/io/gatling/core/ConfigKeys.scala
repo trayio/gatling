@@ -158,8 +158,8 @@ object ConfigKeys {
       val ApiKey = "gatling.data.datadog.apiKey"
       val AppKey = "gatling.data.datadog.appKey"
       val Site = "gatling.data.datadog.site"
-      val FlushSize = "gatling.data.datadog.flushSize"
-      val FlushRate = "gatling.data.datadog.flushRate"
+      val BufferSize = "gatling.data.datadog.bufferSize"
+      val WritePeriod = "gatling.data.datadog.writePeriod"
     }
 
     val EnableAnalytics = "gatling.data.enableAnalytics"
