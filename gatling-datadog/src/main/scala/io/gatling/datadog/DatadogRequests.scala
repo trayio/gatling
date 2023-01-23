@@ -3,6 +3,7 @@ package io.gatling.datadog
 import java.util.UUID
 
 import scala.concurrent.{ExecutionContext, Future, blocking}
+import scala.jdk.CollectionConverters.ConcurrentMapHasAsScala
 import scala.util.{Failure, Success}
 
 import akka.actor.{Actor, Props}
