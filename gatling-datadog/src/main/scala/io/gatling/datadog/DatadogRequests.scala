@@ -252,16 +252,14 @@ object DatadogRequests {
 
 private[datadog] object MetricsSender {
   def props(
-      configuration: GatlingConfiguration,
-      dispatcher: ExecutionContext,
-      logger: Logger
-  ): Props = {
+      configuration: GatlingConfiguration
+  )(implicit ec: ExecutionContext, logger: Logger): Props = {
     val apiKey = configuration.data.datadog.apiKey
     val appKey = configuration.data.datadog.appKey
     val site = configuration.data.datadog.site
     val bufferSize = configuration.data.datadog.bufferSize
     Props(
-      new DatadogApiSender(apiKey, appKey, site, bufferSize, dispatcher, logger)
+      new DatadogApiSender(apiKey, appKey, site, bufferSize)
     )
   }
 }
@@ -270,10 +268,9 @@ private[datadog] class DatadogApiSender(
     apiKey: String,
     appKey: String,
     site: String,
-    bufferSize: Int,
-    dispatcher: ExecutionContext,
-    logger: Logger
-) extends Actor {
+    bufferSize: Int
+)(implicit ec: ExecutionContext,
+  logger: Logger) extends Actor {
   val client = scaladog.Client(
     apiKey,
     appKey,
@@ -284,6 +281,6 @@ private[datadog] class DatadogApiSender(
     logger.info(
       s"Received request to push data to Datadog for run: ${data.runId}"
     )
-    sendMetrics(client, bufferSize, data)(dispatcher, logger)
+    sendMetrics(client, bufferSize, data)
   }
 }

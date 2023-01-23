@@ -40,7 +40,7 @@ private[gatling] class DatadogDataWriter(
       s"Initializing Datadog DataWriter for run: ${init.runMessage.runId}"
     )
     val metricsSender: ActorRef = context.actorOf(
-      MetricsSender.props(configuration, dispatcher, logger),
+      MetricsSender.props(configuration)(dispatcher, logger),
       genName("metricsSender")
     )
     startTimerAtFixedRate(
