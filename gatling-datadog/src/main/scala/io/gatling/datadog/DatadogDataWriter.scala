@@ -97,9 +97,6 @@ private[gatling] class DatadogDataWriter(
   private def currentInstant = Instant.ofEpochMilli(clock.nowMillis)
 
   private def sendMetricsToDatadog(data: DatadogData): Unit = {
-    logger.info(
-      s"Preparing to dispatch to Datadog MetricsSender Actor for run: ${data.runId}"
-    )
     data.metricsSender ! data
   }
 }

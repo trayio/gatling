@@ -131,7 +131,6 @@ object DatadogRequests {
       ec: ExecutionContext,
       logger: Logger
   ): Unit = {
-    logger.info(s"sendMetrics executing for run: ${data.runId}")
     val startedUsers = data.startedUsers
     val startedUsersRequests = sendTotalStartedUsers(
       client,
@@ -171,7 +170,6 @@ object DatadogRequests {
     startedUsersRequests.foreach { startedUsersRequest =>
       startedUsersRequest.onComplete {
         case Success(StatusResponse(status)) =>
-          logger.info(s"Started users request completed with status $status")
           startedUsers
             .keys()
             .asScala
@@ -185,7 +183,6 @@ object DatadogRequests {
     finishedUsersRequests.foreach { finishedUsersRequest =>
       finishedUsersRequest.onComplete {
         case Success(StatusResponse(status)) =>
-          logger.info(s"Finished users request completed with status $status")
           finishedUsers
             .keys()
             .asScala
@@ -199,7 +196,6 @@ object DatadogRequests {
     requestLatencyRequests.foreach { requestLatencyRequest =>
       requestLatencyRequest.onComplete {
         case Success(StatusResponse(status)) =>
-          logger.info(s"Request latency request completed with status $status")
           requestLatency
             .keys()
             .asScala
@@ -213,7 +209,6 @@ object DatadogRequests {
     errorCounterRequests.foreach { errorCounterRequest =>
       errorCounterRequest.onComplete {
         case Success(StatusResponse(status)) =>
-          logger.info(s"Error count request completed with status $status")
           errorCounter
             .keys()
             .asScala
