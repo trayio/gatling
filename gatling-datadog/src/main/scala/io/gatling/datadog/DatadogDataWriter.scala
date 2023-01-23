@@ -15,23 +15,12 @@ import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent.{
 }
 import io.gatling.core.util.NameGen
 import akka.actor.ActorRef
-import scaladog.Client
-import scaladog.api.DatadogSite
 
 private[gatling] class DatadogDataWriter(
     clock: Clock,
     configuration: GatlingConfiguration
 ) extends DataWriter[DatadogData]
     with NameGen {
-
-  /** Datadog recommend instantiating a client for every thread writing to the API
-    */
-  private def buildClient: Client =
-    scaladog.Client(
-      configuration.data.datadog.apiKey,
-      configuration.data.datadog.appKey,
-      DatadogSite.withName(configuration.data.datadog.site)
-    )
 
   private val flushTimerName = "DatadogFlushTimer"
 
