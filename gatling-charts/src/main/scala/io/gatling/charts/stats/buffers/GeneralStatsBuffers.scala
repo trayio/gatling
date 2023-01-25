@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ private[stats] abstract class GeneralStatsBuffers(durationInSec: Long) {
   val requestGeneralStatsBuffers = mutable.Map.empty[BufferKey, GeneralStatsBuffer]
   val groupDurationGeneralStatsBuffers = mutable.Map.empty[BufferKey, GeneralStatsBuffer]
   val groupCumulatedResponseTimeGeneralStatsBuffers = mutable.Map.empty[BufferKey, GeneralStatsBuffer]
-  val requestCounts = mutable.Map.empty[BufferKey, (Int, Int)]
 
   def getRequestGeneralStatsBuffers(request: Option[String], group: Option[Group], status: Option[Status]): GeneralStatsBuffer =
     requestGeneralStatsBuffers.getOrElseUpdate(BufferKey(request, group, status), new GeneralStatsBuffer(durationInSec))
@@ -66,7 +65,7 @@ private[stats] class GeneralStatsBuffer(durationInSec: Long) {
   def update(time: Int): Unit = {
     val newCount = counts.get(time) match {
       case Some(count) => count + 1
-      case None        => 1
+      case _           => 1
     }
     counts.put(time, newCount)
 
@@ -90,7 +89,7 @@ private[stats] class GeneralStatsBuffer(durationInSec: Long) {
 
       val percentile: Double => Int = (rank: Double) => math.round(digest.quantile(rank / 100.0)).toInt
 
-      GeneralStats(min.toInt, max.toInt, valuesCount, math.round(mean).toInt, math.round(stdDev).toInt, percentile, meanRequestsPerSec)
+      GeneralStats(min, max, valuesCount, math.round(mean).toInt, math.round(stdDev).toInt, percentile, meanRequestsPerSec)
     }
   }
 

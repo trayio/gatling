@@ -18,19 +18,21 @@ object Dependencies {
   private val nettyDns                       = netty.withName("netty-resolver-dns")
   private val nettyEpollLinuxX86             = netty.withName("netty-transport-native-epoll")                               classifier "linux-x86_64"
   private val nettyEpollLinuxArm             = netty.withName("netty-transport-native-epoll")                               classifier "linux-aarch_64"
-  private val nettyIoUringLinuxX86           = "io.netty.incubator"                   % "netty-incubator-transport-native-io_uring" % "0.0.15.Final" classifier "linux-x86_64"
+  private val nettyIoUringLinuxX86           = "io.netty.incubator"                   % "netty-incubator-transport-native-io_uring" % "0.0.16.Final" classifier "linux-x86_64"
   private val nettyIoUringLinuxArm           = nettyIoUringLinuxX86                                                                                  classifier "linux-aarch_64"
   private val nettyHttp2                     = netty.withName("netty-codec-http2")
   private val nettyResolverNativeOsXX86      = netty.withName("netty-resolver-dns-native-macos") classifier "osx-x86_64"
   private val nettyResolverNativeOsXArm      = nettyResolverNativeOsXX86                                 classifier "osx-aarch_64"
-  private val nettyTcNative                  = netty.organization                     % "netty-tcnative-classes"            % "2.0.54.Final"
+  private val nettyTcNative                  = (netty.organization                     % "netty-tcnative-classes"            % "2.0.56.Final")
+    .exclude("org.junit.jupiter", "junit-jupiter-api")
+    .exclude("org.junit.jupiter", "junit-jupiter-engine")
   private val nettyTcNativeBoringSsl         = nettyTcNative.withName("netty-tcnative-boringssl-static")
   private val nettyTcNativeBoringSslLinuxX86 = nettyTcNativeBoringSsl  classifier "linux-x86_64"
   private val nettyTcNativeBoringSslLinuxArm = nettyTcNativeBoringSsl  classifier "linux-aarch_64"
   private val nettyTcNativeBoringSslOsXX86   = nettyTcNativeBoringSsl  classifier "osx-x86_64"
   private val nettyTcNativeBoringSslOsXArm   = nettyTcNativeBoringSsl  classifier "osx-aarch_64"
   private val nettyTcNativeBoringSslWindows  = nettyTcNativeBoringSsl  classifier "windows-x86_64"
-  private val brotli4j                       = "com.aayushatharva.brotli4j"           % "brotli4j"                          % "1.8.0"
+  private val brotli4j                       = "com.aayushatharva.brotli4j"           % "brotli4j"                          % "1.9.0"
   private val brotli4jLinuxX86               = brotli4j.withName("native-linux-x86_64")
   private val brotli4jLinuxArm               = brotli4j.withName("native-linux-aarch64")
   private val brotli4cOsXX86                 = brotli4j.withName("native-osx-x86_64")
@@ -47,14 +49,14 @@ object Dependencies {
     .exclude("org.scala-lang.modules", "scala-collection-compat_2.13")
   private val scopt                          = "com.github.scopt"                    %% "scopt"                             % "3.7.1"
   private val scalaLogging                   = "com.typesafe.scala-logging"          %% "scala-logging"                     % "3.9.5"
-  private val jackson                        = "com.fasterxml.jackson.core"           % "jackson-databind"                  % "2.13.4.2"
+  private val jackson                        = "com.fasterxml.jackson.core"           % "jackson-databind"                  % "2.14.1"
   private val sfm                            = ("org.simpleflatmapper"                % "lightning-csv"                     % "8.2.3")
     .exclude("org.simpleflatmapper", "ow2-asm")
   private val lagarto                        = "org.jodd"                             % "jodd-lagarto"                      % "6.0.6"
   private val jmespath                       = "io.burt"                              % "jmespath-jackson"                  % "0.5.1"
   private val boopickle                      = "io.suzaku"                           %% "boopickle"                         % "1.3.3"
   private val redisClient                    = "net.debasishg"                       %% "redisclient"                       % "3.42"
-  private val zinc                           = ("org.scala-sbt"                      %% "zinc"                              % "1.7.2")
+  private val zinc                           = ("org.scala-sbt"                      %% "zinc"                              % "1.8.0")
     .exclude("org.jline", "jline")
     .exclude("org.scala-sbt.jline3", "jline-terminal")
     .exclude("org.jline", "jline-terminal-jna")
@@ -81,29 +83,29 @@ object Dependencies {
   private val bouncyCastle                   = "io.gatling"                           % "gatling-recorder-bc-shaded"        % "1.72"
   private val quicklens                      = "com.softwaremill.quicklens"          %% "quicklens"                         % "1.9.0"
   private val fastUuid                       = "com.eatthepath"                       % "fast-uuid"                         % "0.2.0"
-  private val pebble                         = "io.pebbletemplates"                   % "pebble"                            % "3.1.6"
+  private val pebble                         = "io.pebbletemplates"                   % "pebble"                            % "3.2.0"
   private val jsr305                         = "com.google.code.findbugs"             % "jsr305"                            % "3.0.2"
   private val typetools                      = "net.jodah"                            % "typetools"                         % "0.6.3"
   private val gatlingEnterprisePluginCommons = "io.gatling"                           % "gatling-enterprise-plugin-commons" % "1.4.9"
   private val scaladog                       = "dev.nomadblacky"                      % "scaladog_2.13"                     % "0.5.3"
 
   // Test dependencies
-  private val scalaTest                      = "org.scalatest"                       %% "scalatest"                         % "3.2.14"            % Test
+  private val scalaTest                      = "org.scalatest"                       %% "scalatest"                         % "3.2.15"            % Test
   private val scalaTestScalacheck            = "org.scalatestplus"                   %% "scalacheck-1-15"                   % "3.2.11.0"          % Test
   private val scalaTestMockito               = scalaTestScalacheck.organization      %% "mockito-3-4"                       % "3.2.10.0"          % Test
   private val scalaCheck                     = "org.scalacheck"                      %% "scalacheck"                        % "1.17.0"            % Test
   private val akkaTestKit                    = akka.withName("akka-testkit")                                                              % Test
-  private val mockitoCore                    = "org.mockito"                          % "mockito-core"                      % "4.8.0"             % Test
+  private val mockitoCore                    = "org.mockito"                          % "mockito-core"                      % "4.11.0"             % Test
   private val activemqBroker                 = ("org.apache.activemq"                 % "activemq-broker"                   % "5.16.5"            % Test)
     .exclude("org.apache.geronimo.specs", "geronimo-jms_1.1_spec")
   private val h2                             = "com.h2database"                       % "h2"                                % "2.1.214"           % Test
   private val jmh                            = "org.openjdk.jmh"                      % "jmh-core"                          % "1.27"
 
-  private val junit                          = "org.junit.jupiter"                    % "junit-jupiter-api"                 % "5.9.1"             % Test
+  private val junit                          = "org.junit.jupiter"                    % "junit-jupiter-api"                 % "5.9.2"             % Test
   private val junitEngine                    = junit.withName("junit-jupiter-engine")
   private val jupiterInterface               = "net.aichler"                          % "jupiter-interface"                 % "0.11.1"            % Test
 
-  private val jetty                          = "org.eclipse.jetty"                    % "jetty-server"                      % "9.4.49.v20220914"  % Test
+  private val jetty                          = "org.eclipse.jetty"                    % "jetty-server"                      % "9.4.50.v20221201"  % Test
   private val jettyProxy                     = jetty.organization                     % "jetty-proxy"                       % jetty.revision      % Test
 
   // Docs dependencies

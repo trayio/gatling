@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -128,7 +128,10 @@ public class ChannelPool {
       long clientId, String domain, List<InetSocketAddress> addresses) {
     Channel channel =
         coalescingChannelPool.getCoalescedChannel(
-            clientId, domain, addresses, ChannelPool::canOpenStream);
+            clientId,
+            domain,
+            addresses,
+            chan -> ChannelPool.isNotGoAway(chan) && ChannelPool.canOpenStream(chan));
     if (channel != null) {
       LOGGER.debug("Retrieved channel from coalescing pool for domain {}", domain);
     }

@@ -1,9 +1,9 @@
 ---
 title: "Timings"
-description: "Gatling records the timings of multiple metrics used to analyze your results"
+description: "Description of the different metrics reported in Gatling's HTML reports."
 lead: "Learn about all the recorded metrics: active users, response times and counts"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2040100
 ---
 

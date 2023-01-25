@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ object Simulation {
     require(!_populationBuilders.contains(null), "Populations can't contain null elements. Forward reference issue?")
 
     val rootPopulationBuilders = _populationBuilders
-    require(rootPopulationBuilders.nonEmpty, "No scenario set up")
+    require(rootPopulationBuilders.nonEmpty, "No scenario configured, make sure to call setUp.")
 
     val allPopulationBuilders = PopulationBuilder.flatten(rootPopulationBuilders)
 
@@ -161,6 +161,8 @@ abstract class Simulation {
       _globalPauseType = pauseType
       this
     }
+    def normalPausesWithStdDevDuration(stdDev: FiniteDuration): SetUp = pauses(new NormalWithStdDevDuration(stdDev))
+    def normalPausesWithPercentageDuration(stdDevPercent: Double): SetUp = pauses(new NormalWithPercentageDuration(stdDevPercent))
   }
 
   private[gatling] def params(configuration: GatlingConfiguration): SimulationParams =

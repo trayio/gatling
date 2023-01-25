@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public interface RequestTimeout {
         if (channel.pipeline().get(DefaultHttpClient.APP_HTTP2_HANDLER) != null) {
           // don't close the channel when HTTP/2
           if (streamId != null) {
-            // the stream is active so it's safe to interrupt it
+            // the stream is active, so it's safe to interrupt it
             channel.pipeline().fireUserEventTriggered(new Http2AppHandler.StreamTimeout(streamId));
           }
         } else {

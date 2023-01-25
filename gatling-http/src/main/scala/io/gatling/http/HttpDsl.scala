@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,9 +44,9 @@ trait HttpDsl
 
   val sse: Sse.type = Sse
   val ws: Ws.type = Ws
+  val poll: Polling = Polling.Default
   @deprecated("Use poll instead", "3.7.0")
   val polling: Polling = poll
-  val poll: Polling = Polling.Default
 
   val HttpHeaderNames: HeaderNames.type = HeaderNames
   val HttpHeaderValues: HeaderValues.type = HeaderValues

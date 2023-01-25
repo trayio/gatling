@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import scala.Option;
  */
 public abstract class Simulation {
 
-  private List<PopulationBuilder> _populationBuilders;
+  private List<PopulationBuilder> _populationBuilders = new ArrayList<>();
   private Map<Class<? extends Protocol>, Protocol> _globalProtocols = new HashMap<>();
   private List<Assertion> _assertions = new ArrayList<>();
   private Duration _maxDuration;
@@ -71,7 +71,7 @@ public abstract class Simulation {
    */
   @Nonnull
   public SetUp setUp(@Nonnull List<PopulationBuilder> populationBuilders) {
-    if (_populationBuilders != null) {
+    if (!_populationBuilders.isEmpty()) {
       throw new UnsupportedOperationException("Can only call setUp once");
     }
     _populationBuilders = populationBuilders;
@@ -242,6 +242,30 @@ public abstract class Simulation {
     @Nonnull
     public SetUp uniformPauses(@Nonnull Duration plusOrMinus) {
       return pauses(new PauseType.UniformDuration(plusOrMinus));
+    }
+
+    /**
+     * Apply normal distribution pauses with the standard deviation defined as an absolute value,
+     * see {@link PauseType.NormalWithStdDevDuration}
+     *
+     * @param stdDevDuration the standard deviation of the distribution.
+     * @return the same mutated setup instance
+     */
+    @Nonnull
+    public SetUp normalPausesWithStdDevDuration(Duration stdDevDuration) {
+      return pauses(new PauseType.NormalWithStdDevDuration(stdDevDuration));
+    }
+
+    /**
+     * Apply normal distribution pauses with the standard deviation defined as a percentage of the
+     * value defined in the scenario, see {@link PauseType.NormalWithPercentageDuration}
+     *
+     * @param stdDevPercent the standard deviation of the distribution in percents.
+     * @return the same mutated setup instance
+     */
+    @Nonnull
+    public SetUp normalPausesWithPercentageDuration(double stdDevPercent) {
+      return pauses(new PauseType.NormalWithPercentageDuration(stdDevPercent));
     }
 
     /**

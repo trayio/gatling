@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package io.gatling.javaapi.core;
 import static io.gatling.javaapi.core.internal.Converters.*;
 import static io.gatling.javaapi.core.internal.Expressions.*;
 
-import com.mitchellbosecke.pebble.extension.Extension;
 import io.gatling.commons.stats.assertion.Details;
 import io.gatling.commons.stats.assertion.ForAll$;
 import io.gatling.commons.stats.assertion.Global$;
@@ -35,6 +34,7 @@ import io.gatling.javaapi.core.loop.*;
 import io.gatling.javaapi.core.pause.Paces;
 import io.gatling.javaapi.core.pause.Pauses;
 import io.gatling.javaapi.core.pause.RendezVous;
+import io.pebbletemplates.pebble.extension.Extension;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
@@ -2665,16 +2665,16 @@ public final class CoreDsl {
   /** A shortcut for {@link PauseType#Exponential} */
   public static PauseType exponentialPauses = PauseType.Exponential;
 
-  /** A shortcut for {@link PauseType.NormalWithPercentageDuration(double)} */
-  @Nonnull
-  public static PauseType normalPausesWithPercentageDuration(double stdDev) {
-    return new PauseType.NormalWithPercentageDuration(stdDev);
-  }
-
   /** A shortcut for {@link PauseType.NormalWithStdDevDuration(Duration)} */
   @Nonnull
   public static PauseType normalPausesWithStdDevDuration(@Nonnull Duration stdDev) {
     return new PauseType.NormalWithStdDevDuration(stdDev);
+  }
+
+  /** A shortcut for {@link PauseType.NormalWithPercentageDuration(double)} */
+  @Nonnull
+  public static PauseType normalPausesWithPercentageDuration(double stdDev) {
+    return new PauseType.NormalWithPercentageDuration(stdDev);
   }
 
   /** A shortcut for {@link PauseType.Custom(Function)} */

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ private class FileSystemBackedClassLoader(root: Path, parent: ClassLoader) exten
 
   private def findPath(path: Path): Option[Path] = {
     val fullPath = root.resolve(path)
-    if (Files.exists(fullPath)) Some(fullPath) else None
+    Some(fullPath).filter(Files.exists(_))
   }
 
   override def findResource(name: String): URL =

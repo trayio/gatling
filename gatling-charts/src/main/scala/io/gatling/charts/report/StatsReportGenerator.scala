@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ private[charts] class StatsReportGenerator(reportsGenerationInputs: ReportsGener
 
       val path = requestName match {
         case Some(n) => RequestPath.path(n, group)
-        case None    => group.map(RequestPath.path).getOrElse("")
+        case _       => group.map(RequestPath.path).getOrElse("")
       }
 
       new RequestStatistics(

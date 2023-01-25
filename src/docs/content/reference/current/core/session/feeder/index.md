@@ -1,9 +1,9 @@
 ---
 title: "Feeders"
-description: "Use a feeder to inject dynamic data to your Gatling simulations"
+description: "How to use feeders to inject test data into your virtual users' Session so that they don't all hit the same content and don't wrongfully test your caches."
 lead: "Inject data into your virtual users from an external source, eg a CSV file"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2030504
 ---
 
@@ -46,7 +46,7 @@ Gatling provides some converters to use in-memory datastructures as Feeders.
 
 Gatling provides various file based feeders.
 
-When using the bundle distribution, files must be in the `user-files/resources` directory. This location can be overridden, see [configuration`.
+When using the bundle distribution, files must be in the `user-files/resources` directory. This location can be overridden, see [configuration]({{< ref "../../configuration.md#gatling-conf" >}}).
 
 When using a build tool such as maven, gradle or sbt, files must be placed in `src/main/resources` or `src/test/resources`.
 
@@ -255,7 +255,7 @@ For example:
 
 {{< include-code "transform" java kt scala >}}
 
-## Loading All Records in Memory {#readRecords}
+## Loading All the Records in Memory {#readRecords}
 
 Sometimes, you just might want to reuse or convenient built-in feeders for custom needs and get your hands on the actual records.
 
@@ -265,8 +265,8 @@ Sometimes, you just might want to reuse or convenient built-in feeders for custo
 Beware that each `readRecords` call will read the underlying source, eg parse the CSV file.
 {{< /alert >}}
 
-## Count the Number of Records {#recordsCounts}
+## Count the Number of Records {#recordsCount}
 
 Sometimes, you want to know the size of your feeder without having to use `readRecords` and copy all the data in memory.
 
-{{< include-code "readRecords" java kt scala >}}
+{{< include-code "recordsCount" java kt scala >}}

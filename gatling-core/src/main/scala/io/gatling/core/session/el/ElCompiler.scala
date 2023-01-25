@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.session.el
 
-import java.{ util => ju }
+import java.{ lang => jl, util => ju }
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -236,28 +236,22 @@ final case class CurrentDateTimePart(format: DateTimeFormatter) extends ElPart[S
   def apply(session: Session): Validation[String] = format.format(ZonedDateTime.now()).success
 }
 
-case object RandomSecureUUID extends ElPart[UUID] {
-  def apply(session: Session): Validation[UUID] = UUID.randomUUID().success
+case object RandomSecureUUID extends ElPart[String] {
+  def apply(session: Session): Validation[String] = UUID.randomUUID().toString.success
 }
 
-case object RandomUUID extends ElPart[UUID] {
+case object RandomUUID extends ElPart[String] {
   private val Version4Mask = 2L << 62
   private val VariantMask = 2L << 62
 
   def version4UUID(): UUID = {
     val rnd = ThreadLocalRandom.current()
-    var mostSigBits = rnd.nextLong()
-    var leastSigBits = rnd.nextLong()
-
-    mostSigBits &= ~0xf000L
-    mostSigBits |= Version4Mask
-
-    leastSigBits = (leastSigBits << 2) >>> 2
-    leastSigBits |= VariantMask
+    val mostSigBits = (rnd.nextLong() & ~0xf000L) | Version4Mask
+    val leastSigBits = ((rnd.nextLong() << 2) >>> 2) | VariantMask
     new UUID(mostSigBits, leastSigBits)
   }
 
-  def apply(session: Session): Validation[UUID] = version4UUID().success
+  def apply(session: Session): Validation[String] = version4UUID().toString.success
 }
 
 case object RandomInt extends ElPart[Int] {
@@ -266,9 +260,7 @@ case object RandomInt extends ElPart[Int] {
 
 final case class RandomIntRange(min: Int, max: Int) extends ElPart[Int] {
   require(min < max, s"Range 'max'($max) must be above than 'min'($min)")
-  private val length = max - min + 1
-
-  def apply(session: Session): Validation[Int] = (min + ThreadLocalRandom.current().nextInt(length)).success
+  def apply(session: Session): Validation[Int] = ThreadLocalRandom.current().nextInt(min, max).success
 }
 
 case object RandomLong extends ElPart[Long] {
@@ -277,9 +269,39 @@ case object RandomLong extends ElPart[Long] {
 
 final case class RandomLongRange(min: Long, max: Long) extends ElPart[Long] {
   require(min < max, s"Range 'max'($max) must be above than 'min'($min)")
-  private val length = max - min + 1
+  def apply(session: Session): Validation[Long] = ThreadLocalRandom.current().nextLong(min, max).success
+}
 
-  def apply(session: Session): Validation[Long] = (min + ThreadLocalRandom.current().nextLong(length)).success
+final case class RandomDoubleRange(min: Double, max: Double) extends ElPart[Double] {
+  require(min < max, s"'max'($max) should be greater than 'min'($min)")
+  def apply(session: Session): Validation[Double] =
+    ThreadLocalRandom.current().nextDouble(min, max).success
+}
+
+final case class RandomDoubleRangeDigits(min: Double, max: Double, fractionalDigits: Int) extends ElPart[Double] {
+  require(min < max, s"'max'($max) should be greater than 'min'($min)")
+  require(fractionalDigits >= 0, s"fractionalDigits($fractionalDigits) must be positive")
+
+  private val tens = Math.pow(10.0, fractionalDigits)
+  def apply(session: Session): Validation[Double] =
+    ((ThreadLocalRandom.current().nextDouble(min, max) * tens).round / tens).success
+}
+
+object RandomAlphanumeric {
+  private val AlphanumericChars: Array[Char] = (('a' to 'z') ++ ('A' to 'Z') ++ ('0' to '9')).toArray
+}
+
+final case class RandomAlphanumeric(length: Int) extends ElPart[String] {
+  require(length > 0, s"'length' should be greater than 0")
+
+  def apply(session: Session): Validation[String] = {
+    val sb = new jl.StringBuilder(length)
+    val rng = ThreadLocalRandom.current()
+    cfor(0)(_ < length, _ + 1) { _ =>
+      sb.append(RandomAlphanumeric.AlphanumericChars(rng.nextInt(RandomAlphanumeric.AlphanumericChars.length)))
+    }
+    sb.toString.success
+  }
 }
 
 class ElParserException(string: String, msg: String) extends Exception(s"Failed to parse $string with error '$msg'")
@@ -289,6 +311,7 @@ object ElCompiler extends StrictLogging {
   private val DateFormatRegex = """[^#{}()]+""".r
   private val NumberRegex = """\d+""".r
   private val NumberRegexWithNegative = """-?\d+""".r
+  private val DecimalRegexWithNegative = """-?\d+\.\d+""".r
   private val DynamicPartStart = "#{".toCharArray
 
   private val ElCompilers = new ThreadLocal[ElCompiler] {
@@ -427,8 +450,21 @@ final class ElCompiler private extends RegexParsers {
     RandomLongRange(min.toLong, max.toLong)
   }
 
+  private def randomDoubleRange: Parser[ElPart[Any]] = "randomDouble(" ~> DecimalRegexWithNegative ~ ("," ~> DecimalRegexWithNegative) <~ ")" ^^ {
+    case min ~ max =>
+      RandomDoubleRange(min.toDouble, max.toDouble)
+  }
+
+  private def randomDoubleRangeDigits: Parser[ElPart[Any]] =
+    "randomDouble(" ~> DecimalRegexWithNegative ~ ("," ~> DecimalRegexWithNegative) ~ ("," ~> NumberRegex) <~ ")" ^^ { case min ~ max ~ digit =>
+      RandomDoubleRangeDigits(min.toDouble, max.toDouble, digit.toInt)
+    }
+
+  private def randomAlphanumeric: Parser[ElPart[Any]] =
+    "randomAlphanumeric(" ~> NumberRegex <~ ")" ^^ (length => RandomAlphanumeric(length.toInt))
+
   private def nonSessionObject: Parser[ElPart[Any]] =
-    currentTimeMillis | currentDate | randomUuid | randomSecureUuid | randomInt | randomIntRange | randomLong | randomLongRange
+    currentTimeMillis | currentDate | randomUuid | randomSecureUuid | randomInt | randomIntRange | randomLong | randomLongRange | randomDoubleRange | randomDoubleRangeDigits | randomAlphanumeric
 
   private def indexAccess: Parser[AccessToken] = "(" ~> NameRegex <~ ")" ^^ (posStr => AccessIndex(posStr, s"($posStr)"))
 

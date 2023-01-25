@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,6 @@ object ScalaDoWhileDuring {
       exitASAP: Boolean
   ) {
     def loop(chain: ChainBuilder): T =
-      context.make(_.asLongAsDuring(condition, duration, counterName, exitASAP)(chain.wrapped))
+      context.make(_.doWhileDuring(condition, duration, counterName, exitASAP)(chain.wrapped))
   }
 }

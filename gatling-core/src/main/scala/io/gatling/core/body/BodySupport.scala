@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import java.io.InputStream
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Expression
 
-import com.mitchellbosecke.pebble.extension.Extension
+import io.pebbletemplates.pebble.extension.Extension
 
 trait BodySupport {
   def gzipBody: Body => Body = BodyProcessors.gzip

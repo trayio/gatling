@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import scala.util.Using
 
 import io.gatling.commons.util.Spire._
 
-object HtmlHelper {
+private[charts] object HtmlHelper {
   private val charToHtml: Map[Char, String] =
     Using.resource(Source.fromResource("html-entities.properties")(Codec.UTF8)) { source =>
       source
         .getLines()
         .collect {
-          case line if !line.startsWith("#") && !line.isEmpty =>
+          case line if !line.startsWith("#") && line.nonEmpty =>
             val Array(entityName, code) = line.split("=", 2)
             val entity = s"&$entityName;"
             val char = code.toInt.toChar

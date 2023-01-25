@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,10 @@ sealed abstract class SimulationClass(clazz: Class[_]) extends Product with Seri
 object SimulationClass {
   final case class Scala(clazz: Class[Simulation]) extends SimulationClass(clazz) {
     override def params(configuration: GatlingConfiguration): SimulationParams =
-      clazz.newInstance().params(configuration)
+      clazz.getConstructor().newInstance().params(configuration)
   }
   final case class Java(clazz: Class[JavaSimulation]) extends SimulationClass(clazz) {
     override def params(configuration: GatlingConfiguration): SimulationParams =
-      clazz.newInstance().params(configuration)
+      clazz.getConstructor().newInstance().params(configuration)
   }
 }

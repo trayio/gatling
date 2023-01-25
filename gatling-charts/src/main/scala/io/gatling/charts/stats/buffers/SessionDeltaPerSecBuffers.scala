@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,6 @@ import scala.collection.mutable
 
 import io.gatling.charts.stats.{ IntVsTimePlot, UserRecord }
 import io.gatling.core.stats.message.MessageEvent
-
-private[stats] object SessionDeltas {
-  val Empty: SessionDeltas = SessionDeltas(0, 0)
-}
-
-private[stats] final case class SessionDeltas(starts: Int, ends: Int)
 
 private[stats] class SessionDeltaBuffer(minTimestamp: Long, maxTimestamp: Long, buckets: Array[Int], runDurationInSeconds: Int) {
   private val startCounts: Array[Int] = Array.fill(runDurationInSeconds)(0)
