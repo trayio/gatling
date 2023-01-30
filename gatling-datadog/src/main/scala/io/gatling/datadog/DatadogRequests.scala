@@ -16,12 +16,15 @@
 
 package io.gatling.datadog
 
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.EnumerationHasAsScala
 
+import io.gatling.core.akka.BaseActor
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.datadog.DatadogRequests.sendMetrics
 
-import akka.actor.{ Actor, Props }
+import akka.actor.{ Actor, Props, Stash }
 import com.typesafe.scalalogging.Logger
 import scaladog.Client
 import scaladog.api.{ DatadogSite, StatusResponse }
@@ -112,7 +115,7 @@ object DatadogRequests {
       )
       batchedRequests <- requestsByScenarioAndStatus.grouped(batchSize).toSeq
     } yield {
-      sendGauge(
+      sendHistogram(
         client,
         "gatling.performance_tests.request_latency_millis",
         batchedRequests,
@@ -178,23 +181,60 @@ object DatadogRequests {
     errorCounterIds.foreach(id => DatadogData.remove(id, data.errorCounter))
   }
 
-  def sendGauge(
+  def sendHistogram(
       client: Client,
       metricName: String,
       dataPoints: Seq[DatadogLabels],
       tags: Seq[String]
-  ): StatusResponse =
-    client.metrics
-      .postMetrics(
-        Seq(
-          Series(
-            metric = metricName,
-            points = dataPoints.map(labels => Point(labels.instant, labels.value)),
-            tags = tags,
-            metricType = MetricType.Gauge
-          )
-        )
-      )
+  ): StatusResponse = {
+
+    val values = dataPoints.map(_.value.doubleValue)
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.avg",
+      metricType = MetricType.Gauge,
+      value = values.sum / dataPoints.length,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.median",
+      metricType = MetricType.Gauge,
+      value = median(values),
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.max",
+      metricType = MetricType.Gauge,
+      value = values.max,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.95percentile",
+      metricType = MetricType.Gauge,
+      value = p95(values),
+      tags = tags
+    )
+  }
+
+  private def median(values: Seq[Double]): Double = {
+    val sortedList = values.sorted
+    val mid = values.size / 2
+    if (values.size % 2 == 0) {
+      (sortedList(mid - 1) + sortedList(mid)) / 2
+    } else {
+      sortedList(mid)
+    }
+  }
+
+  private def p95(values: Seq[Double]): Double = {
+    // calculate the 95th percentile
+    val sortedList = values.sorted
+    val index = (sortedList.size * 0.95).toInt - 1
+    sortedList(index)
+  }
 
   def sendCount(
       client: Client,
@@ -212,7 +252,7 @@ object DatadogRequests {
 private[datadog] object MetricsSender {
   def props(
       configuration: GatlingConfiguration
-  )(implicit logger: Logger): Props = {
+  )(implicit ec: ExecutionContext, logger: Logger): Props = {
     val apiKey = configuration.data.datadog.apiKey
     val appKey = configuration.data.datadog.appKey
     val site = configuration.data.datadog.site
@@ -228,18 +268,21 @@ private[datadog] class DatadogApiSender(
     appKey: String,
     site: String,
     bufferSize: Int
-)(implicit logger: Logger)
-    extends Actor {
+)(implicit ec: ExecutionContext, logger: Logger)
+    extends BaseActor
+    with Stash {
   val client = scaladog.Client(
     apiKey,
     appKey,
     DatadogSite.withName(site)
   )
 
-  def receive: Receive = { case data: DatadogData =>
-    logger.info(
-      s"Received request to push data to Datadog for run: ${data.runId}"
-    )
-    sendMetrics(client, bufferSize, data)
+  def receive: Receive = {
+    case data: DatadogData =>
+      logger.info(
+        s"Received request to push data to Datadog for run: ${data.runId}"
+      )
+      sendMetrics(client, bufferSize, data)
+    case _ => logger.info("wtf")
   }
 }

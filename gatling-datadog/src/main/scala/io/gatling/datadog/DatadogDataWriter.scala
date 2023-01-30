@@ -18,6 +18,7 @@ package io.gatling.datadog
 
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
@@ -34,17 +35,10 @@ private[gatling] class DatadogDataWriter(
 ) extends DataWriter[DatadogData]
     with NameGen {
 
-  private val flushTimerName = "DatadogFlushTimer"
-
   override def onInit(init: DataWriterMessage.Init): DatadogData = {
     val metricsSender: ActorRef = context.actorOf(
-      MetricsSender.props(configuration)(logger),
+      MetricsSender.props(configuration)(dispatcher, logger),
       genName("metricsSender")
-    )
-    startTimerAtFixedRate(
-      flushTimerName,
-      DataWriterMessage.Flush,
-      configuration.data.datadog.writePeriod
     )
     DatadogData.initialise(metricsSender, init)
   }
@@ -52,14 +46,13 @@ private[gatling] class DatadogDataWriter(
   override def onFlush(data: DatadogData): Unit =
     sendMetricsToDatadog(data)
 
-  override def onCrash(cause: String, data: DatadogData): Unit =
-    logger.error(cause)
-
-  override def onStop(data: DatadogData): Unit = {
+  override def onCrash(cause: String, data: DatadogData): Unit = {
     onFlush(data)
-    cancelTimer(flushTimerName)
+    logger.error(cause)
   }
 
+  override def onStop(data: DatadogData): Unit =
+    onFlush(data)
   override def onMessage(message: LoadEvent, data: DatadogData): Unit =
     message match {
       case userStart: UserStart => onUserStartMessage(userStart, data)
@@ -102,6 +95,8 @@ private[gatling] class DatadogDataWriter(
 
   private def currentInstant = Instant.ofEpochMilli(clock.nowMillis)
 
-  private def sendMetricsToDatadog(data: DatadogData): Unit =
+  private def sendMetricsToDatadog(data: DatadogData): Unit = {
+    logger.info(s"Preparing to flush results to Datadog for run: ${data.runId}")
     data.metricsSender ! data
+  }
 }
