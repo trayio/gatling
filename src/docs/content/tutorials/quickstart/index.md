@@ -1,9 +1,9 @@
 ---
 title: "Quickstart"
-description: "Learn the basics about Gatling"
+description: "Learn the basics about Gatling: installing, using the recorder to generate a basic raw test and how to execute it."
 lead: "Learn Gatling concepts, and use the recorder to create a runnable Gatling simulation"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 1020000
 ---
 
@@ -73,13 +73,13 @@ This tool is launched with a script located in the *bin* directory:
 
 * On Linux/Unix:
 
-```console
+```bash
 $GATLING_HOME/bin/recorder.sh
 ```
 
 * On Windows:
 
-```console
+```batch
 %GATLING_HOME%\bin\recorder.bat
 ```
 
@@ -165,13 +165,13 @@ Launch the second script located in the *bin* directory:
 
 * On Linux/Unix:
 
-```console
+```bash
 $GATLING_HOME/bin/gatling.sh
 ```
 
 * On Windows:
 
-```console
+```batch
 %GATLING_HOME%\bin\gatling.bat
 ```
 
@@ -192,12 +192,12 @@ You should then see a menu with the simulation examples:
 
 ```
 Choose a simulation number:
-     [0] computerdatabase.BasicSimulation
-     [1] computerdatabase.advanced.AdvancedSimulationStep01
-     [2] computerdatabase.advanced.AdvancedSimulationStep02
-     [3] computerdatabase.advanced.AdvancedSimulationStep03
-     [4] computerdatabase.advanced.AdvancedSimulationStep04
-     [5] computerdatabase.advanced.AdvancedSimulationStep05
+[0] computerdatabase.BasicSimulation
+[1] computerdatabase.advanced.AdvancedSimulationStep01
+[2] computerdatabase.advanced.AdvancedSimulationStep02
+[3] computerdatabase.advanced.AdvancedSimulationStep03
+[4] computerdatabase.advanced.AdvancedSimulationStep04
+[5] computerdatabase.advanced.AdvancedSimulationStep05
 ```
 
 Press 0 then enter. Press enter next when gatling asks for a run description.

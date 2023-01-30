@@ -1,9 +1,9 @@
 ---
 title: "Simulation"
-description: "Learn about the structure of the Gatling simulation"
+description: "Learn about the structure of the Gatling simulation, including required imports, protocol configuration and setUp."
 lead: "Learn about the main parts of a Gatling simulation: DSL imports, scenario definitions, simulation definitions, hooks"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2030200
 ---
 
@@ -11,7 +11,7 @@ weight: 2030200
 
 {{< alert warning >}}
 We recommend that your Simulation's name does not start with `Test`.
-Some tools such as maven surefire aggressively consider that all classes with such naming patterns are for them to handle and they will try to launch them.
+Some tools such as maven surefire aggressively consider that all classes with such naming patterns are for them to handle, and they will try to launch them.
 {{< /alert >}}
 
 ## DSL imports

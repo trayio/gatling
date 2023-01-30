@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.scenario.SimulationParams
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.{ ActorRef, ActorSelection, ActorSystem, Props }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 
 private[gatling] object Controller {
   val ControllerActorName = "gatling-controller"
@@ -36,8 +36,16 @@ private[gatling] object Controller {
   ): Props =
     Props(new Controller(statsEngine, injector, throttler, simulationParams))
 
-  def controllerSelection(system: ActorSystem): ActorSelection =
-    system.actorSelection("/user/" + ControllerActorName)
+  // [e]
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  // [e]
 }
 
 private class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler: Option[Throttler], simulationParams: SimulationParams) extends ControllerFSM {
@@ -108,7 +116,7 @@ private class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler
       stop(data)
 
     case Event(StopInjector, data: EndData) =>
-      logger.error("Injector was forcefully stopped")
+      logger.info("Injector was forcefully stopped")
       stop(data)
 
     // [e]

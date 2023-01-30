@@ -1,9 +1,9 @@
 ---
 title: "TeamCity plugin"
-description: "TeamCity plugin for Gatling Enterprise"
+description: "How to use the TeamCity plugin for Gatling Enterprise to set up your load tests in your Continuous Integration pipelines."
 lead: "TeamCity CI plugin for Gatling Enterprise"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2080600
 ---
 

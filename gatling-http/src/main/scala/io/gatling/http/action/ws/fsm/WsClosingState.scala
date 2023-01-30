@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,13 @@ final class WsClosingState(fsm: WsFsm, actionName: String, session: Session, nex
   }
 
   override def onTextFrameReceived(message: String, timestamp: Long): NextWsState = {
+    saveStringMessageToBuffer(message, timestamp)
     logUnmatchedServerMessage(session)
     NextWsState(this)
   }
 
   override def onBinaryFrameReceived(message: Array[Byte], timestamp: Long): NextWsState = {
+    saveBinaryMessageToBuffer(message, timestamp)
     logUnmatchedServerMessage(session)
     NextWsState(this)
   }

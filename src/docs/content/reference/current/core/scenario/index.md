@@ -1,9 +1,8 @@
 ---
 title: "Scenario"
-description: "Learn about the DSL specific to scenarios"
-lead: "Learn how to execute requests, pauses, loops and conditions"
+description: "How to define scenarios that your virtual users will execute. Use exec to attach a chain or execute a request or a function. Use loops such as repeat, during and asLongAs. Use conditions like doIf and randomSwitch. Uses pauses."
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2030400
 ---
 
@@ -27,7 +26,7 @@ All the components in this section can be either:
 ### Exec
 
 The `exec` method is used to execute an action.
-Actions are usually requests (HTTP, LDAP, POP, IMAP, etc) that will be sent during the simulation.
+Actions are usually requests (HTTP, WebSocket, JMS, MQTT...) that will be sent during the simulation.
 Any action that will be executed will be called with `exec`.
 
 For example, when using the Gatling HTTP module you would write the following line:
@@ -45,7 +44,7 @@ Those functions are executed in Gatling's shared threads, so you must absolutely
 {{< /alert >}}
 
 {{< alert warning >}}
-Remember that the [Gatling DSL components are merely definitions]({{< ref "../concepts#dsl" >}}). They have absolutely no effect when not chained with other DSL components. **Typically, you can't use them in functions.**
+Remember that the [Gatling DSL components are merely definitions]({{< ref "../concepts#dsl" >}}). They have absolutely no effect when not chained with other DSL components. **In particular, you can't use them in functions.**
 {{< /alert >}}
 
 {{< include-code "session-lambda-bad" java kt scala >}}

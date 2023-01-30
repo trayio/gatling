@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ private[stats] trait ResponsesPerSecBuffers {
 
   def updateResponsesPerSecBuffers(record: RequestRecord): Unit = {
     getResponsesPerSecBuffer(Some(record.name), record.group).update(record.endBucket, record.status)
-
     getResponsesPerSecBuffer(None, None).update(record.endBucket, record.status)
   }
 }

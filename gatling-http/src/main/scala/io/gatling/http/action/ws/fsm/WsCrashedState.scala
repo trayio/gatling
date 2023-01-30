@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ final class WsCrashedState(fsm: WsFsm, errorMessage: Option[String], val remaini
   ): NextWsState = {
     val loggedMessage = errorMessage match {
       case Some(mess) => s"Client issued a $frameType frame but WebSocket was already crashed: $mess"
-      case _          => "Client issued a $frameType frame but WebSocket was already closed"
+      case _          => s"Client issued a $frameType frame but WebSocket was already closed"
     }
 
     logger.debug(loggedMessage)

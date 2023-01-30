@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,6 +106,13 @@ class CoreCompileTest extends Simulation {
     .pause(100.millis, 200.millis, constantPauses)
     .pause("#{min}", "#{max}", constantPauses)
     .pause(session => 100.millis, session => 200.millis, constantPauses)
+    .pause(1, disabledPauses)
+    .pause(1, exponentialPauses)
+    .pause(1, customPauses(session => 1000L))
+    .pause(1, uniformPausesPlusOrMinusPercentage(30))
+    .pause(1, uniformPausesPlusOrMinusDuration(50.millis))
+    .pause(1, normalPausesWithStdDevDuration(50.millis))
+    .pause(1, normalPausesWithPercentageDuration(30))
     // pace
     .pace(1)
     .pace(1, "counter")
@@ -305,7 +312,7 @@ class CoreCompileTest extends Simulation {
     .stopInjector("#{message}")
     .stopInjector(session => "message")
 
-  registerPebbleExtensions(null.asInstanceOf[com.mitchellbosecke.pebble.extension.Extension])
+  registerPebbleExtensions(null.asInstanceOf[io.pebbletemplates.pebble.extension.Extension])
   setUp(
     scn.inject(
       rampUsers(5).during(1),
@@ -374,4 +381,6 @@ class CoreCompileTest extends Simulation {
     .customPauses(session => 1L)
     .uniformPauses(1)
     .uniformPauses(1.second)
+    .normalPausesWithStdDevDuration(50.millis)
+    .normalPausesWithPercentageDuration(30)
 }

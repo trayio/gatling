@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,8 +70,8 @@ private[http] object LocalAddressSupport {
     }
   }
 
-  val localIpV4Address: Session => Option[InetAddress] =
-    _.attributes.get(LocalIpV4AddressAttributeName).map(_.asInstanceOf[InetAddress])
-  val localIpV6Address: Session => Option[InetAddress] =
-    _.attributes.get(LocalIpV6AddressAttributeName).map(_.asInstanceOf[InetAddress])
+  def localIpV4Address(session: Session): Option[InetAddress] =
+    session.attributes.get(LocalIpV4AddressAttributeName).map(_.asInstanceOf[InetAddress])
+  def localIpV6Address(session: Session): Option[InetAddress] =
+    session.attributes.get(LocalIpV6AddressAttributeName).map(_.asInstanceOf[InetAddress])
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import io.gatling.core.util.{ Resource, ResourceCache }
 import io.gatling.core.util.cache.Cache
 
 import com.github.benmanes.caffeine.cache.LoadingCache
-import com.mitchellbosecke.pebble.template.PebbleTemplate
+import io.pebbletemplates.pebble.template.PebbleTemplate
 
 final class PebbleFileBodies(customResourcesDirectory: Option[Path], cacheMaxCapacity: Long) extends ResourceCache {
   private val templatesCache: LoadingCache[Resource, Validation[PebbleTemplate]] =

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -582,7 +582,7 @@ private[swing] class ConfigurationFrame(frontend: RecorderFrontEnd, configuratio
           outgoingProxyUsername.text.trimToOption.foreach(props.proxyUsername)
           outgoingProxyPassword.text.trimToOption.foreach(props.proxyPassword)
 
-        case None =>
+        case _ =>
           props.proxyHost("")
           props.proxyPort(0)
           props.proxySslPort(0)

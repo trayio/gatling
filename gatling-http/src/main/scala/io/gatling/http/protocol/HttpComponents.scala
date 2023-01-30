@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,12 +29,13 @@ final class HttpComponents(
     val httpTxExecutor: HttpTxExecutor
 ) extends ProtocolComponents {
   override lazy val onStart: Session => Session =
-    (SslContextSupport.setSslContexts(httpProtocol, httpEngine)
-      andThen httpCaches.setNameResolver(httpProtocol.dnsPart, httpEngine)
-      andThen LocalAddressSupport.setLocalAddresses(httpProtocol)
-      andThen BaseUrlSupport.setHttpBaseUrl(httpProtocol)
-      andThen BaseUrlSupport.setWsBaseUrl(httpProtocol)
-      andThen Http2PriorKnowledgeSupport.setHttp2PriorKnowledge(httpProtocol))
+    SslContextSupport
+      .setSslContexts(httpProtocol, httpEngine)
+      .andThen(httpCaches.setNameResolver(httpProtocol.dnsPart, httpEngine))
+      .andThen(LocalAddressSupport.setLocalAddresses(httpProtocol))
+      .andThen(BaseUrlSupport.setHttpBaseUrl(httpProtocol))
+      .andThen(BaseUrlSupport.setWsBaseUrl(httpProtocol))
+      .andThen(Http2PriorKnowledgeSupport.setHttp2PriorKnowledge(httpProtocol))
 
   override lazy val onExit: Session => Unit =
     session => {

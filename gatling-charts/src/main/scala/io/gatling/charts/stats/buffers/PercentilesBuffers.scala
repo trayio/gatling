@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ private[stats] class PercentilesBuffers(buckets: Array[Int]) {
   def update(bucketNumber: Int, value: Int): Unit =
     digests(bucketNumber) match {
       case Some(digest) => digest.add(value)
-      case None =>
+      case _ =>
         val digest = new AVLTreeDigest(100.0)
         digest.add(value)
         digests(bucketNumber) = Some(digest)

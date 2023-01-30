@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.gatling.http.Predef._
 import io.netty.handler.codec.http.HttpMethod
 
 class HttpCompileTest extends Simulation {
-  registerPebbleExtensions(null: com.mitchellbosecke.pebble.extension.Extension)
+  registerPebbleExtensions(null: io.pebbletemplates.pebble.extension.Extension)
   registerJmesPathFunctions(null: io.burt.jmespath.function.Function)
 
   private val httpProtocol = http

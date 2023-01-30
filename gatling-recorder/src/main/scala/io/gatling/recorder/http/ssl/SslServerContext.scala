@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.gatling.recorder.config.RecorderConfiguration
 
 import io.netty.buffer.ByteBufAllocator
 import io.netty.handler.ssl.{ SslContext, SslContextBuilder }
-import io.netty.handler.ssl.util.{ InsecureTrustManagerFactory, SelfSignedCertificate }
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 
 private[http] sealed trait SslServerContext {
   protected def context(alias: String): SslContext
@@ -61,10 +61,12 @@ private[recorder] object SslServerContext {
   }
 
   object SelfSignedCertificate extends SslServerContext {
+
     private lazy val context: SslContext = {
-      val ssc = new SelfSignedCertificate
+      val (certificate, privateKey) = SslUtil.generateSelfSignedCertificate()
+
       SslContextBuilder
-        .forServer(ssc.certificate, ssc.privateKey)
+        .forServer(certificate, privateKey)
         .sslProvider(SslUtil.TheSslProvider)
         .trustManager(InsecureTrustManagerFactory.INSTANCE)
         .build

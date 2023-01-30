@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -407,9 +407,9 @@ public final class Session {
   }
 
   /**
-   * Provide the name of the scenario of the virtual user
+   * Provide the list of groups at the current position for the virtual user
    *
-   * @return the virtual user's scenario name
+   * @return the list of groups, from shallowest to deepest
    */
   public List<String> groups() {
     return Sessions.groups(this);

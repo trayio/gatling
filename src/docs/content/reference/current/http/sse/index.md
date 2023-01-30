@@ -1,9 +1,9 @@
 ---
 title: "SSE (Server Sent Event)"
-description: "SSE support is an extension to the HTTP DSL"
+description: "How to use the Server-Sent Events (SSE) support for connecting and performing checks on inbound messages."
 lead: "Learn the possible SSE operations with Gatling: connect, close"
 date: 2021-04-20T18:30:56+02:00
-lastmod: 2021-04-20T18:30:56+02:00
+lastmod: 2022-12-14T21:30:56+02:00
 weight: 2050900
 ---
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ import io.gatling.commons.validation._
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.core.util.{ ClasspathFileResource, ClasspathPackagedResource, FilesystemResource, Resource }
 
-import com.mitchellbosecke.pebble.PebbleEngine
-import com.mitchellbosecke.pebble.extension.Extension
-import com.mitchellbosecke.pebble.extension.writer.PooledSpecializedStringWriter
-import com.mitchellbosecke.pebble.loader.StringLoader
-import com.mitchellbosecke.pebble.template.PebbleTemplate
 import com.typesafe.scalalogging.StrictLogging
+import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.extension.Extension
+import io.pebbletemplates.pebble.extension.writer.PooledSpecializedStringWriter
+import io.pebbletemplates.pebble.loader.StringLoader
+import io.pebbletemplates.pebble.template.PebbleTemplate
 
 private[gatling] object PebbleExtensions {
   private[body] var extensions: Seq[Extension] = Nil

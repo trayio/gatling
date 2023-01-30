@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2022 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -121,6 +121,13 @@ public class CoreJavaCompileTest extends Simulation {
           .pause("#{min}", "#{max}", constantPauses)
           .pause(
               session -> Duration.ofMillis(100), session -> Duration.ofMillis(200), constantPauses)
+          .pause(1, disabledPauses)
+          .pause(1, exponentialPauses)
+          .pause(1, customPauses(session -> 1000L))
+          .pause(1, uniformPausesPlusOrMinusPercentage(30))
+          .pause(1, uniformPausesPlusOrMinusDuration(Duration.ofMillis((50))))
+          .pause(1, normalPausesWithStdDevDuration(Duration.ofMillis(50)))
+          .pause(1, normalPausesWithPercentageDuration(30))
           // pace
           .pace(1)
           .pace(1, "counter")
@@ -369,7 +376,7 @@ public class CoreJavaCompileTest extends Simulation {
           .stopInjector(session -> "message");
 
   {
-    registerPebbleExtensions((com.mitchellbosecke.pebble.extension.Extension) null);
+    registerPebbleExtensions((io.pebbletemplates.pebble.extension.Extension) null);
     setUp(
             scenario.injectOpen(
                 rampUsers(5).during(1),
@@ -438,6 +445,8 @@ public class CoreJavaCompileTest extends Simulation {
         .exponentialPauses()
         .customPauses(session -> 1L)
         .uniformPauses(1)
-        .uniformPauses(Duration.ofSeconds(1));
+        .uniformPauses(Duration.ofSeconds(1))
+        .normalPausesWithStdDevDuration(Duration.ofMillis(50))
+        .normalPausesWithPercentageDuration(30);
   }
 }

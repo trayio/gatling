@@ -18,7 +18,6 @@ package io.gatling.datadog
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
 
 import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
