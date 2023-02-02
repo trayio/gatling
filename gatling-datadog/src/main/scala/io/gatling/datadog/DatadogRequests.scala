@@ -121,9 +121,8 @@ object DatadogRequests {
       logger: Logger
   ): Unit = {
     val startedUsersIds = data.startedUsers.keys().asScala.toSeq
-    val startedUsers =
-      startedUsersIds.map(id => data.startedUsers.get(id)).toList
-    val startedUsersRequests = sendTotalStartedUsers(
+    val startedUsers = startedUsersIds.map(id => data.startedUsers.get(id)).toList
+    sendTotalStartedUsers(
       client,
       data.runId,
       data.simulation,
@@ -132,9 +131,8 @@ object DatadogRequests {
     startedUsersIds.foreach(id => DatadogData.remove(id, data.startedUsers))
 
     val finishedUsersIds = data.finishedUsers.keys().asScala.toSeq
-    val finishedUsers =
-      finishedUsersIds.map(id => data.finishedUsers.get(id)).toList
-    val finishedUsersRequests = sendTotalFinishedUsers(
+    val finishedUsers = finishedUsersIds.map(id => data.finishedUsers.get(id)).toList
+    sendTotalFinishedUsers(
       client,
       data.runId,
       data.simulation,
@@ -143,9 +141,8 @@ object DatadogRequests {
     finishedUsersIds.foreach(id => DatadogData.remove(id, data.finishedUsers))
 
     val requestLatencyIds = data.requestLatency.keys().asScala.toSeq
-    val requestLatency =
-      requestLatencyIds.map(id => data.requestLatency.get(id)).toList
-    val requestLatencyRequests = sendRequestLatencyMillis(
+    val requestLatency = requestLatencyIds.map(id => data.requestLatency.get(id)).toList
+    sendRequestLatencyMillis(
       client,
       data.runId,
       data.simulation,
@@ -154,9 +151,8 @@ object DatadogRequests {
     requestLatencyIds.foreach(id => DatadogData.remove(id, data.requestLatency))
 
     val errorCounterIds = data.errorCounter.keys().asScala.toSeq
-    val errorCounter =
-      errorCounterIds.map(id => data.errorCounter.get(id)).toList
-    val errorCounterRequests = sendTotalErrors(
+    val errorCounter = errorCounterIds.map(id => data.errorCounter.get(id)).toList
+    sendTotalErrors(
       client,
       data.runId,
       data.simulation,
