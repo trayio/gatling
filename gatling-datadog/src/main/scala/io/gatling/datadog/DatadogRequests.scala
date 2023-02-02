@@ -23,10 +23,10 @@ import io.gatling.core.akka.BaseActor
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.datadog.DatadogRequests.sendMetrics
 
-import akka.actor.{Props, Stash}
+import akka.actor.{ Props, Stash }
 import com.typesafe.scalalogging.Logger
 import scaladog.Client
-import scaladog.api.{DatadogSite, StatusResponse}
+import scaladog.api.{ DatadogSite, StatusResponse }
 import scaladog.api.metrics.MetricType
 
 object DatadogRequests {
@@ -117,7 +117,7 @@ object DatadogRequests {
     requests.toSeq
   }
 
-  def sendMetrics(client: Client, batchSize: Int, data: DatadogData)(implicit
+  def sendMetrics(client: Client, data: DatadogData)(implicit
       logger: Logger
   ): Unit = {
     val startedUsersIds = data.startedUsers.keys().asScala.toSeq
