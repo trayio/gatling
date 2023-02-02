@@ -78,7 +78,7 @@ private[gatling] class DatadogDataWriter(
     data.requestLatency.put(
       UUID.randomUUID(),
       ResponseLabels(
-        Instant.ofEpochMilli(response.startTimestamp),
+        currentInstant,
         response.scenario,
         response.status.toString,
         BigDecimal.valueOf(
