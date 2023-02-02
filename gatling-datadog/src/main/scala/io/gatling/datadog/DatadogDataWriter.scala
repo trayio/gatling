@@ -39,6 +39,7 @@ private[gatling] class DatadogDataWriter(
       MetricsSender.props(configuration)(dispatcher, logger),
       genName("metricsSender")
     )
+    startTimerAtFixedRate("DatadogDataWriter", DataWriterMessage.Flush, configuration.data.datadog.writePeriod)
     DatadogData.initialise(metricsSender, init)
   }
 
@@ -50,8 +51,8 @@ private[gatling] class DatadogDataWriter(
     logger.error(cause)
   }
 
-  override def onStop(data: DatadogData): Unit =
-    onFlush(data)
+  override def onStop(data: DatadogData): Unit = ()
+
   override def onMessage(message: LoadEvent, data: DatadogData): Unit =
     message match {
       case userStart: UserStart => onUserStartMessage(userStart, data)
@@ -94,8 +95,6 @@ private[gatling] class DatadogDataWriter(
 
   private def currentInstant = Instant.ofEpochMilli(clock.nowMillis)
 
-  private def sendMetricsToDatadog(data: DatadogData): Unit = {
-    logger.info(s"Preparing to flush results to Datadog for run: ${data.runId}")
+  private def sendMetricsToDatadog(data: DatadogData): Unit =
     data.metricsSender ! data
-  }
 }

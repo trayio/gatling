@@ -24,11 +24,11 @@ import io.gatling.core.akka.BaseActor
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.datadog.DatadogRequests.sendMetrics
 
-import akka.actor.{ Actor, Props, Stash }
+import akka.actor.{Actor, Props, Stash}
 import com.typesafe.scalalogging.Logger
 import scaladog.Client
-import scaladog.api.{ DatadogSite, StatusResponse }
-import scaladog.api.metrics.{ MetricType, Point, Series }
+import scaladog.api.{DatadogSite, StatusResponse}
+import scaladog.api.metrics.{MetricType, Point, Series}
 
 object DatadogRequests {
   def sendTotalStartedUsers(
@@ -197,6 +197,15 @@ object DatadogRequests {
       tags = tags
     )
 
+    // This is slightly confusing as the metric is called "count" but the metric type is "rate".
+    // This is the specification for histogram data given here https://docs.datadoghq.com/metrics/types/?tab=histogram#metric-types
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.count",
+      metricType = MetricType.Rate,
+      value = dataPoints.length,
+      tags = tags
+    )
+
     client.metrics.postSingleMetric(
       metric = s"$metricName.median",
       metricType = MetricType.Gauge,
@@ -277,12 +286,10 @@ private[datadog] class DatadogApiSender(
     DatadogSite.withName(site)
   )
 
-  def receive: Receive = {
-    case data: DatadogData =>
-      logger.info(
-        s"Received request to push data to Datadog for run: ${data.runId}"
-      )
-      sendMetrics(client, bufferSize, data)
-    case _ => logger.info("wtf")
+  def receive: Receive = { case data: DatadogData =>
+    logger.info(
+      s"Received request to push data to Datadog for run: ${data.runId}"
+    )
+    sendMetrics(client, bufferSize, data)
   }
 }
