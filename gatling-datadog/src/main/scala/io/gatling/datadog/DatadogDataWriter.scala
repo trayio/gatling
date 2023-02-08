@@ -21,9 +21,14 @@ import java.util.UUID
 
 import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.writer.{ DataWriter, DataWriterMessage }
+import io.gatling.core.stats.writer.{DataWriter, DataWriterMessage}
 import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent
-import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent.{ Error => EventError, Response, UserEnd, UserStart }
+import io.gatling.core.stats.writer.DataWriterMessage.LoadEvent.{
+  Error => EventError,
+  Response,
+  UserEnd,
+  UserStart
+}
 import io.gatling.core.util.NameGen
 
 import akka.actor.ActorRef
@@ -36,10 +41,14 @@ private[gatling] class DatadogDataWriter(
 
   override def onInit(init: DataWriterMessage.Init): DatadogData = {
     val metricsSender: ActorRef = context.actorOf(
-      MetricsSender.props(configuration)(dispatcher, logger),
+      MetricsSender.props(configuration)(logger),
       genName("metricsSender")
     )
-    startTimerAtFixedRate("DatadogDataWriter", DataWriterMessage.Flush, configuration.data.datadog.writePeriod)
+    startTimerAtFixedRate(
+      "DatadogDataWriter",
+      DataWriterMessage.Flush,
+      configuration.data.datadog.writePeriod
+    )
     DatadogData.initialise(metricsSender, init)
   }
 
