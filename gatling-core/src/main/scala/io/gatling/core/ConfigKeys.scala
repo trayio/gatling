@@ -158,7 +158,6 @@ object ConfigKeys {
       val ApiKey = "gatling.data.datadog.apiKey"
       val AppKey = "gatling.data.datadog.appKey"
       val Site = "gatling.data.datadog.site"
-      val BufferSize = "gatling.data.datadog.bufferSize"
       val WritePeriod = "gatling.data.datadog.writePeriod"
     }
 

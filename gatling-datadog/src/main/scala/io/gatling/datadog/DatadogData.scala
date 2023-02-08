@@ -30,33 +30,33 @@ trait DatadogLabels {
 }
 final case class ErrorLabels(instant: Instant, value: BigDecimal) extends DatadogLabels
 final case class UserLabels(
-                             instant: Instant,
-                             scenario: String,
-                             value: BigDecimal
-                           ) extends DatadogLabels
+    instant: Instant,
+    scenario: String,
+    value: BigDecimal
+) extends DatadogLabels
 final case class ResponseLabels(
-                                 instant: Instant,
-                                 scenario: String,
-                                 status: String,
-                                 value: BigDecimal
-                               ) extends DatadogLabels
+    instant: Instant,
+    scenario: String,
+    status: String,
+    value: BigDecimal
+) extends DatadogLabels
 
 final case class DatadogData(
-                              metricsSender: ActorRef,
-                              runId: String,
-                              simulation: String,
-                              startedUsers: ConcurrentHashMap[UUID, UserLabels],
-                              finishedUsers: ConcurrentHashMap[UUID, UserLabels],
-                              requestLatency: ConcurrentHashMap[UUID, ResponseLabels],
-                              errorCounter: ConcurrentHashMap[UUID, ErrorLabels]
-                            ) extends DataWriterData
+    metricsSender: ActorRef,
+    runId: String,
+    simulation: String,
+    startedUsers: ConcurrentHashMap[UUID, UserLabels],
+    finishedUsers: ConcurrentHashMap[UUID, UserLabels],
+    requestLatency: ConcurrentHashMap[UUID, ResponseLabels],
+    errorCounter: ConcurrentHashMap[UUID, ErrorLabels]
+) extends DataWriterData
 
 object DatadogData {
 
   def initialise(
-                  metricsSender: ActorRef,
-                  init: DataWriterMessage.Init
-                ): DatadogData =
+      metricsSender: ActorRef,
+      init: DataWriterMessage.Init
+  ): DatadogData =
     DatadogData(
       metricsSender = metricsSender,
       runId = init.runMessage.runId,
@@ -68,8 +68,8 @@ object DatadogData {
     )
 
   def remove[T <: DatadogLabels](
-                                  id: UUID,
-                                  map: ConcurrentHashMap[UUID, T]
-                                ): Unit =
+      id: UUID,
+      map: ConcurrentHashMap[UUID, T]
+  ): Unit =
     map.remove(id)
 }

@@ -1,261 +1,267 @@
+/*
+ * Copyright 2011-2023 GatlingCorp (https://gatling.io)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.gatling.datadog
 
-import java.util.UUID
+import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters.EnumerationHasAsScala
 
-import scala.concurrent.{ExecutionContext, Future, blocking}
-import scala.jdk.CollectionConverters.{ConcurrentMapHasAsScala, EnumerationHasAsScala}
-import scala.util.{Failure, Success}
-
-import akka.actor.{Actor, Props}
-import com.typesafe.scalalogging.Logger
+import io.gatling.core.akka.BaseActor
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.datadog.DatadogRequests.sendMetrics
+
+import akka.actor.{Props, Stash}
+import com.typesafe.scalalogging.Logger
 import scaladog.Client
 import scaladog.api.{DatadogSite, StatusResponse}
-import scaladog.api.metrics.{MetricType, Point, Series}
+import scaladog.api.metrics.MetricType
 
 object DatadogRequests {
-  def sendTotalStartedUsers(
+
+  def sendMetrics(client: Client, data: DatadogData): Unit = {
+    val startedUsersIds = data.startedUsers.keys().asScala.toSeq
+    val startedUsers =
+      startedUsersIds.map(id => data.startedUsers.get(id)).toList
+    sendTotalStartedUsers(
+      client,
+      data.runId,
+      data.simulation,
+      startedUsers
+    )
+    startedUsersIds.foreach(id => DatadogData.remove(id, data.startedUsers))
+
+    val finishedUsersIds = data.finishedUsers.keys().asScala.toSeq
+    val finishedUsers =
+      finishedUsersIds.map(id => data.finishedUsers.get(id)).toList
+    sendTotalFinishedUsers(
+      client,
+      data.runId,
+      data.simulation,
+      finishedUsers
+    )
+    finishedUsersIds.foreach(id => DatadogData.remove(id, data.finishedUsers))
+
+    val requestLatencyIds = data.requestLatency.keys().asScala.toSeq
+    val requestLatency =
+      requestLatencyIds.map(id => data.requestLatency.get(id)).toList
+    sendRequestLatencyMillis(
+      client,
+      data.runId,
+      data.simulation,
+      requestLatency
+    )
+    requestLatencyIds.foreach(id => DatadogData.remove(id, data.requestLatency))
+
+    val errorCounterIds = data.errorCounter.keys().asScala.toSeq
+    val errorCounter =
+      errorCounterIds.map(id => data.errorCounter.get(id)).toList
+    sendTotalErrors(
+      client,
+      data.runId,
+      data.simulation,
+      errorCounter
+    )
+    errorCounterIds.foreach(id => DatadogData.remove(id, data.errorCounter))
+  }
+
+  private def sendTotalStartedUsers(
       client: Client,
-      batchSize: Int,
       runId: String,
       simulation: String,
-      startedUsers: List[(UUID, UserLabels)]
-  )(implicit
-      ec: ExecutionContext
-  ): Seq[Future[StatusResponse]] = {
-    val futures = for {
-      (scenario, users) <- startedUsers.groupBy(_._2.scenario)
-      batchedUsers <- users.grouped(batchSize).toSeq
-    } yield {
-      send(
+      startedUsers: List[UserLabels]
+  ): Seq[StatusResponse] = {
+    Seq(
+      sendCount(
         client,
         "gatling.performance_tests.total_started_users",
-        MetricType.Gauge,
-        batchedUsers,
-        Seq(
-          s"run:$runId",
-          s"simulation:$simulation",
-          s"scenario:$scenario"
-        )
-      )
-    }
-    futures.toSeq
-  }
-
-  def sendTotalFinishedUsers(
-      client: Client,
-      batchSize: Int,
-      runId: String,
-      simulation: String,
-      finishedUsers: List[(UUID, UserLabels)]
-  )(implicit
-      ec: ExecutionContext
-  ): Seq[Future[StatusResponse]] = {
-    val futures = for {
-      (scenario, users) <- finishedUsers.groupBy(_._2.scenario)
-      batchedUsers <- users.grouped(batchSize).toSeq
-    } yield {
-      send(
-        client,
-        "gatling.performance_tests.total_finished_users",
-        MetricType.Gauge,
-        batchedUsers,
-        Seq(
-          s"run:$runId",
-          s"simulation:$simulation",
-          s"scenario:$scenario"
-        )
-      )
-    }
-    futures.toSeq
-  }
-
-  def sendTotalErrors(
-      client: Client,
-      batchSize: Int,
-      runId: String,
-      simulation: String,
-      errors: List[(UUID, ErrorLabels)]
-  )(implicit ec: ExecutionContext): Seq[Future[StatusResponse]] = {
-    val futures = for {
-      batchedErrors <- errors.grouped(batchSize).toSeq
-    } yield {
-      send(
-        client,
-        "gatling.performance_tests.total_errors",
-        MetricType.Gauge,
-        batchedErrors,
+        startedUsers.length,
         Seq(
           s"run:$runId",
           s"simulation:$simulation"
         )
       )
-    }
-    futures
+    )
   }
 
-  def sendRequestLatencyMillis(
+  private def sendTotalFinishedUsers(
       client: Client,
-      batchSize: Int,
       runId: String,
       simulation: String,
-      requestLatency: List[(UUID, ResponseLabels)]
-  )(implicit
-      ec: ExecutionContext
-  ): Seq[Future[StatusResponse]] = {
-    val futures = for {
-      (scenario, requestsByScenario) <- requestLatency.groupBy(_._2.scenario)
-      (status, requestsByScenarioAndStatus) <- requestsByScenario.groupBy(
-        _._2.status
+      finishedUsers: List[UserLabels]
+  ): Seq[StatusResponse] = {
+    Seq(
+      sendCount(
+        client,
+        "gatling.performance_tests.total_finished_users",
+        finishedUsers.length,
+        Seq(
+          s"run:$runId",
+          s"simulation:$simulation"
+        )
       )
-      batchedRequests <- requestsByScenarioAndStatus.grouped(batchSize).toSeq
+    )
+  }
+
+  private def sendTotalErrors(
+      client: Client,
+      runId: String,
+      simulation: String,
+      errors: List[ErrorLabels]
+  ): Seq[StatusResponse] =
+    Seq(
+      sendCount(
+        client,
+        "gatling.performance_tests.total_errors",
+        errors.length,
+        Seq(
+          s"run:$runId",
+          s"simulation:$simulation"
+        )
+      )
+    )
+
+  private def sendRequestLatencyMillis(
+      client: Client,
+      runId: String,
+      simulation: String,
+      requestLatency: List[ResponseLabels]
+  ): Seq[StatusResponse] = {
+    val requests = for {
+      (status, requestsByStatus) <- requestLatency.groupBy(
+        _.status
+      )
     } yield {
-      send(
+      sendHistogram(
         client,
         "gatling.performance_tests.request_latency_millis",
-        MetricType.Gauge,
-        batchedRequests,
+        requestsByStatus,
         Seq(
           s"run:$runId",
           s"simulation:$simulation",
-          s"scenario:$scenario",
           s"status$status"
         )
       )
     }
-    futures.toSeq
+    requests.toSeq
   }
 
-  def sendMetrics(client: Client, batchSize: Int, data: DatadogData)(implicit
-      ec: ExecutionContext,
-      logger: Logger
-  ): Unit = {
-    val startedUsers = data.startedUsers
-    val startedUsersRequests = sendTotalStartedUsers(
-      client,
-      batchSize,
-      data.runId,
-      data.simulation,
-      startedUsers.asScala.toList
-    )
-
-    val finishedUsers = data.finishedUsers
-    val finishedUsersRequests = sendTotalFinishedUsers(
-      client,
-      batchSize,
-      data.runId,
-      data.simulation,
-      finishedUsers.asScala.toList
-    )
-
-    val requestLatency = data.requestLatency
-    val requestLatencyRequests = sendRequestLatencyMillis(
-      client,
-      batchSize,
-      data.runId,
-      data.simulation,
-      requestLatency.asScala.toList
-    )
-
-    val errorCounter = data.errorCounter
-    val errorCounterRequests = sendTotalErrors(
-      client,
-      batchSize,
-      data.runId,
-      data.simulation,
-      errorCounter.asScala.toList
-    )
-
-    startedUsersRequests.foreach { startedUsersRequest =>
-      startedUsersRequest.onComplete {
-        case Success(StatusResponse(status)) =>
-          startedUsers
-            .keys()
-            .asScala
-            .toSeq
-            .foreach(id => DatadogData.remove(id, startedUsers))
-        case Failure(e) =>
-          logger.error(s"Started users request failed with error $e")
-      }
-    }
-
-    finishedUsersRequests.foreach { finishedUsersRequest =>
-      finishedUsersRequest.onComplete {
-        case Success(StatusResponse(status)) =>
-          finishedUsers
-            .keys()
-            .asScala
-            .toSeq
-            .foreach(id => DatadogData.remove(id, finishedUsers))
-        case Failure(e) =>
-          logger.error(s"Finished users request failed with error $e")
-      }
-    }
-
-    requestLatencyRequests.foreach { requestLatencyRequest =>
-      requestLatencyRequest.onComplete {
-        case Success(StatusResponse(status)) =>
-          requestLatency
-            .keys()
-            .asScala
-            .toSeq
-            .foreach(id => DatadogData.remove(id, requestLatency))
-        case Failure(e) =>
-          logger.error(s"Request latency request failed with error $e")
-      }
-    }
-
-    errorCounterRequests.foreach { errorCounterRequest =>
-      errorCounterRequest.onComplete {
-        case Success(StatusResponse(status)) =>
-          errorCounter
-            .keys()
-            .asScala
-            .toSeq
-            .foreach(id => DatadogData.remove(id, errorCounter))
-        case Failure(e) =>
-          logger.error(s"Error count request failed with error $e")
-      }
-    }
-  }
-
-  def send(
+  private def sendHistogram(
       client: Client,
       metricName: String,
-      metricType: MetricType,
-      dataPoints: Seq[(UUID, DatadogLabels)],
+      dataPoints: Seq[DatadogLabels],
       tags: Seq[String]
-  )(implicit ec: ExecutionContext): Future[StatusResponse] =
-    Future {
-      blocking {
-        client.metrics
-          .postMetrics(
-            Seq(
-              Series(
-                metric = metricName,
-                points = dataPoints.map { case (_, labels: DatadogLabels) =>
-                  Point(labels.instant, labels.value)
-                },
-                tags = tags,
-                metricType = metricType
-              )
-            )
-          )
-      }
+  ): StatusResponse = {
+
+    // The specification for Datadog histogram data is given here
+    // https://docs.datadoghq.com/metrics/types/?tab=histogram#metric-types
+
+    val values = dataPoints.map(_.value.doubleValue).sorted
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.avg",
+      metricType = MetricType.Gauge,
+      value = values.sum / dataPoints.length,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.count",
+      metricType = MetricType.Rate,
+      value = dataPoints.length,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.median",
+      metricType = MetricType.Gauge,
+      value = median(values),
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.max",
+      metricType = MetricType.Gauge,
+      value = values.max,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.min",
+      metricType = MetricType.Gauge,
+      value = values.max,
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.95percentile",
+      metricType = MetricType.Gauge,
+      value = p95(values),
+      tags = tags
+    )
+
+    client.metrics.postSingleMetric(
+      metric = s"$metricName.99percentile",
+      metricType = MetricType.Gauge,
+      value = p99(values),
+      tags = tags
+    )
+  }
+
+  private def median(orderedValues: Seq[Double]): Double = {
+    val mid = orderedValues.size / 2
+    if (orderedValues.size % 2 == 0) {
+      (orderedValues(mid - 1) + orderedValues(mid)) / 2
+    } else {
+      orderedValues(mid)
     }
+  }
+
+  private def p95(orderedValues: Seq[Double]): Double = {
+    // calculate the 95th percentile
+    val index = (orderedValues.size * 0.95).toInt - 1
+    orderedValues(index)
+  }
+  private def p99(orderedValues: Seq[Double]): Double = {
+    // calculate the 99th percentile
+    val index = (orderedValues.size * 0.99).toInt - 1
+    orderedValues(index)
+  }
+
+  private def sendCount(
+      client: Client,
+      metricName: String,
+      count: BigDecimal,
+      tags: Seq[String]
+  ): StatusResponse =
+    client.metrics.postSingleMetric(
+      metric = metricName,
+      value = count,
+      tags = tags
+    )
 }
 
 private[datadog] object MetricsSender {
   def props(
       configuration: GatlingConfiguration
-  )(implicit ec: ExecutionContext, logger: Logger): Props = {
+  )(implicit logger: Logger): Props = {
     val apiKey = configuration.data.datadog.apiKey
     val appKey = configuration.data.datadog.appKey
     val site = configuration.data.datadog.site
-    val bufferSize = configuration.data.datadog.bufferSize
     Props(
-      new DatadogApiSender(apiKey, appKey, site, bufferSize)
+      new DatadogApiSender(apiKey, appKey, site)
     )
   }
 }
@@ -263,10 +269,10 @@ private[datadog] object MetricsSender {
 private[datadog] class DatadogApiSender(
     apiKey: String,
     appKey: String,
-    site: String,
-    bufferSize: Int
-)(implicit ec: ExecutionContext,
-  logger: Logger) extends Actor {
+    site: String
+)(implicit logger: Logger)
+    extends BaseActor
+    with Stash {
   val client = scaladog.Client(
     apiKey,
     appKey,
@@ -277,6 +283,6 @@ private[datadog] class DatadogApiSender(
     logger.info(
       s"Received request to push data to Datadog for run: ${data.runId}"
     )
-    sendMetrics(client, bufferSize, data)
+    sendMetrics(client, data)
   }
 }
